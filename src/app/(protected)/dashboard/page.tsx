@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect } from "react"
-import { useRouter } from "next/navigation"
 import { useState, useMemo } from "react"
 import { useMachines } from "@/hooks/useMachines"
 import { Input } from "@/components/ui/input"
@@ -9,14 +8,22 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import SeedInventory from "@/components/machines/SeedInventory"
-import MachineCard from "@/components/machines/MachineCard"
-import type { MachineStatus } from "@/types"
-import { statusLabels } from "@/lib/ui"
-import { CATEGORY_LABELS } from "@/lib/categories"
+import type { MachineStatus, Machine } from "@/types"
+import { statusLabels, formatDate } from "@/lib/ui"
+
+interface MachineGroup {
+  key: string
+  name: string
+  model: string
+  machines: Machine[]
+  total: number
+  available: number
+  rented: number
+  maintenance: number
+}
 
 export default function DashboardPage() {
-  const { machines, loading, update } = useMachines()
-  const router = useRouter()
+  const { machines, loading } = useMachines()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<MachineStatus | "all">("all")
 
@@ -42,6 +49,25 @@ export default function DashboardPage() {
       return matchesSearch && matchesStatus
     })
   }, [machines, search, statusFilter])
+
+  const grouped = useMemo(() => {
+    const groups: Record<string, MachineGroup> = {}
+    for (const m of filteredMachines) {
+      const key = `${m.name ?? "sin-nombre"}||${m.model ?? "sin-modelo"}`
+      if (!groups[key]) {
+        groups[key] = {
+          key, name: m.name, model: m.model,
+          machines: [], total: 0, available: 0, rented: 0, maintenance: 0,
+        }
+      }
+      groups[key].machines.push(m)
+      groups[key].total++
+      if (m.status === "available") groups[key].available++
+      else if (m.status === "rented") groups[key].rented++
+      else if (m.status === "maintenance") groups[key].maintenance++
+    }
+    return Object.values(groups).sort((a, b) => a.name.localeCompare(b.name))
+  }, [filteredMachines])
 
   if (loading) return <p className="text-muted-foreground">Cargando...</p>
 
@@ -106,12 +132,44 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {filteredMachines.map((machine) => (
-          <MachineCard key={machine.id} machine={machine} onRepair={(id) => update(id, { status: "available" })} />
+        {grouped.map((group) => (
+          <Card key={group.key}>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-lg">{group.name}</CardTitle>
+              <p className="text-xs text-muted-foreground">Modelo: {group.model}</p>
+            </CardHeader>
+            <CardContent className="space-y-2 text-sm">
+              <div className="flex flex-wrap gap-x-4 gap-y-1">
+                <span>Total: <strong>{group.total}</strong></span>
+                <span className="text-green-600">Disp: <strong>{group.available}</strong></span>
+                <span className="text-blue-600">Alq: <strong>{group.rented}</strong></span>
+                <span className="text-yellow-600">Mant: <strong>{group.maintenance}</strong></span>
+              </div>
+              {group.rented > 0 && group.machines.filter(m => m.status === "rented").map(rm => (
+                <div key={rm.id} className="border-t pt-2 text-xs space-y-0.5 text-muted-foreground">
+                  {rm.rental && (
+                    <>
+                      <p>→ Cliente: {rm.rental.clientName}</p>
+                      {rm.location?.client?.address && <p>→ Dir. cliente: {rm.location.client.address}</p>}
+                      <p>→ Obra: {rm.rental.projectName}</p>
+                      {rm.location?.project?.address && <p>→ Dir. obra: {rm.location.project.address}</p>}
+                      <p>→ Inicio: {formatDate(rm.rental.startDate)}</p>
+                      {!rm.rental.isOpenEnded && rm.rental.expectedEndDate && (
+                        <p>→ Fin estimado: {formatDate(rm.rental.expectedEndDate)}</p>
+                      )}
+                      {rm.rental.isOpenEnded && (
+                        <p className="text-blue-600">→ Plazo abierto</p>
+                      )}
+                    </>
+                  )}
+                </div>
+              ))}
+            </CardContent>
+          </Card>
         ))}
       </div>
 
-      {filteredMachines.length === 0 && <p className="text-center text-muted-foreground">No se encontraron máquinas</p>}
+      {grouped.length === 0 && <p className="text-center text-muted-foreground">No se encontraron máquinas</p>}
     </div>
   )
 }
