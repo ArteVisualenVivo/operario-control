@@ -4,6 +4,8 @@ import {
 import { db } from "@/lib/firebase"
 import { uploadBlueprintToCloudinary } from "@/lib/cloudinary"
 import { createAuditLog } from "./audit"
+import { createSparePart } from "./spareParts"
+import { extractPartsFromPdf } from "./pdfPartsExtractor"
 
 export interface MachineBlueprint {
   id: string
@@ -22,6 +24,16 @@ function toDate(val: unknown): Date {
 }
 
 const COLLECTION = "machine_blueprints"
+
+async function getMachineInfo(machineId: string) {
+  const snap = await getDoc(doc(db, "machines", machineId))
+  if (!snap.exists()) return { machineName: "", machineModel: "" }
+  const data = snap.data()
+  return {
+    machineName: (data.name as string) ?? "",
+    machineModel: (data.model as string) ?? "",
+  }
+}
 
 export async function uploadBlueprint(machineId: string, file: File): Promise<string> {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg"
@@ -48,6 +60,34 @@ export async function uploadBlueprint(machineId: string, file: File): Promise<st
   await createAuditLog("create", "blueprint", docRef.id, null, {
     machineId, fileUrl: secureUrl, publicId, fileName: originalFilename, fileType,
   })
+
+  if (fileType === "pdf") {
+    try {
+      const { machineName, machineModel } = await getMachineInfo(machineId)
+      const parts = await extractPartsFromPdf(secureUrl)
+
+      for (const part of parts) {
+        try {
+          await createSparePart({
+            machineId,
+            machineName,
+            machineModel,
+            partName: part.partName,
+            partCode: part.partCode,
+            category: "otro",
+            unit: "unidad",
+            stockTotal: 1,
+            source: "blueprint",
+            blueprintId: docRef.id,
+          })
+        } catch {
+          /* duplicate or error — skip silently */
+        }
+      }
+    } catch {
+      /* PDF extraction failed — upload still succeeded */
+    }
+  }
 
   return docRef.id
 }
