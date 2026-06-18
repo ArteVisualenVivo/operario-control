@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import type { Machine, RentalInfo, MaintenanceInfo, CreateMachineInput, UpdateMachineInput } from "@/types"
+import type { Machine, MachineRental, CreateMachineInput, UpdateMachineInput } from "@/types"
 import * as machineService from "@/services/machines"
 
 export function useMachines() {
@@ -22,23 +22,13 @@ export function useMachines() {
     await load()
   }, [load])
 
-  const rent = useCallback(async (id: string, rental: RentalInfo) => {
+  const rent = useCallback(async (id: string, rental: MachineRental) => {
     await machineService.rentMachine(id, rental)
     await load()
   }, [load])
 
   const returnMachine = useCallback(async (id: string) => {
     await machineService.returnMachine(id)
-    await load()
-  }, [load])
-
-  const setMaintenance = useCallback(async (id: string, maintenance: MaintenanceInfo) => {
-    await machineService.startMaintenance(id, maintenance)
-    await load()
-  }, [load])
-
-  const completeMaintenance = useCallback(async (id: string) => {
-    await machineService.completeMaintenance(id)
     await load()
   }, [load])
 
@@ -55,7 +45,6 @@ export function useMachines() {
   return {
     machines, loading, create, update,
     rent, returnMachine,
-    setMaintenance, completeMaintenance,
     remove, reload: load,
   }
 }

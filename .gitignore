@@ -45,3 +45,5 @@ service-account.json
 
 # local exports
 /local_exports/
+
+.vercel

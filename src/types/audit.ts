@@ -1,5 +1,5 @@
 export type AuditAction = "create" | "update" | "delete"
-export type AuditEntity = "machine" | "rental" | "repair"
+export type AuditEntity = "machine"
 
 export interface AuditLog {
   id: string

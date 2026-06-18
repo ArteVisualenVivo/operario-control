@@ -1,18 +1,10 @@
-export type RentalStatus = "active" | "closed"
-
-export interface Rental {
+export interface LegacyRental {
   id: string
   machineId: string
   client: string
   startDate: Date
   returnDate: Date | null
-  status: RentalStatus
+  status: "active" | "closed"
   createdAt: Date
   updatedAt: Date
-}
-
-export interface RentalFormData {
-  machineId: string
-  client: string
-  startDate: Date
 }

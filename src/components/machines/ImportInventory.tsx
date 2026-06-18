@@ -6,12 +6,7 @@ import { collection, addDoc, getDocs, query, where, Timestamp } from "firebase/f
 import { db } from "@/lib/firebase"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog"
 import { toast } from "sonner"
 
@@ -30,25 +25,12 @@ interface ImportResult {
 
 function normalizeHeader(h: string): string {
   const map: Record<string, string> = {
-    nombre: "name",
-    name: "name",
-    máquina: "name",
-    maquina: "name",
-    equipo: "name",
-    descripción: "name",
-    descripcion: "name",
-    modelo: "model",
-    model: "model",
-    referencia: "model",
-    categoría: "category",
-    categoria: "category",
-    category: "category",
-    tipo: "category",
-    ubicación: "location",
-    ubicacion: "location",
-    location: "location",
-    ubicacionfisica: "location",
-    lugar: "location",
+    nombre: "name", name: "name", máquina: "name", maquina: "name",
+    equipo: "name", descripción: "name", descripcion: "name",
+    modelo: "model", model: "model", referencia: "model",
+    categoría: "category", categoria: "category", category: "category", tipo: "category",
+    ubicación: "location", ubicacion: "location", location: "location",
+    ubicacionfisica: "location", lugar: "location",
   }
   return map[h.toLowerCase().trim()] ?? h.toLowerCase().trim()
 }
@@ -130,9 +112,8 @@ export default function ImportInventory() {
           model: row.model || "",
           category: row.category || null,
           status: "available",
-          location: row.location || "deposito",
+          locationType: row.location || "deposito",
           rental: null,
-          maintenance: null,
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
         })
@@ -157,10 +138,7 @@ export default function ImportInventory() {
 
   return (
     <>
-      <Button variant="outline" onClick={() => setOpen(true)}>
-        Importar inventario
-      </Button>
-
+      <Button variant="outline" onClick={() => setOpen(true)}>Importar inventario</Button>
       <Dialog open={open} onOpenChange={(next) => { if (!next) handleReset(); else setOpen(true) }}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
@@ -170,16 +148,10 @@ export default function ImportInventory() {
               Solo <strong>nombre</strong> es obligatorio.
             </DialogDescription>
           </DialogHeader>
-
           <div className="space-y-4 py-2">
-            <input
-              ref={inputRef}
-              type="file"
-              accept=".xlsx,.xls"
-              onChange={handleFile}
+            <input ref={inputRef} type="file" accept=".xlsx,.xls" onChange={handleFile}
               className="block w-full text-sm text-muted-foreground file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-input file:bg-muted file:text-sm file:font-medium file:text-foreground hover:file:bg-accent"
             />
-
             {parsed.length > 0 && (
               <div className="rounded-lg border bg-muted/30 p-3 text-sm">
                 <p className="font-medium mb-1">
@@ -187,17 +159,12 @@ export default function ImportInventory() {
                 </p>
                 <div className="max-h-40 overflow-y-auto space-y-1 text-muted-foreground">
                   {parsed.slice(0, 50).map((r, i) => (
-                    <p key={i} className="truncate">
-                      {r.name}{r.model ? ` (${r.model})` : ""}
-                    </p>
+                    <p key={i} className="truncate">{r.name}{r.model ? ` (${r.model})` : ""}</p>
                   ))}
-                  {parsed.length > 50 && (
-                    <p className="text-xs text-muted-foreground">... y {parsed.length - 50} más</p>
-                  )}
+                  {parsed.length > 50 && <p className="text-xs text-muted-foreground">... y {parsed.length - 50} más</p>}
                 </div>
               </div>
             )}
-
             {result && (
               <div className="rounded-lg border bg-green-50 p-3 text-sm">
                 <p className="font-medium text-green-900">Resultado:</p>
@@ -207,7 +174,6 @@ export default function ImportInventory() {
               </div>
             )}
           </div>
-
           <DialogFooter>
             <Button variant="outline" onClick={handleReset}>Cancelar</Button>
             <Button onClick={handleImport} disabled={parsed.length === 0 || importing}>

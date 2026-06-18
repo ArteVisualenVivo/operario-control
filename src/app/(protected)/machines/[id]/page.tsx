@@ -10,29 +10,14 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
-import type { Machine, MachineCategory, MachineLocation, RentalInfo, MaintenanceInfo } from "@/types"
-import { SUBCATEGORIES, CATEGORY_LABELS } from "@/lib/categories"
-
-const statusColors: Record<string, string> = {
-  available: "bg-green-100 text-green-800 hover:bg-green-100",
-  rented: "bg-blue-100 text-blue-800 hover:bg-blue-100",
-  maintenance: "bg-yellow-100 text-yellow-800 hover:bg-yellow-100",
-}
-
-const statusLabels: Record<string, string> = {
-  available: "Disponible",
-  rented: "Alquilada",
-  maintenance: "Mantenimiento",
-}
-
-const locationLabels: Record<string, string> = {
-  taller: "Taller", deposito: "Depósito", obra: "Obra",
-}
+import type { Machine, MachineCategory, MachineLocation, MachineRental, LocationInfo } from "@/types"
+import { CATEGORY_LABELS } from "@/lib/categories"
+import { statusColors, statusLabels, locationLabels, formatDate } from "@/lib/ui"
 
 export default function MachineDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const { update, rent, returnMachine, setMaintenance, completeMaintenance, remove } = useMachines()
+  const { update, rent, returnMachine, remove } = useMachines()
   const [machine, setMachine] = useState<Machine | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -40,19 +25,21 @@ export default function MachineDetailPage() {
 
   const [editName, setEditName] = useState("")
   const [editModel, setEditModel] = useState("")
-  const [editCategory, setEditCategory] = useState<MachineCategory>("maquinaria")
-  const [editSubcategory, setEditSubcategory] = useState("")
-  const [editLocation, setEditLocation] = useState<MachineLocation>("taller")
+  const [editCategory, setEditCategory] = useState<MachineCategory>("machine")
+  const [editLocationType, setEditLocationType] = useState<MachineLocation>("taller")
+  const [editLocClientName, setEditLocClientName] = useState("")
+  const [editLocClientAddress, setEditLocClientAddress] = useState("")
+  const [editLocProjectName, setEditLocProjectName] = useState("")
+  const [editLocProjectAddress, setEditLocProjectAddress] = useState("")
 
   const [showRentalForm, setShowRentalForm] = useState(false)
-  const [rClient, setRClient] = useState("")
-  const [rStart, setRStart] = useState("")
-  const [rReturn, setRReturn] = useState("")
-
-  const [showMaintenanceForm, setShowMaintenanceForm] = useState(false)
-  const [mReason, setMReason] = useState("")
-  const [mStart, setMStart] = useState("")
-  const [mEnd, setMEnd] = useState("")
+  const [rClientName, setRClientName] = useState("")
+  const [rClientAddress, setRClientAddress] = useState("")
+  const [rProjectName, setRProjectName] = useState("")
+  const [rProjectAddress, setRProjectAddress] = useState("")
+  const [rStartDate, setRStartDate] = useState("")
+  const [rExpectedEndDate, setRExpectedEndDate] = useState("")
+  const [rIsOpenEnded, setRIsOpenEnded] = useState(false)
 
   useEffect(() => {
     getMachine(id).then((m) => { setMachine(m); setLoading(false) })
@@ -67,9 +54,12 @@ export default function MachineDetailPage() {
     if (!machine) return
     setEditName(machine.name)
     setEditModel(machine.model)
-    setEditCategory(machine.category ?? "maquinaria")
-    setEditSubcategory(machine.subcategory ?? "")
-    setEditLocation(machine.location)
+    setEditCategory(machine.category ?? "machine")
+    setEditLocationType(machine.locationType)
+    setEditLocClientName(machine.location?.client.name ?? "")
+    setEditLocClientAddress(machine.location?.client.address ?? "")
+    setEditLocProjectName(machine.location?.project.name ?? "")
+    setEditLocProjectAddress(machine.location?.project.address ?? "")
     setEditing(true)
   }
 
@@ -77,12 +67,19 @@ export default function MachineDetailPage() {
     if (!editName.trim()) { toast.error("El nombre no puede estar vacío"); return }
     setSaving(true)
     try {
+      const location: LocationInfo | null =
+        editLocClientName || editLocProjectName
+          ? {
+              client: { name: editLocClientName, address: editLocClientAddress },
+              project: { name: editLocProjectName, address: editLocProjectAddress },
+            }
+          : null
       await update(id, {
         name: editName.trim(),
         model: editModel.trim(),
         category: editCategory,
-        subcategory: editSubcategory || null,
-        location: editLocation,
+        locationType: editLocationType,
+        location,
       })
       await reload()
       setEditing(false)
@@ -93,11 +90,28 @@ export default function MachineDetailPage() {
 
   const handleRent = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!rClient) { toast.error("Cliente obligatorio"); return }
+    if (!rClientName || !rProjectName) { toast.error("Cliente y obra son obligatorios"); return }
     setSaving(true)
     try {
-      const rental: RentalInfo = { client: rClient, startDate: new Date(rStart || Date.now()), returnDate: rReturn ? new Date(rReturn) : null }
-      await rent(id, rental); await reload(); setShowRentalForm(false); setRClient(""); setRStart(""); setRReturn("")
+      const rental: MachineRental = {
+        clientName: rClientName,
+        clientAddress: rClientAddress,
+        projectName: rProjectName,
+        projectAddress: rProjectAddress,
+        startDate: new Date(rStartDate || Date.now()),
+        expectedEndDate: rExpectedEndDate ? new Date(rExpectedEndDate) : null,
+        isOpenEnded: rIsOpenEnded,
+      }
+      await rent(id, rental)
+      await reload()
+      setShowRentalForm(false)
+      setRClientName("")
+      setRClientAddress("")
+      setRProjectName("")
+      setRProjectAddress("")
+      setRStartDate("")
+      setRExpectedEndDate("")
+      setRIsOpenEnded(false)
       toast.success("Máquina alquilada")
     } catch { toast.error("Error al alquilar") } finally { setSaving(false) }
   }
@@ -105,22 +119,6 @@ export default function MachineDetailPage() {
   const handleReturn = async () => {
     try { await returnMachine(id); await reload(); toast.success("Máquina devuelta") }
     catch { toast.error("Error al devolver") }
-  }
-
-  const handleStartMaintenance = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!mReason) { toast.error("Describe el motivo"); return }
-    setSaving(true)
-    try {
-      const maintenance: MaintenanceInfo = { reason: mReason, startDate: new Date(mStart || Date.now()), estimatedEnd: mEnd ? new Date(mEnd) : null }
-      await setMaintenance(id, maintenance); await reload(); setShowMaintenanceForm(false); setMReason(""); setMStart(""); setMEnd("")
-      toast.success("Mantenimiento iniciado")
-    } catch { toast.error("Error") } finally { setSaving(false) }
-  }
-
-  const handleCompleteMaintenance = async () => {
-    try { await completeMaintenance(id); await reload(); toast.success("Mantenimiento completado") }
-    catch { toast.error("Error") }
   }
 
   const handleDelete = async () => {
@@ -131,8 +129,6 @@ export default function MachineDetailPage() {
 
   if (loading) return <p className="text-muted-foreground">Cargando...</p>
   if (!machine) return <p className="text-muted-foreground">Máquina no encontrada</p>
-
-  const subcategoryOptions = SUBCATEGORIES[editCategory] ?? []
 
   return (
     <div className="mx-auto max-w-lg space-y-6">
@@ -158,7 +154,6 @@ export default function MachineDetailPage() {
               {machine.category && !editing && (
                 <span className="mt-1 inline-block text-xs text-muted-foreground">
                   {CATEGORY_LABELS[machine.category] ?? machine.category}
-                  {machine.subcategory && ` > ${machine.subcategory}`}
                 </span>
               )}
             </div>
@@ -171,36 +166,39 @@ export default function MachineDetailPage() {
               <p className="text-sm font-medium">Editando máquina</p>
               <div className="space-y-2">
                 <Label>Categoría</Label>
-                <select value={editCategory} onChange={(e) => { setEditCategory(e.target.value as MachineCategory); setEditSubcategory("") }}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                <select value={editCategory} onChange={(e) => setEditCategory(e.target.value as MachineCategory)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
                 >
-                  <option value="maquinaria">Maquinaria</option>
-                  <option value="andamio">Andamio</option>
-                  <option value="herramienta">Herramienta</option>
+                  <option value="machine">Máquina</option>
+                  <option value="scaffold">Andamio</option>
+                  <option value="tool">Herramienta</option>
                 </select>
               </div>
-              {subcategoryOptions.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Tipo</Label>
-                  <select value={editSubcategory} onChange={(e) => setEditSubcategory(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                  >
-                    <option value="">Seleccionar tipo...</option>
-                    {subcategoryOptions.map((s) => (
-                      <option key={s.label} value={s.label}>{s.label}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
               <div className="space-y-2">
                 <Label>Ubicación</Label>
-                <select value={editLocation} onChange={(e) => setEditLocation(e.target.value as MachineLocation)}
-                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                <select value={editLocationType} onChange={(e) => setEditLocationType(e.target.value as MachineLocation)}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
                 >
                   <option value="taller">Taller</option>
                   <option value="deposito">Depósito</option>
                   <option value="obra">Obra</option>
                 </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Nombre del cliente (ubicación)</Label>
+                <Input value={editLocClientName} onChange={(e) => setEditLocClientName(e.target.value)} placeholder="Opcional" />
+              </div>
+              <div className="space-y-2">
+                <Label>Dirección del cliente</Label>
+                <Input value={editLocClientAddress} onChange={(e) => setEditLocClientAddress(e.target.value)} placeholder="Opcional" />
+              </div>
+              <div className="space-y-2">
+                <Label>Nombre de la obra</Label>
+                <Input value={editLocProjectName} onChange={(e) => setEditLocProjectName(e.target.value)} placeholder="Opcional" />
+              </div>
+              <div className="space-y-2">
+                <Label>Dirección de la obra</Label>
+                <Input value={editLocProjectAddress} onChange={(e) => setEditLocProjectAddress(e.target.value)} placeholder="Opcional" />
               </div>
               <div className="flex gap-2 pt-2">
                 <Button onClick={handleSaveEdit} disabled={saving}>{saving ? "Guardando..." : "Guardar cambios"}</Button>
@@ -210,66 +208,97 @@ export default function MachineDetailPage() {
           )}
 
           {!editing && (
-            <p><span className="text-muted-foreground">Ubicación:</span> {locationLabels[machine.location] ?? machine.location}</p>
+            <div className="space-y-1 text-sm">
+              <p><span className="text-muted-foreground">Ubicación:</span> {locationLabels[machine.locationType] ?? machine.locationType}</p>
+              {machine.location?.client.name && (
+                <p><span className="text-muted-foreground">Cliente:</span> {machine.location.client.name}</p>
+              )}
+              {machine.location?.client.address && (
+                <p><span className="text-muted-foreground">Dir. cliente:</span> {machine.location.client.address}</p>
+              )}
+              {machine.location?.project.name && (
+                <p><span className="text-muted-foreground">Obra:</span> {machine.location.project.name}</p>
+              )}
+              {machine.location?.project.address && (
+                <p><span className="text-muted-foreground">Dir. obra:</span> {machine.location.project.address}</p>
+              )}
+            </div>
           )}
 
           {machine.rental && (
             <div className="rounded-lg border bg-blue-50 p-3 text-sm space-y-1">
               <p className="font-medium text-blue-900">Alquiler activo</p>
-              <p><span className="text-blue-700">Cliente:</span> {machine.rental.client}</p>
-              <p><span className="text-blue-700">Inicio:</span> {new Date(machine.rental.startDate).toLocaleDateString("es-ES")}</p>
-              {machine.rental.returnDate && <p><span className="text-blue-700">Retorno:</span> {new Date(machine.rental.returnDate).toLocaleDateString("es-ES")}</p>}
+              <p><span className="text-blue-700">Cliente:</span> {machine.rental.clientName}</p>
+              {machine.location?.client?.address && (
+                <p><span className="text-blue-700">Dir. cliente:</span> {machine.location.client.address}</p>
+              )}
+              <p><span className="text-blue-700">Obra:</span> {machine.rental.projectName}</p>
+              {machine.location?.project?.address && (
+                <p><span className="text-blue-700">Dir. obra:</span> {machine.location.project.address}</p>
+              )}
+              <p><span className="text-blue-700">Inicio:</span> {formatDate(machine.rental.startDate)}</p>
+              {!machine.rental.isOpenEnded && machine.rental.expectedEndDate && (
+                <p><span className="text-blue-700">Fin estimado:</span> {formatDate(machine.rental.expectedEndDate)}</p>
+              )}
+              {machine.rental.isOpenEnded && (
+                <p><span className="text-xs text-blue-600">Plazo abierto</span></p>
+              )}
               <Button variant="outline" size="sm" className="mt-2" onClick={handleReturn}>Devolver máquina</Button>
             </div>
           )}
 
-          {machine.maintenance && (
-            <div className="rounded-lg border bg-yellow-50 p-3 text-sm space-y-1">
-              <p className="font-medium text-yellow-900">Mantenimiento en curso</p>
-              <p><span className="text-yellow-700">Motivo:</span> {machine.maintenance.reason}</p>
-              <p><span className="text-yellow-700">Inicio:</span> {new Date(machine.maintenance.startDate).toLocaleDateString("es-ES")}</p>
-              {machine.maintenance.estimatedEnd && <p><span className="text-yellow-700">Fin estimado:</span> {new Date(machine.maintenance.estimatedEnd).toLocaleDateString("es-ES")}</p>}
-              <Button variant="outline" size="sm" className="mt-2" onClick={handleCompleteMaintenance}>Completar mantenimiento</Button>
-            </div>
-          )}
-
           {showRentalForm && (
-            <Card><CardHeader><CardTitle className="text-base">Registrar alquiler</CardTitle></CardHeader>
+            <Card>
+              <CardHeader><CardTitle className="text-base">Registrar alquiler</CardTitle></CardHeader>
               <CardContent>
                 <form onSubmit={handleRent} className="space-y-3">
-                  <div className="space-y-1"><Label htmlFor="rClient">Cliente</Label><Input id="rClient" value={rClient} onChange={(e) => setRClient(e.target.value)} required /></div>
-                  <div className="space-y-1"><Label htmlFor="rStart">Inicio</Label><Input id="rStart" type="date" value={rStart} onChange={(e) => setRStart(e.target.value)} /></div>
-                  <div className="space-y-1"><Label htmlFor="rReturn">Retorno</Label><Input id="rReturn" type="date" value={rReturn} onChange={(e) => setRReturn(e.target.value)} /></div>
-                  <div className="flex gap-2"><Button type="submit" disabled={saving}>{saving ? "..." : "Confirmar"}</Button><Button type="button" variant="outline" onClick={() => setShowRentalForm(false)}>Cancelar</Button></div>
-                </form>
-              </CardContent>
-            </Card>
-          )}
-
-          {showMaintenanceForm && (
-            <Card><CardHeader><CardTitle className="text-base">Registrar mantenimiento</CardTitle></CardHeader>
-              <CardContent>
-                <form onSubmit={handleStartMaintenance} className="space-y-3">
-                  <div className="space-y-1"><Label htmlFor="mReason">Motivo</Label><Input id="mReason" value={mReason} onChange={(e) => setMReason(e.target.value)} required /></div>
-                  <div className="space-y-1"><Label htmlFor="mStart">Inicio</Label><Input id="mStart" type="date" value={mStart} onChange={(e) => setMStart(e.target.value)} /></div>
-                  <div className="space-y-1"><Label htmlFor="mEnd">Fin estimado</Label><Input id="mEnd" type="date" value={mEnd} onChange={(e) => setMEnd(e.target.value)} /></div>
-                  <div className="flex gap-2"><Button type="submit" disabled={saving}>{saving ? "..." : "Iniciar"}</Button><Button type="button" variant="outline" onClick={() => setShowMaintenanceForm(false)}>Cancelar</Button></div>
+                  <div className="space-y-1">
+                    <Label htmlFor="rClientName">Cliente</Label>
+                    <Input id="rClientName" value={rClientName} onChange={(e) => setRClientName(e.target.value)} required />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="rClientAddress">Dirección del cliente</Label>
+                    <Input id="rClientAddress" value={rClientAddress} onChange={(e) => setRClientAddress(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="rProjectName">Obra / Proyecto</Label>
+                    <Input id="rProjectName" value={rProjectName} onChange={(e) => setRProjectName(e.target.value)} required />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="rProjectAddress">Dirección de la obra</Label>
+                    <Input id="rProjectAddress" value={rProjectAddress} onChange={(e) => setRProjectAddress(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="rStartDate">Inicio</Label>
+                    <Input id="rStartDate" type="date" value={rStartDate} onChange={(e) => setRStartDate(e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="rExpectedEndDate">Fin estimado</Label>
+                    <Input id="rExpectedEndDate" type="date" value={rExpectedEndDate} onChange={(e) => setRExpectedEndDate(e.target.value)} disabled={rIsOpenEnded} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <input id="rIsOpenEnded" type="checkbox" checked={rIsOpenEnded} onChange={(e) => setRIsOpenEnded(e.target.checked)}
+                      className="h-4 w-4 rounded border-gray-300"
+                    />
+                    <Label htmlFor="rIsOpenEnded">Plazo abierto</Label>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button type="submit" disabled={saving}>{saving ? "..." : "Confirmar"}</Button>
+                    <Button type="button" variant="outline" onClick={() => setShowRentalForm(false)}>Cancelar</Button>
+                  </div>
                 </form>
               </CardContent>
             </Card>
           )}
 
           <div>
-            <p className="mb-2 text-sm font-medium">Cambiar estado:</p>
+            <p className="mb-2 text-sm font-medium">Acciones:</p>
             <div className="flex flex-wrap gap-2">
               {machine.status === "available" && (
                 <Button variant="outline" size="sm" onClick={() => setShowRentalForm(true)}>Alquilar</Button>
               )}
-              {machine.status === "available" && (
-                <Button variant="outline" size="sm" onClick={() => setShowMaintenanceForm(true)}>Mantenimiento</Button>
-              )}
-              {machine.status !== "available" && (
-                <Button variant="outline" size="sm" onClick={handleReturn}>Disponible</Button>
+              {machine.status === "rented" && (
+                <Button variant="outline" size="sm" onClick={handleReturn}>Devolver</Button>
               )}
             </div>
           </div>

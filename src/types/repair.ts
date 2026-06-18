@@ -1,17 +1,9 @@
-export type RepairStatus = "pending" | "repairing" | "done"
-
-export interface Repair {
+export interface LegacyRepair {
   id: string
   machineId: string
   issue: string
-  status: RepairStatus
+  status: "pending" | "repairing" | "done"
   estimatedReturn: Date | null
   createdAt: Date
   updatedAt: Date
-}
-
-export interface RepairFormData {
-  machineId: string
-  issue: string
-  estimatedReturn?: Date | null
 }

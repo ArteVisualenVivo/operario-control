@@ -1,6 +1,5 @@
 import { collection, addDoc, serverTimestamp, query, orderBy, getDocs, Timestamp } from "firebase/firestore"
 import { db } from "@/lib/firebase"
-import { auth } from "@/lib/firebase"
 import type { AuditAction, AuditEntity, AuditLog } from "@/types"
 
 const COLLECTION = "audit_logs"
@@ -10,10 +9,9 @@ export async function createAuditLog(
   entity: AuditEntity,
   entityId: string,
   before: Record<string, unknown> | null,
-  after: Record<string, unknown> | null
+  after: Record<string, unknown> | null,
 ): Promise<void> {
   try {
-    const userId = auth.currentUser?.uid ?? "unknown"
     await addDoc(collection(db, COLLECTION), {
       action,
       entity,
@@ -21,10 +19,9 @@ export async function createAuditLog(
       before,
       after,
       timestamp: serverTimestamp(),
-      userId,
     })
-  } catch (error) {
-    console.error("[Audit] Failed to create log:", error)
+  } catch {
+    console.error("Error creating audit log")
   }
 }
 
@@ -35,7 +32,11 @@ export async function fetchAuditLogs(): Promise<AuditLog[]> {
     const data = doc.data()
     return {
       id: doc.id,
-      ...data,
+      action: data.action as AuditAction,
+      entity: data.entity as AuditEntity,
+      entityId: data.entityId as string,
+      before: data.before as Record<string, unknown> | null,
+      after: data.after as Record<string, unknown> | null,
       timestamp: (data.timestamp as Timestamp)?.toDate() ?? new Date(),
     } as AuditLog
   })

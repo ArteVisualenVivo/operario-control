@@ -1,21 +1,30 @@
 export type MachineStatus = "available" | "rented" | "maintenance"
-export type MachineLocation = "taller" | "deposito" | "obra"
-export type MachineCategory = "andamio" | "maquinaria" | "herramienta"
+export type MachineLocation = "deposito" | "obra" | "taller"
+export type MachineCategory = "machine" | "tool" | "scaffold"
 
-export interface MachineMetadata {
-  priceAction: boolean | null
+export interface ClientInfo {
+  name: string
+  address: string
 }
 
-export interface RentalInfo {
-  client: string
-  startDate: Date
-  returnDate: Date | null
+export interface ProjectInfo {
+  name: string
+  address: string
 }
 
-export interface MaintenanceInfo {
-  reason: string
+export interface LocationInfo {
+  client: ClientInfo
+  project: ProjectInfo
+}
+
+export interface MachineRental {
+  clientName: string
+  clientAddress: string
+  projectName: string
+  projectAddress: string
   startDate: Date
-  estimatedEnd: Date | null
+  expectedEndDate: Date | null
+  isOpenEnded: boolean
 }
 
 export interface Machine {
@@ -23,12 +32,10 @@ export interface Machine {
   name: string
   model: string
   category: MachineCategory | null
-  subcategory: string | null
-  metadata: MachineMetadata | null
   status: MachineStatus
-  location: MachineLocation
-  rental: RentalInfo | null
-  maintenance: MaintenanceInfo | null
+  locationType: MachineLocation
+  location: LocationInfo | null
+  rental: MachineRental | null
   createdAt: Date
   updatedAt: Date
 }
@@ -37,19 +44,17 @@ export interface UpdateMachineInput {
   name?: string
   model?: string
   category?: MachineCategory | null
-  subcategory?: string | null
-  metadata?: MachineMetadata | null
-  location?: MachineLocation
+  status?: MachineStatus
+  locationType?: MachineLocation
+  location?: LocationInfo | null
 }
 
 export interface CreateMachineInput {
   name: string
   model: string
   category?: MachineCategory | null
-  subcategory?: string | null
-  metadata?: MachineMetadata | null
-  location: MachineLocation
+  locationType: MachineLocation
+  location?: LocationInfo | null
   status: MachineStatus
-  rental: { client: string; startDate: Date; returnDate: Date | null } | null
-  maintenance: { reason: string; startDate: Date; estimatedEnd: Date | null } | null
+  rental: MachineRental | null
 }
