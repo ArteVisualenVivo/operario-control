@@ -4,6 +4,7 @@ import {
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { createAuditLog } from "./audit"
+import { rentScaffoldComponents, returnScaffoldComponents } from "./scaffoldRental"
 import type { Machine, MachineRental, LocationInfo, CreateMachineInput, UpdateMachineInput } from "@/types"
 
 const COLLECTION = "machines"
@@ -95,6 +96,12 @@ export async function createMachine(input: CreateMachineInput): Promise<string> 
 export async function rentMachine(id: string, rental: MachineRental): Promise<void> {
   const ref = doc(db, COLLECTION, id)
   const before = (await getDoc(ref)).data() as Record<string, unknown> | undefined
+
+  const category = before?.["category"] as string | undefined
+  if (category === "scaffold") {
+    await rentScaffoldComponents()
+  }
+
   const rentalData = marshalRental(rental)
   await updateDoc(ref, {
     status: "rented",
@@ -112,6 +119,12 @@ export async function rentMachine(id: string, rental: MachineRental): Promise<vo
 export async function returnMachine(id: string): Promise<void> {
   const ref = doc(db, COLLECTION, id)
   const before = (await getDoc(ref)).data() as Record<string, unknown> | undefined
+
+  const category = before?.["category"] as string | undefined
+  if (category === "scaffold") {
+    await returnScaffoldComponents()
+  }
+
   const currentRental = before?.rental as Record<string, unknown> | undefined
   const rentalData = currentRental ? { ...currentRental, actualReturnDate: new Date() } : null
   await updateDoc(ref, {

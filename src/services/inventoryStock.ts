@@ -86,10 +86,15 @@ export async function updateStockItem(
 
   if (data.stockTotal !== undefined) {
     const beforeData = before ?? {}
-    const currentAvailable = (beforeData.stockAvailable as number) ?? 0
     const currentRented = (beforeData.stockRented as number) ?? 0
-    const diff = data.stockTotal - ((beforeData.stockTotal as number) ?? 0)
-    updates.stockAvailable = Math.max(0, currentAvailable + diff)
+
+    if (data.stockTotal < currentRented) {
+      throw new Error(
+        `No puedes reducir el stock total por debajo del stock actualmente alquilado (${currentRented}). Devuelve unidades primero.`
+      )
+    }
+
+    updates.stockAvailable = data.stockTotal - currentRented
     updates.stockRented = currentRented
   }
 
