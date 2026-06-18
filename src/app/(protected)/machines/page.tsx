@@ -20,7 +20,7 @@ export default function MachinesPage() {
   const categoryParam = searchParams.get("category")
 
   const validStatuses: MachineStatus[] = ["available", "rented", "maintenance"]
-  const validCategories: MachineCategory[] = ["machine", "scaffold", "tool"]
+  const validCategories: MachineCategory[] = ["machine", "tool"]
 
   const initialStatus =
     statusParam && validStatuses.includes(statusParam as MachineStatus)

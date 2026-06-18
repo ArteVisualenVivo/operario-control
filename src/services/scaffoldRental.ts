@@ -5,24 +5,30 @@ export async function rentScaffoldComponents(): Promise<void> {
   const allStock = await getStockItems()
 
   for (const component of SCAFFOLD_RECIPE) {
-    const match = allStock.find(
-      s => s.name === component.name && s.size === component.size
-    )
-
-    if (!match) {
+    const matches = allStock.filter(s => s.name === component.name)
+    if (matches.length === 0) {
       throw new Error(
-        `Componente "${component.name} (${component.size})" no encontrado en inventario. Regístralo primero.`
+        `Componente "${component.name}" no encontrado en inventario. Regístralo primero.`
       )
     }
 
-    if (match.stockAvailable < component.quantity) {
+    const totalAvailable = matches.reduce((s, i) => s + i.stockAvailable, 0)
+    if (totalAvailable < component.quantity) {
       throw new Error(
-        `Stock insuficiente para ${component.name} (${component.size}): ` +
-        `disponible ${match.stockAvailable}, necesario ${component.quantity}.`
+        `Stock insuficiente para ${component.name}: ` +
+        `disponible ${totalAvailable}, necesario ${component.quantity}.`
       )
     }
 
-    await rentStockItem(match.id, component.quantity)
+    let remaining = component.quantity
+    const sorted = [...matches].sort((a, b) => b.stockAvailable - a.stockAvailable)
+    for (const item of sorted) {
+      if (remaining <= 0) break
+      if (item.stockAvailable <= 0) continue
+      const take = Math.min(item.stockAvailable, remaining)
+      await rentStockItem(item.id, take)
+      remaining -= take
+    }
   }
 }
 
@@ -30,16 +36,21 @@ export async function returnScaffoldComponents(): Promise<void> {
   const allStock = await getStockItems()
 
   for (const component of SCAFFOLD_RECIPE) {
-    const match = allStock.find(
-      s => s.name === component.name && s.size === component.size
-    )
-
-    if (!match) {
+    const matches = allStock.filter(s => s.name === component.name)
+    if (matches.length === 0) {
       throw new Error(
-        `Componente "${component.name} (${component.size})" no encontrado en inventario.`
+        `Componente "${component.name}" no encontrado en inventario.`
       )
     }
 
-    await returnStockItem(match.id, component.quantity)
+    let remaining = component.quantity
+    const sorted = [...matches].sort((a, b) => b.stockRented - a.stockRented)
+    for (const item of sorted) {
+      if (remaining <= 0) break
+      if (item.stockRented <= 0) continue
+      const take = Math.min(item.stockRented, remaining)
+      await returnStockItem(item.id, take)
+      remaining -= take
+    }
   }
 }

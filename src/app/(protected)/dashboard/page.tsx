@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import SeedInventory from "@/components/machines/SeedInventory"
 import type { MachineStatus, Machine, InventoryStock } from "@/types"
 import { statusLabels, formatDate } from "@/lib/ui"
+import { SCAFFOLD_RECIPE } from "@/lib/scaffoldConfig"
 
 interface MachineGroup {
   key: string
@@ -95,6 +96,19 @@ export default function DashboardPage() {
       .slice(0, 5)
   }, [machines])
 
+  const cuerposCompletos = useMemo(() => {
+    const scaffoldStock = stockItems.filter(i => i.category === "andamio_accesorios")
+    let min = Infinity
+    for (const component of SCAFFOLD_RECIPE) {
+      const total = scaffoldStock
+        .filter(s => s.name === component.name)
+        .reduce((sum, s) => sum + s.stockAvailable, 0)
+      const posibles = Math.floor(total / component.quantity)
+      if (posibles < min) min = posibles
+    }
+    return min === Infinity ? 0 : min
+  }, [stockItems])
+
   if (loading) return <p className="text-muted-foreground">Cargando...</p>
 
   return (
@@ -167,9 +181,12 @@ export default function DashboardPage() {
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Maquinaria</CardTitle></CardHeader>
           <CardContent><p className="text-3xl font-bold">{machines.filter((m) => m.category === "machine").length}</p></CardContent>
         </Card>
-        <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?category=scaffold")}>
+        <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/andamios")}>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Andamios</CardTitle></CardHeader>
-          <CardContent><p className="text-3xl font-bold">{machines.filter((m) => m.category === "scaffold").length}</p></CardContent>
+          <CardContent className="space-y-1">
+            <p><span className="text-3xl font-bold">{machines.filter((m) => m.category === "scaffold").length}</span> <span className="text-sm text-muted-foreground">cuerpos</span></p>
+            <p><span className="text-xl font-bold text-orange-600">{cuerposCompletos}</span> <span className="text-sm text-muted-foreground">completos (según stock)</span></p>
+          </CardContent>
         </Card>
         <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?category=tool")}>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Herramientas</CardTitle></CardHeader>
