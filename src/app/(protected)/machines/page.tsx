@@ -1,21 +1,40 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useMachines } from "@/hooks/useMachines"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import ImportInventory from "@/components/machines/ImportInventory"
 import MachineCard from "@/components/machines/MachineCard"
-import type { MachineStatus } from "@/types"
+import type { MachineStatus, MachineCategory } from "@/types"
 import { statusLabels } from "@/lib/ui"
 import { toast } from "sonner"
 
 export default function MachinesPage() {
   const { machines, loading, remove, deleteAll } = useMachines()
   const router = useRouter()
+  const searchParams = useSearchParams()
+
+  const statusParam = searchParams.get("status")
+  const categoryParam = searchParams.get("category")
+
+  const validStatuses: MachineStatus[] = ["available", "rented", "maintenance"]
+  const validCategories: MachineCategory[] = ["machine", "scaffold", "tool"]
+
+  const initialStatus =
+    statusParam && validStatuses.includes(statusParam as MachineStatus)
+      ? (statusParam as MachineStatus)
+      : "all"
+
+  const initialCategory =
+    categoryParam && validCategories.includes(categoryParam as MachineCategory)
+      ? (categoryParam as MachineCategory)
+      : "all"
+
   const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState<MachineStatus | "all">("all")
+  const [statusFilter, setStatusFilter] = useState<MachineStatus | "all">(initialStatus)
+  const [categoryFilter, setCategoryFilter] = useState<MachineCategory | "all">(initialCategory)
   const [deleting, setDeleting] = useState(false)
 
   const handleDelete = async (id: string) => {
@@ -52,9 +71,10 @@ export default function MachinesPage() {
         (m.rental?.clientName ?? "").toLowerCase().includes(q) ||
         (m.rental?.projectName ?? "").toLowerCase().includes(q)
       const matchesStatus = statusFilter === "all" || m.status === statusFilter
-      return matchesSearch && matchesStatus
+      const matchesCategory = categoryFilter === "all" || m.category === categoryFilter
+      return matchesSearch && matchesStatus && matchesCategory
     })
-  }, [machines, search, statusFilter])
+  }, [machines, search, statusFilter, categoryFilter])
 
   if (loading) return <p className="text-muted-foreground">Cargando...</p>
 

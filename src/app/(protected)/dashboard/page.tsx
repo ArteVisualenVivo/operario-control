@@ -144,34 +144,34 @@ export default function DashboardPage() {
       )}
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <Card>
+        <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines")}>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total equipos</CardTitle></CardHeader>
           <CardContent><p className="text-3xl font-bold">{machines.length}</p></CardContent>
         </Card>
-        <Card>
+        <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?status=available")}>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Disponibles</CardTitle></CardHeader>
           <CardContent><p className="text-3xl font-bold text-green-600">{machines.filter((m) => m.status === "available").length}</p></CardContent>
         </Card>
-        <Card>
+        <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?status=rented")}>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Alquiladas</CardTitle></CardHeader>
           <CardContent><p className="text-3xl font-bold text-blue-600">{machines.filter((m) => m.status === "rented").length}</p></CardContent>
         </Card>
-        <Card>
+        <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?status=maintenance")}>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Mantenimiento</CardTitle></CardHeader>
           <CardContent><p className="text-3xl font-bold text-yellow-600">{machines.filter((m) => m.status === "maintenance").length}</p></CardContent>
         </Card>
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card>
+        <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?category=machine")}>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Maquinaria</CardTitle></CardHeader>
           <CardContent><p className="text-3xl font-bold">{machines.filter((m) => m.category === "machine").length}</p></CardContent>
         </Card>
-        <Card>
+        <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?category=scaffold")}>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Andamios</CardTitle></CardHeader>
           <CardContent><p className="text-3xl font-bold">{machines.filter((m) => m.category === "scaffold").length}</p></CardContent>
         </Card>
-        <Card>
+        <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?category=tool")}>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Herramientas</CardTitle></CardHeader>
           <CardContent><p className="text-3xl font-bold">{machines.filter((m) => m.category === "tool").length}</p></CardContent>
         </Card>
