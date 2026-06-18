@@ -105,6 +105,20 @@ export async function deleteSparePart(id: string): Promise<void> {
   await createAuditLog("delete", "machine_spare_part", id, before ?? null, null)
 }
 
+export async function deleteBlueprintSpareParts(machineId: string): Promise<number> {
+  const snap = await getDocs(
+    query(
+      collection(db, COLLECTION),
+      where("machineId", "==", machineId),
+      where("source", "==", "blueprint"),
+    ),
+  )
+  const ids = snap.docs.map((d) => d.id)
+  if (ids.length === 0) return 0
+  await Promise.all(ids.map((id) => deleteDoc(doc(db, COLLECTION, id))))
+  return ids.length
+}
+
 export async function usePart(id: string, quantity: number): Promise<void> {
   if (quantity <= 0) throw new Error("La cantidad debe ser mayor a 0")
 

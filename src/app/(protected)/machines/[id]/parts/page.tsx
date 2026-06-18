@@ -29,7 +29,7 @@ const CATEGORY_OPTIONS: { value: SparePartCategory; label: string }[] = [
 export default function MachinePartsPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const { spareParts, loading, error, create, update, remove, usePart, restockPart } = useSpareParts(id)
+  const { spareParts, loading, error, create, update, remove, usePart, restockPart, deleteBlueprintParts } = useSpareParts(id)
   const [machine, setMachine] = useState<Machine | null>(null)
   const [machineLoading, setMachineLoading] = useState(true)
 
@@ -138,6 +138,19 @@ export default function MachinePartsPage() {
           <Button variant="outline" size="sm" onClick={startImportFromBlueprint}>
             Importar desde despiece
           </Button>
+          {spareParts.length > 0 && (
+            <Button variant="outline" size="sm" className="border-red-300 text-red-600 hover:bg-red-50"
+              onClick={async () => {
+                if (!confirm("¿Eliminar todos los repuestos importados de despieces?")) return
+                try {
+                  const count = await deleteBlueprintParts()
+                  toast.success(`${count} repuesto(s) eliminado(s)`)
+                } catch { toast.error("Error al eliminar repuestos") }
+              }}
+            >
+              Eliminar importados
+            </Button>
+          )}
           <Button size="sm" onClick={() => setShowForm(!showForm)}>
             {showForm ? "Cancelar" : "Agregar repuesto"}
           </Button>

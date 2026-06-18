@@ -23,6 +23,7 @@ function toDate(val: unknown): Date {
   return new Date()
 }
 
+const SPARE_PARTS_COLLECTION = "machine_spare_parts"
 const COLLECTION = "machine_blueprints"
 
 async function getMachineInfo(machineId: string) {
@@ -43,7 +44,7 @@ export async function uploadBlueprint(machineId: string, file: File): Promise<st
     throw new Error("Solo se permiten archivos PDF, JPG, JPEG, PNG, GIF o WebP")
   }
 
-  const { publicId, secureUrl, originalFilename, format } =
+  const { publicId, secureUrl, originalFilename, format, resourceType } =
     await uploadBlueprintToCloudinary(file)
 
   const fileType: "pdf" | "image" = format === "pdf" ? "pdf" : "image"
@@ -53,15 +54,30 @@ export async function uploadBlueprint(machineId: string, file: File): Promise<st
     name: originalFilename,
     fileUrl: secureUrl,
     publicId,
+    resourceType,
     fileType,
     createdAt: Timestamp.now(),
   })
 
   await createAuditLog("create", "blueprint", docRef.id, null, {
-    machineId, fileUrl: secureUrl, publicId, fileName: originalFilename, fileType,
+    machineId, fileUrl: secureUrl, publicId, resourceType, fileName: originalFilename, fileType,
   })
 
   if (fileType === "pdf") {
+    try {
+      const oldParts = await getDocs(
+        query(
+          collection(db, SPARE_PARTS_COLLECTION),
+          where("machineId", "==", machineId),
+          where("source", "==", "blueprint"),
+        ),
+      )
+      const deletions = oldParts.docs.map((d) => deleteDoc(doc(db, SPARE_PARTS_COLLECTION, d.id)))
+      await Promise.all(deletions)
+    } catch {
+      /* cleanup of old blueprint parts failed — continue */
+    }
+
     try {
       const { machineName, machineModel } = await getMachineInfo(machineId)
       const parts = await extractPartsFromPdf(secureUrl)
@@ -119,21 +135,53 @@ export async function deleteBlueprint(id: string): Promise<void> {
   if (!snap.exists()) throw new Error("Despiece no encontrado")
 
   const before = { ...snap.data(), id }
+  const data = snap.data()
 
-  const publicId = snap.data().publicId as string | undefined
+  const publicId = data.publicId as string | undefined
+  const resourceType = (data.resourceType as string) ?? "image"
   if (publicId) {
     try {
-      await deleteFromCloudinary(publicId)
+      await deleteFromCloudinary(publicId, resourceType)
     } catch {
       /* Cloudinary deletion failed — continue with local cleanup */
     }
   }
 
+  const machineId = data.machineId as string
+  if (!machineId) {
+    await deleteDoc(ref_)
+    await createAuditLog("delete", "blueprint", id, before, null)
+    return
+  }
+
   const partsSnap = await getDocs(
-    query(collection(db, "machine_spare_parts"), where("blueprintId", "==", id))
+    query(
+      collection(db, SPARE_PARTS_COLLECTION),
+      where("blueprintId", "==", id),
+    ),
   )
-  const deletions = partsSnap.docs.map((partDoc) => deleteDoc(doc(db, "machine_spare_parts", partDoc.id)))
-  await Promise.all(deletions)
+  const deletions = partsSnap.docs.map((partDoc) =>
+    deleteDoc(doc(db, SPARE_PARTS_COLLECTION, partDoc.id)),
+  )
+
+  const allPartsSnap = await getDocs(
+    query(
+      collection(db, SPARE_PARTS_COLLECTION),
+      where("machineId", "==", machineId),
+    ),
+  )
+  const legacyDeletions = allPartsSnap.docs
+    .filter((d) => {
+      const s = d.data().source
+      const bpId = d.data().blueprintId
+      return (
+        s === "blueprint" &&
+        (bpId === undefined || bpId === null || bpId === "")
+      )
+    })
+    .map((d) => deleteDoc(doc(db, SPARE_PARTS_COLLECTION, d.id)))
+
+  await Promise.all([...deletions, ...legacyDeletions])
 
   await deleteDoc(ref_)
   await createAuditLog("delete", "blueprint", id, before, null)

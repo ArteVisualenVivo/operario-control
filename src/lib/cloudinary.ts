@@ -3,6 +3,7 @@ export interface CloudinaryUploadResult {
   secureUrl: string
   originalFilename: string
   format: string
+  resourceType: string
 }
 
 export async function uploadBlueprintToCloudinary(
@@ -32,14 +33,18 @@ export async function uploadBlueprintToCloudinary(
     secureUrl: result.secure_url,
     originalFilename: result.original_filename,
     format: result.format,
+    resourceType: result.resource_type,
   }
 }
 
-export async function deleteFromCloudinary(publicId: string): Promise<void> {
+export async function deleteFromCloudinary(
+  publicId: string,
+  resourceType: string,
+): Promise<void> {
   const response = await fetch("/api/cloudinary/delete", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ publicId }),
+    body: JSON.stringify({ publicId, resourceType }),
   })
 
   if (!response.ok) {

@@ -54,7 +54,12 @@ export function useSpareParts(machineId: string) {
     await load()
   }, [load])
 
+  const deleteBlueprintParts = useCallback(async () => {
+    await sparePartsService.deleteBlueprintSpareParts(machineId)
+    await load()
+  }, [load, machineId])
+
   return {
-    spareParts, loading, error, create, update, remove, usePart, restockPart, reload: load,
+    spareParts, loading, error, create, update, remove, usePart, restockPart, deleteBlueprintParts, reload: load,
   }
 }
