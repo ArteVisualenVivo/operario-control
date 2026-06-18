@@ -12,13 +12,6 @@ import type { MachineStatus } from "@/types"
 import { statusLabels } from "@/lib/ui"
 import { toast } from "sonner"
 
-const SIZE_LABELS: Record<string, string> = {
-  largas: "Largas", cortas: "Cortas",
-  "1m": "1 m", "1.5m": "1.5 m", "2m": "2 m",
-  "2.5m": "2.5 m", "3m": "3 m", "4m": "4 m",
-  "6m": "6 m", custom: "Otra medida", sin_medida: "Sin medida",
-}
-
 export default function AndamiosPage() {
   const { machines, loading, remove } = useMachines()
   const { items: stockItems, loading: stockLoading } = useInventoryStock()
@@ -47,16 +40,6 @@ export default function AndamiosPage() {
   const scaffoldStock = useMemo(() => {
     return stockItems.filter(i => i.category === "andamio_accesorios")
   }, [stockItems])
-
-  const scaffoldStockBySize = useMemo(() => {
-    const grouped: Record<string, typeof stockItems> = {}
-    for (const item of scaffoldStock) {
-      const key = item.size ?? "sin_medida"
-      if (!grouped[key]) grouped[key] = []
-      grouped[key].push(item)
-    }
-    return grouped
-  }, [scaffoldStock])
 
   const handleDelete = async (id: string) => {
     if (!window.confirm("¿Eliminar esta máquina? Esta acción no se puede deshacer.")) return
@@ -136,33 +119,6 @@ export default function AndamiosPage() {
               ))}
             </div>
 
-            {Object.keys(scaffoldStockBySize).length > 0 && (
-              <div className="mt-6 border-t pt-4">
-                <h3 className="text-sm font-semibold text-muted-foreground mb-3">
-                  Componentes por medida
-                </h3>
-                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  {Object.entries(scaffoldStockBySize).map(([sizeKey, items]) => {
-                    const total = items.reduce((s, i) => s + i.stockTotal, 0)
-                    const available = items.reduce((s, i) => s + i.stockAvailable, 0)
-                    const rented = items.reduce((s, i) => s + i.stockRented, 0)
-                    return (
-                      <Card key={sizeKey}>
-                        <CardHeader className="pb-2">
-                          <CardTitle className="text-base">{SIZE_LABELS[sizeKey] ?? sizeKey}</CardTitle>
-                          <p className="text-xs text-muted-foreground">{items.length} registro(s)</p>
-                        </CardHeader>
-                        <CardContent className="space-y-1 text-sm">
-                          <p>Total: <strong>{total}</strong></p>
-                          <p className="text-green-600">Disponibles: <strong>{available}</strong></p>
-                          <p className="text-blue-600">Alquilados: <strong>{rented}</strong></p>
-                        </CardContent>
-                      </Card>
-                    )
-                  })}
-                </div>
-              </div>
-            )}
           </>
         )}
       </div>

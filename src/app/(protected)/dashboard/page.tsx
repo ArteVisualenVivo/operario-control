@@ -276,7 +276,7 @@ export default function DashboardPage() {
           <p className="text-muted-foreground">Cargando stock...</p>
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {stockItems.filter(i => i.category !== "andamio_accesorios").map((item) => (
+            {stockItems.map((item) => (
               <Card
                 key={item.id}
                 className="cursor-pointer transition-shadow hover:shadow-md"
@@ -295,7 +295,7 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             ))}
-            {stockItems.filter(i => i.category !== "andamio_accesorios").length === 0 && (
+            {stockItems.length === 0 && (
               <p className="text-muted-foreground col-span-full text-center">No hay materiales registrados</p>
             )}
           </div>
