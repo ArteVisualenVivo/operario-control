@@ -1,22 +1,15 @@
 import {
   collection, addDoc, deleteDoc, doc, getDoc, getDocs, query, where, orderBy, Timestamp,
 } from "firebase/firestore"
-import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage"
-import { db, storage } from "@/lib/firebase"
+import { db } from "@/lib/firebase"
+import { uploadBlueprintToCloudinary } from "@/lib/cloudinary"
 import { createAuditLog } from "./audit"
 
 export interface MachineBlueprint {
   id: string
   machineId: string
   fileUrl: string
-  fileName: string
-  fileType: "pdf" | "image"
-  createdAt: Date
-}
-
-interface BlueprintDoc {
-  machineId: string
-  fileUrl: string
+  publicId: string
   fileName: string
   fileType: "pdf" | "image"
   createdAt: Date
@@ -33,30 +26,27 @@ const COLLECTION = "machine_blueprints"
 export async function uploadBlueprint(machineId: string, file: File): Promise<string> {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg"
   const isImage = ["jpg", "jpeg", "png", "gif", "webp"].includes(ext)
-  const fileType: "pdf" | "image" = ext === "pdf" ? "pdf" : "image"
-  const fileName = file.name
 
   if (ext !== "pdf" && !isImage) {
     throw new Error("Solo se permiten archivos PDF, JPG, JPEG, PNG, GIF o WebP")
   }
 
-  const uuid = crypto.randomUUID()
-  const storagePath = `blueprints/${machineId}/${uuid}.${ext}`
-  const storageRef = ref(storage, storagePath)
+  const { publicId, secureUrl, originalFilename, format } =
+    await uploadBlueprintToCloudinary(file)
 
-  await uploadBytes(storageRef, file)
-  const fileUrl = await getDownloadURL(storageRef)
+  const fileType: "pdf" | "image" = format === "pdf" ? "pdf" : "image"
 
   const docRef = await addDoc(collection(db, COLLECTION), {
     machineId,
-    fileUrl,
-    fileName,
+    name: originalFilename,
+    fileUrl: secureUrl,
+    publicId,
     fileType,
     createdAt: Timestamp.now(),
   })
 
   await createAuditLog("create", "blueprint", docRef.id, null, {
-    machineId, fileUrl, fileName, fileType,
+    machineId, fileUrl: secureUrl, publicId, fileName: originalFilename, fileType,
   })
 
   return docRef.id
@@ -70,13 +60,14 @@ export async function getBlueprints(machineId: string): Promise<MachineBlueprint
   )
   const snapshot = await getDocs(q)
   return snapshot.docs.map((d) => {
-    const data = d.data() as Omit<BlueprintDoc, "createdAt"> & { createdAt: unknown }
+    const data = d.data()
     return {
       id: d.id,
-      machineId: data.machineId,
-      fileUrl: data.fileUrl,
-      fileName: data.fileName,
-      fileType: data.fileType,
+      machineId: data.machineId as string,
+      fileUrl: data.fileUrl as string,
+      publicId: (data.publicId as string) ?? "",
+      fileName: (data.name as string) ?? (data.fileName as string) ?? "",
+      fileType: (data.fileType as "pdf" | "image") ?? "image",
       createdAt: toDate(data.createdAt),
     }
   })
@@ -87,15 +78,7 @@ export async function deleteBlueprint(id: string): Promise<void> {
   const snap = await getDoc(ref_)
   if (!snap.exists()) throw new Error("Despiece no encontrado")
 
-  const data = snap.data() as { fileUrl?: string }
-  const before = { ...data, id }
-
-  if (data.fileUrl) {
-    try {
-      const storageRef_ = ref(storage, data.fileUrl)
-      await deleteObject(storageRef_)
-    } catch { /* file may not exist */ }
-  }
+  const before = { ...snap.data(), id }
 
   await deleteDoc(ref_)
   await createAuditLog("delete", "blueprint", id, before, null)
