@@ -52,6 +52,7 @@ export default function StockDetailPage() {
   const [unit, setUnit] = useState<StockUnit>("unidad")
   const [stockTotal, setStockTotal] = useState(1)
   const [size, setSize] = useState<StockSize | "">("")
+  const [customSize, setCustomSize] = useState("")
 
   useEffect(() => {
     const id = params.id as string
@@ -62,7 +63,13 @@ export default function StockDetailPage() {
         setCategory(data.category)
         setUnit(data.unit)
         setStockTotal(data.stockTotal)
-        setSize((data.size as StockSize) ?? "")
+        const storedSize = data.size as string | null | undefined
+        if (storedSize && !sizeOptions.some((s) => s.value === storedSize)) {
+          setSize("custom")
+          setCustomSize(storedSize)
+        } else {
+          setSize((storedSize as StockSize) ?? "")
+        }
       }
       setLoading(false)
     })
@@ -75,9 +82,10 @@ export default function StockDetailPage() {
     e.preventDefault()
     setSaving(true)
     try {
+      const finalSize = size === "custom" ? customSize : size
       await update(item.id, {
         name, category, unit, stockTotal,
-        size: size || null,
+        size: finalSize || null,
       })
       toast.success("Material actualizado")
       router.back()
@@ -153,6 +161,14 @@ export default function StockDetailPage() {
                   <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
+              {size === "custom" && (
+                <Input
+                  value={customSize}
+                  onChange={(e) => setCustomSize(e.target.value)}
+                  placeholder="Ej: 5m, 8m, 10m..."
+                  className="mt-2"
+                />
+              )}
               <p className="text-xs text-muted-foreground">Seleccionar medida para control de stock por tamaño</p>
             </div>
             <div className="space-y-2">
