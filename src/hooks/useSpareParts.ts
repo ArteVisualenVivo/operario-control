@@ -16,6 +16,9 @@ export function useSpareParts(machineId: string) {
     setError(null)
     try {
       const data = await sparePartsService.getSparePartsByMachine(machineId)
+      data.sort((a, b) =>
+        a.partName.localeCompare(b.partName, "es", { sensitivity: "base" }),
+      )
       setSpareParts(data)
     } catch (e) {
       setError(parseFirebaseError(e, "machine_spare_parts"))

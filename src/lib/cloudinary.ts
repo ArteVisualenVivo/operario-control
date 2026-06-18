@@ -8,14 +8,16 @@ export interface CloudinaryUploadResult {
 export async function uploadBlueprintToCloudinary(
   file: File,
 ): Promise<CloudinaryUploadResult> {
+  const isPdf = file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+  const endpoint = isPdf
+    ? "https://api.cloudinary.com/v1_1/dpcdsorty/raw/upload"
+    : "https://api.cloudinary.com/v1_1/dpcdsorty/auto/upload"
+
   const formData = new FormData()
   formData.append("file", file)
   formData.append("upload_preset", "operario_blueprints")
 
-  const response = await fetch(
-    "https://api.cloudinary.com/v1_1/dpcdsorty/auto/upload",
-    { method: "POST", body: formData },
-  )
+  const response = await fetch(endpoint, { method: "POST", body: formData })
 
   if (!response.ok) {
     throw new Error("Error al subir archivo a Cloudinary")

@@ -1,6 +1,6 @@
 import {
   collection, addDoc, updateDoc, deleteDoc, doc, getDoc, getDocs,
-  query, where, orderBy, serverTimestamp, Timestamp,
+  query, where, serverTimestamp, Timestamp,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { createAuditLog } from "./audit"
@@ -38,7 +38,6 @@ export async function getSparePartsByMachine(machineId: string): Promise<SparePa
   const q = query(
     collection(db, COLLECTION),
     where("machineId", "==", machineId),
-    orderBy("partName"),
   )
   const snapshot = await getDocs(q)
   return snapshot.docs.map(docToSparePart)
