@@ -11,7 +11,7 @@ export type StockUnit = "unidad" | "metro" | "kg"
 
 export type StockSubtype = "puntal" | "rienda" | "plataforma" | "diagonal" | "otros"
 
-export type StockSize = "1m" | "1.5m" | "2m" | "2.5m" | "3m" | "4m" | "6m" | "custom"
+export type StockSize = "1m" | "1.5m" | "2m" | "2.5m" | "3m" | "4m" | "6m" | "largas" | "cortas" | "custom"
 
 export interface InventoryStock {
   id: string

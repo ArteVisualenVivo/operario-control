@@ -27,6 +27,8 @@ const unitOptions: { value: StockUnit; label: string }[] = [
 
 const sizeOptions: { value: StockSize | ""; label: string }[] = [
   { value: "", label: "Sin medida" },
+  { value: "largas", label: "Largas" },
+  { value: "cortas", label: "Cortas" },
   { value: "1m", label: "1 metro" },
   { value: "1.5m", label: "1.5 metros" },
   { value: "2m", label: "2 metros" },

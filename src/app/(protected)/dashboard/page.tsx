@@ -100,9 +100,13 @@ export default function DashboardPage() {
     const scaffoldStock = stockItems.filter(i => i.category === "andamio_accesorios")
     let min = Infinity
     for (const component of SCAFFOLD_RECIPE) {
-      const total = scaffoldStock
-        .filter(s => s.name === component.name)
-        .reduce((sum, s) => sum + s.stockAvailable, 0)
+      const total = component.size
+        ? scaffoldStock
+            .filter(s => s.name === component.name && s.size === component.size)
+            .reduce((sum, s) => sum + s.stockAvailable, 0)
+        : scaffoldStock
+            .filter(s => s.name === component.name)
+            .reduce((sum, s) => sum + s.stockAvailable, 0)
       const posibles = Math.floor(total / component.quantity)
       if (posibles < min) min = posibles
     }
@@ -293,6 +297,7 @@ export default function DashboardPage() {
           }
 
           const sizeLabels: Record<string, string> = {
+            largas: "Largas", cortas: "Cortas",
             "1m": "1 m", "1.5m": "1.5 m", "2m": "2 m",
             "2.5m": "2.5 m", "3m": "3 m", "4m": "4 m",
             "6m": "6 m", custom: "Otra medida", sin_medida: "Sin medida",

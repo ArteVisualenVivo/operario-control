@@ -1,21 +1,28 @@
 import { SCAFFOLD_RECIPE } from "@/lib/scaffoldConfig"
 import { getStockItems, rentStockItem, returnStockItem } from "./inventoryStock"
 
+function label(component: { name: string; size?: string }): string {
+  return component.size ? `${component.name} (${component.size})` : component.name
+}
+
 export async function rentScaffoldComponents(): Promise<void> {
   const allStock = await getStockItems()
 
   for (const component of SCAFFOLD_RECIPE) {
-    const matches = allStock.filter(s => s.name === component.name)
+    const matches = component.size
+      ? allStock.filter(s => s.name === component.name && s.size === component.size)
+      : allStock.filter(s => s.name === component.name)
+
     if (matches.length === 0) {
       throw new Error(
-        `Componente "${component.name}" no encontrado en inventario. Regístralo primero.`
+        `Componente "${label(component)}" no encontrado en inventario. Regístralo primero.`
       )
     }
 
     const totalAvailable = matches.reduce((s, i) => s + i.stockAvailable, 0)
     if (totalAvailable < component.quantity) {
       throw new Error(
-        `Stock insuficiente para ${component.name}: ` +
+        `Stock insuficiente para ${label(component)}: ` +
         `disponible ${totalAvailable}, necesario ${component.quantity}.`
       )
     }
@@ -36,10 +43,13 @@ export async function returnScaffoldComponents(): Promise<void> {
   const allStock = await getStockItems()
 
   for (const component of SCAFFOLD_RECIPE) {
-    const matches = allStock.filter(s => s.name === component.name)
+    const matches = component.size
+      ? allStock.filter(s => s.name === component.name && s.size === component.size)
+      : allStock.filter(s => s.name === component.name)
+
     if (matches.length === 0) {
       throw new Error(
-        `Componente "${component.name}" no encontrado en inventario.`
+        `Componente "${label(component)}" no encontrado en inventario.`
       )
     }
 

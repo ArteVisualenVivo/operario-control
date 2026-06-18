@@ -13,6 +13,7 @@ import { statusLabels } from "@/lib/ui"
 import { toast } from "sonner"
 
 const SIZE_LABELS: Record<string, string> = {
+  largas: "Largas", cortas: "Cortas",
   "1m": "1 m", "1.5m": "1.5 m", "2m": "2 m",
   "2.5m": "2.5 m", "3m": "3 m", "4m": "4 m",
   "6m": "6 m", custom: "Otra medida", sin_medida: "Sin medida",
