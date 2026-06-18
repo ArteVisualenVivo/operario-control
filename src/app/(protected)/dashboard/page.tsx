@@ -97,16 +97,12 @@ export default function DashboardPage() {
   }, [machines])
 
   const cuerposCompletos = useMemo(() => {
-    const scaffoldStock = stockItems.filter(i => i.category === "andamio_accesorios")
     let min = Infinity
     for (const component of SCAFFOLD_RECIPE) {
-      const total = component.size
-        ? scaffoldStock
-            .filter(s => s.name === component.name && s.size === component.size)
-            .reduce((sum, s) => sum + s.stockAvailable, 0)
-        : scaffoldStock
-            .filter(s => s.name === component.name)
-            .reduce((sum, s) => sum + s.stockAvailable, 0)
+      const match = component.size
+        ? stockItems.filter(s => s.name === component.name && s.size === component.size)
+        : stockItems.filter(s => s.name === component.name)
+      const total = match.reduce((sum, s) => sum + s.stockAvailable, 0)
       const posibles = Math.floor(total / component.quantity)
       if (posibles < min) min = posibles
     }
