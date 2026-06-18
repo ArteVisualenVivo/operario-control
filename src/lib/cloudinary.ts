@@ -34,3 +34,16 @@ export async function uploadBlueprintToCloudinary(
     format: result.format,
   }
 }
+
+export async function deleteFromCloudinary(publicId: string): Promise<void> {
+  const response = await fetch("/api/cloudinary/delete", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ publicId }),
+  })
+
+  if (!response.ok) {
+    const err = await response.json()
+    throw new Error(err.error ?? "Error al eliminar de Cloudinary")
+  }
+}

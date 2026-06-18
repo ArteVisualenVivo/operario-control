@@ -2,7 +2,7 @@ import {
   collection, addDoc, deleteDoc, doc, getDoc, getDocs, query, where, orderBy, Timestamp,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
-import { uploadBlueprintToCloudinary } from "@/lib/cloudinary"
+import { uploadBlueprintToCloudinary, deleteFromCloudinary } from "@/lib/cloudinary"
 import { createAuditLog } from "./audit"
 import { createSparePart } from "./spareParts"
 import { extractPartsFromPdf } from "./pdfPartsExtractor"
@@ -119,6 +119,21 @@ export async function deleteBlueprint(id: string): Promise<void> {
   if (!snap.exists()) throw new Error("Despiece no encontrado")
 
   const before = { ...snap.data(), id }
+
+  const publicId = snap.data().publicId as string | undefined
+  if (publicId) {
+    try {
+      await deleteFromCloudinary(publicId)
+    } catch {
+      /* Cloudinary deletion failed — continue with local cleanup */
+    }
+  }
+
+  const partsSnap = await getDocs(
+    query(collection(db, "machine_spare_parts"), where("blueprintId", "==", id))
+  )
+  const deletions = partsSnap.docs.map((partDoc) => deleteDoc(doc(db, "machine_spare_parts", partDoc.id)))
+  await Promise.all(deletions)
 
   await deleteDoc(ref_)
   await createAuditLog("delete", "blueprint", id, before, null)
