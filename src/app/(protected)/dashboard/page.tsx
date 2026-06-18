@@ -207,6 +207,22 @@ export default function DashboardPage() {
         <span className="text-xs text-muted-foreground">({grouped.length} grupo{grouped.length !== 1 ? "s" : ""})</span>
       </button>
 
+      <div className="flex flex-col gap-4 sm:flex-row">
+        <Input
+          placeholder="Buscar por nombre, modelo, cliente u obra..."
+          value={search}
+          onChange={(e) => { setSearch(e.target.value); setShowMachines(true) }}
+          className="max-w-sm"
+        />
+        <div className="flex gap-2">
+          {(["all", "available", "rented", "maintenance"] as const).map((s) => (
+            <Button key={s} variant={statusFilter === s ? "default" : "outline"} size="sm" onClick={() => setStatusFilter(s)}>
+              {s === "all" ? "Todos" : statusLabels[s]}
+            </Button>
+          ))}
+        </div>
+      </div>
+
       {showMachines && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {grouped.map((group) => (
@@ -333,21 +349,6 @@ export default function DashboardPage() {
         })()}
       </div>
 
-      <div className="flex flex-col gap-4 sm:flex-row">
-        <Input
-          placeholder="Buscar por nombre, modelo, cliente u obra..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm"
-        />
-        <div className="flex gap-2">
-          {(["all", "available", "rented", "maintenance"] as const).map((s) => (
-            <Button key={s} variant={statusFilter === s ? "default" : "outline"} size="sm" onClick={() => setStatusFilter(s)}>
-              {s === "all" ? "Todos" : statusLabels[s]}
-            </Button>
-          ))}
-        </div>
-      </div>
     </div>
   )
 }
