@@ -1,0 +1,30 @@
+/**
+ * REGLA DE DOMINIO:
+ * - machines → alquiler unitario (1 doc = 1 unidad física)
+ * - inventory_stock → inventario agregado (1 doc = stock total de un material)
+ * - inventory_stock NO se alquila como unidad individual
+ * - Solo se controla por cantidad (rentStockItem / returnStockItem)
+ */
+
+export type StockCategory = "puntales" | "riendas" | "andamio_accesorios" | "consumibles"
+export type StockUnit = "unidad" | "metro" | "kg"
+
+export interface InventoryStock {
+  id: string
+  name: string
+  category: StockCategory
+  unit: StockUnit
+  stockTotal: number
+  stockAvailable: number
+  stockRented: number
+  locationType: "deposito"
+  createdAt: Date
+  updatedAt: Date
+}
+
+export interface CreateStockInput {
+  name: string
+  category: StockCategory
+  unit: StockUnit
+  stockTotal: number
+}

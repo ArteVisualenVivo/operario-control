@@ -4,6 +4,7 @@ import { useEffect } from "react"
 import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useMachines } from "@/hooks/useMachines"
+import { useInventoryStock } from "@/hooks/useInventoryStock"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -25,6 +26,7 @@ interface MachineGroup {
 
 export default function DashboardPage() {
   const { machines, loading } = useMachines()
+  const { items: stockItems, loading: stockLoading } = useInventoryStock()
   const router = useRouter()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<MachineStatus | "all">("all")
@@ -233,6 +235,38 @@ export default function DashboardPage() {
       </div>
 
       {grouped.length === 0 && <p className="text-center text-muted-foreground">No se encontraron máquinas</p>}
+
+      <div className="border-t pt-6 mt-6">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-xl font-semibold">Stock de materiales</h2>
+          <Button size="sm" onClick={() => router.push("/inventory/new")}>
+            + Nuevo material
+          </Button>
+        </div>
+
+        {stockLoading ? (
+          <p className="text-muted-foreground">Cargando stock...</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {stockItems.map((item) => (
+              <Card key={item.id}>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-lg">{item.name}</CardTitle>
+                  <p className="text-xs text-muted-foreground">Unidad: {item.unit}</p>
+                </CardHeader>
+                <CardContent className="space-y-1 text-sm">
+                  <p>Total: <strong>{item.stockTotal}</strong></p>
+                  <p className="text-green-600">Disponibles: <strong>{item.stockAvailable}</strong></p>
+                  <p className="text-blue-600">Alquilados: <strong>{item.stockRented}</strong></p>
+                </CardContent>
+              </Card>
+            ))}
+            {stockItems.length === 0 && (
+              <p className="text-muted-foreground col-span-full text-center">No hay materiales registrados</p>
+            )}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
