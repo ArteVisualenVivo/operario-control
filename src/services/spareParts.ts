@@ -112,6 +112,7 @@ export async function usePart(id: string, quantity: number): Promise<void> {
   const before = (await getDoc(ref)).data() as Record<string, unknown> | undefined
   if (!before) throw new Error("Repuesto no encontrado")
 
+  const currentTotal = (before.stockTotal as number) ?? 0
   const currentAvailable = (before.stockAvailable as number) ?? 0
   const currentUsed = (before.stockUsed as number) ?? 0
 
@@ -122,6 +123,7 @@ export async function usePart(id: string, quantity: number): Promise<void> {
   }
 
   const updates: Record<string, unknown> = {
+    stockTotal: currentTotal - quantity,
     stockAvailable: currentAvailable - quantity,
     stockUsed: currentUsed + quantity,
     updatedAt: serverTimestamp(),
