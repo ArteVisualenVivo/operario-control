@@ -4,6 +4,7 @@ import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { getMachine } from "@/services/machines"
 import { getSparePartsByMachine } from "@/services/spareParts"
+import { getBlueprints } from "@/services/machineBlueprints"
 import { useMachines } from "@/hooks/useMachines"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -12,6 +13,7 @@ import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
 import type { Machine, MachineCategory, MachineLocation, MachineRental, LocationInfo, SparePart } from "@/types"
+import type { MachineBlueprint } from "@/services/machineBlueprints"
 import { CATEGORY_LABELS } from "@/lib/categories"
 import { statusColors, statusLabels, locationLabels, formatDate } from "@/lib/ui"
 
@@ -45,6 +47,9 @@ export default function MachineDetailPage() {
   const [spareParts, setSpareParts] = useState<SparePart[]>([])
   const [spLoading, setSpLoading] = useState(true)
 
+  const [blueprints, setBlueprints] = useState<MachineBlueprint[]>([])
+  const [bpLoading, setBpLoading] = useState(true)
+
   useEffect(() => {
     getMachine(id).then((m) => { setMachine(m); setLoading(false) })
   }, [id])
@@ -54,6 +59,15 @@ export default function MachineDetailPage() {
       getSparePartsByMachine(id).then((parts) => {
         setSpareParts(parts)
         setSpLoading(false)
+      })
+    }
+  }, [id])
+
+  useEffect(() => {
+    if (id) {
+      getBlueprints(id).then((bps) => {
+        setBlueprints(bps)
+        setBpLoading(false)
       })
     }
   }, [id])
@@ -303,6 +317,47 @@ export default function MachineDetailPage() {
               </CardContent>
             </Card>
           )}
+
+          <div className="border-t pt-3 mt-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">
+                Despiece técnico ({blueprints.length})
+              </p>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => router.push(`/machines/${id}/blueprints`)}>
+                  Gestionar despieces
+                </Button>
+              </div>
+            </div>
+            {bpLoading ? (
+              <p className="text-xs text-muted-foreground">Cargando...</p>
+            ) : blueprints.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No hay despieces subidos.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {blueprints.slice(0, 3).map((bp) => (
+                  <div key={bp.id} className="rounded border bg-muted/20 p-2 text-xs space-y-0.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium truncate">{bp.fileName}</span>
+                      <span className="text-muted-foreground">{bp.fileType === "pdf" ? "PDF" : "IMG"}</span>
+                    </div>
+                    <div className="flex gap-2 pt-1">
+                      <a href={bp.fileUrl} target="_blank" rel="noopener noreferrer">
+                        <Button variant="outline" size="sm" className="h-6 text-xs">Ver</Button>
+                      </a>
+                    </div>
+                  </div>
+                ))}
+                {blueprints.length > 3 && (
+                  <p className="text-xs text-muted-foreground">
+                    +{blueprints.length - 3} despieces más
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="border-t pt-3 mt-3 space-y-3">
             <div className="flex items-center justify-between">

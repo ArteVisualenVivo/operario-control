@@ -1,9 +1,11 @@
 "use client"
 
-import { useState, useRef } from "react"
+import { useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useSpareParts } from "@/hooks/useSpareParts"
 import { getMachine } from "@/services/machines"
+import { getBlueprints } from "@/services/machineBlueprints"
+import BlueprintImportPanel from "@/components/machines/BlueprintImportPanel"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import SparePartCard from "@/components/machines/SparePartCard"
 import { toast } from "sonner"
 import type { Machine, SparePartCategory, CreateSparePartInput } from "@/types"
+import type { MachineBlueprint } from "@/services/machineBlueprints"
 import { useEffect } from "react"
 
 const CATEGORY_OPTIONS: { value: SparePartCategory; label: string }[] = [
@@ -40,10 +43,18 @@ export default function MachinePartsPage() {
   const [editName, setEditName] = useState("")
   const [editCategory, setEditCategory] = useState<SparePartCategory>("otro")
 
-  const fileRef = useRef<HTMLInputElement>(null)
+  const [blueprints, setBlueprints] = useState<MachineBlueprint[]>([])
+  const [bpLoading, setBpLoading] = useState(true)
+  const [showImportPanel, setShowImportPanel] = useState(false)
+  const [selectedBlueprint, setSelectedBlueprint] = useState<MachineBlueprint | null>(null)
+  const [showBlueprintSelector, setShowBlueprintSelector] = useState(false)
 
   useEffect(() => {
     getMachine(id).then((m) => { setMachine(m); setMachineLoading(false) })
+  }, [id])
+
+  useEffect(() => {
+    getBlueprints(id).then((bps) => { setBlueprints(bps); setBpLoading(false) })
   }, [id])
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -102,12 +113,12 @@ export default function MachinePartsPage() {
     } catch { toast.error("Error al eliminar") }
   }
 
-  const handleFileImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    toast.info("Archivo recibido. Completá los datos manualmente viendo el documento.")
-    if (fileRef.current) fileRef.current.value = ""
-    setShowForm(true)
+  const startImportFromBlueprint = () => {
+    if (blueprints.length === 0) {
+      toast.info("Primero subí un despiece desde la sección 'Despiece técnico' de la máquina")
+      return
+    }
+    setShowBlueprintSelector(true)
   }
 
   if (machineLoading || loading) return <p className="text-muted-foreground">Cargando...</p>
@@ -122,15 +133,8 @@ export default function MachinePartsPage() {
           </Button>
         </div>
         <div className="flex gap-2">
-          <input
-            ref={fileRef}
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png"
-            onChange={handleFileImport}
-            className="hidden"
-          />
-          <Button variant="outline" size="sm" onClick={() => fileRef.current?.click()}>
-            Importar despiece
+          <Button variant="outline" size="sm" onClick={startImportFromBlueprint}>
+            Importar desde despiece
           </Button>
           <Button size="sm" onClick={() => setShowForm(!showForm)}>
             {showForm ? "Cancelar" : "Agregar repuesto"}
@@ -141,6 +145,59 @@ export default function MachinePartsPage() {
       <h1 className="text-xl font-bold">
         Repuestos — {machine.name} {machine.model}
       </h1>
+
+      {showBlueprintSelector && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Seleccionar despiece</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {bpLoading ? (
+              <p className="text-sm text-muted-foreground">Cargando...</p>
+            ) : (
+              <div className="space-y-2">
+                {blueprints.map((bp) => (
+                  <div key={bp.id} className="flex items-center justify-between rounded border p-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{bp.fileName}</p>
+                      <p className="text-xs text-muted-foreground">{bp.fileType === "pdf" ? "PDF" : "Imagen"}</p>
+                    </div>
+                    <Button size="sm" onClick={() => {
+                      setSelectedBlueprint(bp)
+                      setShowBlueprintSelector(false)
+                      setShowImportPanel(true)
+                    }}>
+                      Usar este despiece
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Button variant="outline" size="sm" onClick={() => setShowBlueprintSelector(false)}>
+              Cancelar
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {showImportPanel && selectedBlueprint && (
+        <Card>
+          <CardContent className="pt-4">
+            <BlueprintImportPanel
+              machineId={id}
+              machineName={machine.name}
+              machineModel={machine.model}
+              blueprintId={selectedBlueprint.id}
+              fileUrl={selectedBlueprint.fileUrl}
+              fileType={selectedBlueprint.fileType}
+              onClose={() => {
+                setShowImportPanel(false)
+                setSelectedBlueprint(null)
+              }}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       {showForm && (
         <Card>

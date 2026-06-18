@@ -1,7 +1,7 @@
 export type SparePartCategory =
   | "motor" | "filtro" | "electrico" | "estructural" | "consumible" | "otro"
 
-export type SparePartSource = "manual" | "imported"
+export type SparePartSource = "manual" | "imported" | "blueprint"
 
 export interface SparePart {
   id: string
@@ -16,6 +16,7 @@ export interface SparePart {
   stockAvailable: number
   stockUsed: number
   source: SparePartSource
+  blueprintId?: string
   createdAt: Date
   updatedAt: Date
 }
@@ -30,4 +31,5 @@ export interface CreateSparePartInput {
   unit: string
   stockTotal: number
   source?: SparePartSource
+  blueprintId?: string
 }
