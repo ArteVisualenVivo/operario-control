@@ -2,6 +2,7 @@
 
 import { useEffect } from "react"
 import { useState, useMemo } from "react"
+import { useRouter } from "next/navigation"
 import { useMachines } from "@/hooks/useMachines"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -24,6 +25,7 @@ interface MachineGroup {
 
 export default function DashboardPage() {
   const { machines, loading } = useMachines()
+  const router = useRouter()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<MachineStatus | "all">("all")
 
@@ -69,11 +71,72 @@ export default function DashboardPage() {
     return Object.values(groups).sort((a, b) => a.name.localeCompare(b.name))
   }, [filteredMachines])
 
+  const alerts = useMemo(() => {
+    const now = new Date()
+    const getDaysLeft = (date: Date | string | null | undefined): number | null => {
+      if (!date) return null
+      return Math.ceil((new Date(date).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+    }
+
+    return machines
+      .filter(m =>
+        m.status === "rented" &&
+        m.rental?.expectedEndDate &&
+        !m.rental?.isOpenEnded
+      )
+      .map(m => {
+        const days = getDaysLeft(m.rental?.expectedEndDate)
+        return { machine: m, days }
+      })
+      .filter((a): a is { machine: Machine; days: number } => a.days !== null && a.days <= 1)
+  }, [machines])
+
   if (loading) return <p className="text-muted-foreground">Cargando...</p>
 
   return (
     <div className="space-y-6">
       <SeedInventory onComplete={() => window.location.reload()} />
+
+      {alerts.length > 0 && (
+        <div className="space-y-2">
+          <h2 className="text-sm font-semibold text-red-700">Alquileres próximos a vencer</h2>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {alerts.map(({ machine, days }) => (
+              <Card
+                key={machine.id}
+                className={`cursor-pointer transition-shadow hover:shadow-md ${
+                  days <= 0
+                    ? "border-red-500 bg-red-50"
+                    : "border-orange-400 bg-orange-50"
+                }`}
+                onClick={() => router.push(`/machines/${machine.id}`)}
+              >
+                <CardContent className="p-3 text-sm space-y-1">
+                  <p className="font-medium">
+                    {days <= 0 ? "VENCE" : "VENCE MAÑANA"}
+                    <span className="ml-1.5 text-muted-foreground font-normal">{machine.name}</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground">{machine.model}</p>
+                  {machine.rental && (
+                    <>
+                      <p><span className="text-muted-foreground">Cliente:</span> {machine.rental.clientName}</p>
+                      {machine.location?.client?.address && (
+                        <p><span className="text-muted-foreground">Dir:</span> {machine.location.client.address}</p>
+                      )}
+                      <p><span className="text-muted-foreground">Obra:</span> {machine.rental.projectName}</p>
+                      {machine.location?.project?.address && (
+                        <p><span className="text-muted-foreground">Dir obra:</span> {machine.location.project.address}</p>
+                      )}
+                      <p><span className="text-muted-foreground">Vence:</span> {formatDate(machine.rental.expectedEndDate)}</p>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total equipos</CardTitle></CardHeader>
