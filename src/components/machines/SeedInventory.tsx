@@ -5,6 +5,7 @@ import { collection, getDocs, limit, query, addDoc, where, Timestamp } from "fir
 import { db } from "@/lib/firebase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import type { StockCategory } from "@/types"
 import { toast } from "sonner"
 
 interface SeedItem {
@@ -13,8 +14,14 @@ interface SeedItem {
   category: "machine" | "scaffold" | "tool"
 }
 
+interface SeedStockItem {
+  name: string
+  size: string
+  category: StockCategory
+  stockTotal: number
+}
+
 const INVENTORY: SeedItem[] = [
-  // SCAFFOLD
   { name: "Andamio tubular", model: "estándar obra", category: "scaffold" },
   { name: "Andamio tubular", model: "reforzado pesado", category: "scaffold" },
   { name: "Andamio modular", model: "marco europeo", category: "scaffold" },
@@ -29,7 +36,6 @@ const INVENTORY: SeedItem[] = [
   { name: "Puntales telescópicos", model: "1.5–3m", category: "scaffold" },
   { name: "Puntales telescópicos", model: "2–4m", category: "scaffold" },
   { name: "Puntales telescópicos", model: "heavy duty", category: "scaffold" },
-  // MACHINE
   { name: "Pisón canguro", model: "Honda GX160", category: "machine" },
   { name: "Pisón canguro", model: "Wacker BS50-2i", category: "machine" },
   { name: "Pisón canguro", model: "Bomag BT65", category: "machine" },
@@ -45,7 +51,6 @@ const INVENTORY: SeedItem[] = [
   { name: "Allanadora", model: "doble rotor 90cm", category: "machine" },
   { name: "Pulidora", model: "piso hormigón", category: "machine" },
   { name: "Compresor", model: "portátil 5m3", category: "machine" },
-  // TOOL
   { name: "Amoladora", model: "115mm 850W", category: "tool" },
   { name: "Amoladora", model: "230mm industrial", category: "tool" },
   { name: "Taladro percutor", model: "Bosch GSB 13 RE", category: "tool" },
@@ -57,50 +62,76 @@ const INVENTORY: SeedItem[] = [
   { name: "Escalera extensible", model: "5m", category: "tool" },
 ]
 
+const STOCK_ITEMS: SeedStockItem[] = [
+  { name: "Riendas", size: "largas", category: "riendas", stockTotal: 100 },
+  { name: "Riendas", size: "cortas", category: "riendas", stockTotal: 100 },
+  { name: "Puntales", size: "3m", category: "puntales", stockTotal: 100 },
+  { name: "Puntales", size: "2m", category: "puntales", stockTotal: 100 },
+]
+
 export default function SeedInventory({ onComplete }: { onComplete?: () => void }) {
-  const [hasData, setHasData] = useState<boolean | null>(null)
+  const [showCard, setShowCard] = useState<boolean | null>(null)
   const [seeding, setSeeding] = useState(false)
 
   useEffect(() => {
-    const q = query(collection(db, "machines"), limit(1))
-    getDocs(q).then((snap) => setHasData(!snap.empty))
+    const machinesQ = query(collection(db, "machines"), limit(1))
+    const stockQ = query(collection(db, "inventory_stock"), limit(1))
+    Promise.all([getDocs(machinesQ), getDocs(stockQ)]).then(([m, s]) => {
+      const hasMachines = !m.empty
+      const hasStock = !s.empty
+      const hasAllRiendas = false
+      setShowCard(!hasMachines || !hasStock)
+    })
   }, [])
 
   const handleSeed = async () => {
     setSeeding(true)
-    const colRef = collection(db, "machines")
-    let inserted = 0
-    let skipped = 0
+    let mInserted = 0
+    let mSkipped = 0
+    let sInserted = 0
+    let sSkipped = 0
+
+    const machinesRef = collection(db, "machines")
+    const stockRef = collection(db, "inventory_stock")
 
     for (const item of INVENTORY) {
       const dup = await getDocs(
-        query(colRef, where("name", "==", item.name), where("model", "==", item.model), limit(1))
+        query(machinesRef, where("name", "==", item.name), where("model", "==", item.model), limit(1))
       )
-      if (!dup.empty) {
-        skipped++
-        continue
-      }
-      await addDoc(colRef, {
-        name: item.name,
-        model: item.model,
-        category: item.category,
-        status: "available",
-        locationType: "deposito",
-        rental: null,
-        createdAt: Timestamp.now(),
-        updatedAt: Timestamp.now(),
+      if (!dup.empty) { mSkipped++; continue }
+      await addDoc(machinesRef, {
+        name: item.name, model: item.model, category: item.category,
+        status: "available", locationType: "deposito",
+        rental: null, createdAt: Timestamp.now(), updatedAt: Timestamp.now(),
       })
-      inserted++
+      mInserted++
+    }
+
+    for (const item of STOCK_ITEMS) {
+      const dup = await getDocs(
+        query(stockRef, where("name", "==", item.name), where("size", "==", item.size), limit(1))
+      )
+      if (!dup.empty) { sSkipped++; continue }
+      await addDoc(stockRef, {
+        name: item.name, category: item.category, unit: "unidad",
+        stockTotal: item.stockTotal, stockAvailable: item.stockTotal,
+        stockRented: 0, size: item.size, subtype: null, locationType: "deposito",
+        createdAt: Timestamp.now(), updatedAt: Timestamp.now(),
+      })
+      sInserted++
     }
 
     setSeeding(false)
-    setHasData(true)
+    setShowCard(false)
     onComplete?.()
-    toast.success(`Inventario cargado: ${inserted} insertados, ${skipped} omitidos`)
+    const parts: string[] = []
+    if (mInserted > 0 || mSkipped > 0) parts.push(`${mInserted} máquinas insertadas, ${mSkipped} omitidas`)
+    if (sInserted > 0 || sSkipped > 0) parts.push(`${sInserted} materiales insertados, ${sSkipped} omitidos`)
+    toast.success(`Inventario cargado: ${parts.join(" — ")}`)
   }
 
-  if (hasData === null) return null
-  if (hasData) return null
+  if (showCard === null) return null
+  if (!showCard) return null
 
   return (
     <Card className="border-dashed border-blue-300 bg-blue-50/50">
@@ -109,7 +140,7 @@ export default function SeedInventory({ onComplete }: { onComplete?: () => void 
       </CardHeader>
       <CardContent className="space-y-2">
         <p className="text-sm text-muted-foreground">
-          No hay máquinas registradas. Carga el inventario inicial con un solo click.
+          Carga el inventario completo de máquinas y materiales de andamio con un solo click.
         </p>
         <Button onClick={handleSeed} disabled={seeding}>
           {seeding ? "Cargando..." : "Cargar inventario inicial"}
