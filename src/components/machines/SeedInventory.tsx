@@ -5,7 +5,7 @@ import { collection, getDocs, limit, query, addDoc, where, Timestamp } from "fir
 import { db } from "@/lib/firebase"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import type { StockCategory } from "@/types"
+import type { StockCategory, SparePartCategory } from "@/types"
 import { toast } from "sonner"
 
 interface SeedItem {
@@ -70,6 +70,28 @@ const STOCK_ITEMS: SeedStockItem[] = [
   { name: "Tablones", size: "3m", category: "andamio_accesorios", stockTotal: 100 },
 ]
 
+interface SeedSparePart {
+  machineName: string
+  machineModel: string
+  partName: string
+  partCode: string
+  category: SparePartCategory
+  stockTotal: number
+}
+
+const SPARE_PARTS_SEED: SeedSparePart[] = [
+  { machineName: "Pisón canguro", machineModel: "Honda GX160", partName: "Bujía", partCode: "NGK-BPR6ES", category: "motor", stockTotal: 3 },
+  { machineName: "Pisón canguro", machineModel: "Honda GX160", partName: "Filtro de aire", partCode: "HONDA-17211-Z0J-000", category: "filtro", stockTotal: 2 },
+  { machineName: "Pisón canguro", machineModel: "Honda GX160", partName: "Aceite motor 20W50", partCode: "HONDA-08C35-A331J01", category: "consumible", stockTotal: 5 },
+  { machineName: "Pisón canguro", machineModel: "Wacker BS50-2i", partName: "Bujía", partCode: "NGK-BPR6ES", category: "motor", stockTotal: 3 },
+  { machineName: "Pisón canguro", machineModel: "Wacker BS50-2i", partName: "Filtro de combustible", partCode: "WACKER-510000126", category: "filtro", stockTotal: 2 },
+  { machineName: "Martillo demoledor", machineModel: "Bosch GSH 16-28", partName: "Martillo neumático", partCode: "BOSCH-1619P04476", category: "motor", stockTotal: 2 },
+  { machineName: "Martillo demoledor", machineModel: "Bosch GSH 16-28", partName: "Carbones", partCode: "BOSCH-1131", category: "electrico", stockTotal: 5 },
+  { machineName: "Grupo electrógeno", machineModel: "5kVA diesel", partName: "Filtro de gasoil", partCode: "GEN-FF-505", category: "filtro", stockTotal: 3 },
+  { machineName: "Grupo electrógeno", machineModel: "10kVA trifásico", partName: "Filtro de gasoil", partCode: "GEN-FF-1010", category: "filtro", stockTotal: 3 },
+  { machineName: "Grupo electrógeno", machineModel: "10kVA trifásico", partName: "Batería 12V 100Ah", partCode: "GEN-BAT-12100", category: "electrico", stockTotal: 1 },
+]
+
 export default function SeedInventory({ onComplete }: { onComplete?: () => void }) {
   const [showCard, setShowCard] = useState<boolean | null>(null)
   const [seeding, setSeeding] = useState(false)
@@ -77,11 +99,9 @@ export default function SeedInventory({ onComplete }: { onComplete?: () => void 
   useEffect(() => {
     const machinesQ = query(collection(db, "machines"), limit(1))
     const stockQ = query(collection(db, "inventory_stock"), limit(1))
-    Promise.all([getDocs(machinesQ), getDocs(stockQ)]).then(([m, s]) => {
-      const hasMachines = !m.empty
-      const hasStock = !s.empty
-      const hasAllRiendas = false
-      setShowCard(!hasMachines || !hasStock)
+    const partsQ = query(collection(db, "machine_spare_parts"), limit(1))
+    Promise.all([getDocs(machinesQ), getDocs(stockQ), getDocs(partsQ)]).then(([m, s, p]) => {
+      setShowCard(m.empty || s.empty || p.empty)
     })
   }, [])
 
@@ -91,9 +111,12 @@ export default function SeedInventory({ onComplete }: { onComplete?: () => void 
     let mSkipped = 0
     let sInserted = 0
     let sSkipped = 0
+    let spInserted = 0
+    let spSkipped = 0
 
     const machinesRef = collection(db, "machines")
     const stockRef = collection(db, "inventory_stock")
+    const sparePartsRef = collection(db, "machine_spare_parts")
 
     for (const item of INVENTORY) {
       const dup = await getDocs(
@@ -122,12 +145,42 @@ export default function SeedInventory({ onComplete }: { onComplete?: () => void 
       sInserted++
     }
 
+    for (const item of SPARE_PARTS_SEED) {
+      const machineSnap = await getDocs(
+        query(machinesRef, where("name", "==", item.machineName), where("model", "==", item.machineModel), limit(1))
+      )
+      if (machineSnap.empty) { spSkipped++; continue }
+      const machineId = machineSnap.docs[0].id
+      const dup = await getDocs(
+        query(sparePartsRef, where("machineId", "==", machineId), where("partCode", "==", item.partCode), limit(1))
+      )
+      if (!dup.empty) { spSkipped++; continue }
+      const d = machineSnap.docs[0].data()
+      await addDoc(sparePartsRef, {
+        machineId,
+        machineName: d.name,
+        machineModel: d.model,
+        partName: item.partName,
+        partCode: item.partCode,
+        category: item.category,
+        unit: "unidad",
+        stockTotal: item.stockTotal,
+        stockAvailable: item.stockTotal,
+        stockUsed: 0,
+        source: "manual",
+        createdAt: Timestamp.now(),
+        updatedAt: Timestamp.now(),
+      })
+      spInserted++
+    }
+
     setSeeding(false)
     setShowCard(false)
     onComplete?.()
     const parts: string[] = []
     if (mInserted > 0 || mSkipped > 0) parts.push(`${mInserted} máquinas insertadas, ${mSkipped} omitidas`)
     if (sInserted > 0 || sSkipped > 0) parts.push(`${sInserted} materiales insertados, ${sSkipped} omitidos`)
+    if (spInserted > 0 || spSkipped > 0) parts.push(`${spInserted} repuestos insertados, ${spSkipped} omitidos`)
     toast.success(`Inventario cargado: ${parts.join(" — ")}`)
   }
 

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { getMachine } from "@/services/machines"
+import { getSparePartsByMachine } from "@/services/spareParts"
 import { useMachines } from "@/hooks/useMachines"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,7 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
-import type { Machine, MachineCategory, MachineLocation, MachineRental, LocationInfo } from "@/types"
+import type { Machine, MachineCategory, MachineLocation, MachineRental, LocationInfo, SparePart } from "@/types"
 import { CATEGORY_LABELS } from "@/lib/categories"
 import { statusColors, statusLabels, locationLabels, formatDate } from "@/lib/ui"
 
@@ -41,8 +42,20 @@ export default function MachineDetailPage() {
   const [rExpectedEndDate, setRExpectedEndDate] = useState("")
   const [rIsOpenEnded, setRIsOpenEnded] = useState(false)
 
+  const [spareParts, setSpareParts] = useState<SparePart[]>([])
+  const [spLoading, setSpLoading] = useState(true)
+
   useEffect(() => {
     getMachine(id).then((m) => { setMachine(m); setLoading(false) })
+  }, [id])
+
+  useEffect(() => {
+    if (id) {
+      getSparePartsByMachine(id).then((parts) => {
+        setSpareParts(parts)
+        setSpLoading(false)
+      })
+    }
   }, [id])
 
   const reload = async () => {
@@ -290,6 +303,45 @@ export default function MachineDetailPage() {
               </CardContent>
             </Card>
           )}
+
+          <div className="border-t pt-3 mt-3 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-medium">
+                Repuestos ({spareParts.length})
+              </p>
+              <Button variant="outline" size="sm" onClick={() => router.push(`/machines/${id}/parts`)}>
+                Ver todos
+              </Button>
+            </div>
+            {spLoading ? (
+              <p className="text-xs text-muted-foreground">Cargando...</p>
+            ) : spareParts.length === 0 ? (
+              <p className="text-xs text-muted-foreground">
+                No hay repuestos definidos. {machine.status === "maintenance" && "Agregá repuestos desde el detalle de la máquina."}
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {spareParts.slice(0, 3).map((part) => (
+                  <div key={part.id} className="rounded border bg-muted/20 p-2 text-xs space-y-0.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{part.partName}</span>
+                      <span className="font-mono text-muted-foreground">{part.partCode}</span>
+                    </div>
+                    <div className="flex gap-3 text-muted-foreground">
+                      <span>Total: {part.stockTotal}</span>
+                      <span className="text-green-600">Disp: {part.stockAvailable}</span>
+                      <span className="text-blue-600">Uso: {part.stockUsed}</span>
+                    </div>
+                  </div>
+                ))}
+                {spareParts.length > 3 && (
+                  <p className="text-xs text-muted-foreground">
+                    +{spareParts.length - 3} repuestos más
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
 
           <div>
             <p className="mb-2 text-sm font-medium">Acciones:</p>
