@@ -9,12 +9,38 @@ import ImportInventory from "@/components/machines/ImportInventory"
 import MachineCard from "@/components/machines/MachineCard"
 import type { MachineStatus } from "@/types"
 import { statusLabels } from "@/lib/ui"
+import { toast } from "sonner"
 
 export default function MachinesPage() {
-  const { machines, loading } = useMachines()
+  const { machines, loading, remove, deleteAll } = useMachines()
   const router = useRouter()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<MachineStatus | "all">("all")
+  const [deleting, setDeleting] = useState(false)
+
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("¿Eliminar esta máquina? Esta acción no se puede deshacer.")) return
+    try {
+      await remove(id)
+      toast.success("Máquina eliminada")
+    } catch {
+      toast.error("Error al eliminar máquina")
+    }
+  }
+
+  const handleDeleteAll = async () => {
+    const confirm = window.prompt("Esto eliminará TODAS las máquinas. Escribe ELIMINAR para confirmar:")
+    if (confirm !== "ELIMINAR") return
+    setDeleting(true)
+    try {
+      const count = await deleteAll()
+      toast.success(`${count} máquina${count !== 1 ? "s" : ""} eliminada${count !== 1 ? "s" : ""}`)
+    } catch {
+      toast.error("Error al eliminar máquinas")
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const filteredMachines = useMemo(() => {
     return machines.filter((m) => {
@@ -39,6 +65,9 @@ export default function MachinesPage() {
         <div className="flex gap-2">
           <ImportInventory />
           <Button onClick={() => router.push("/machines/new")}>Nueva máquina</Button>
+          <Button variant="destructive" size="sm" onClick={handleDeleteAll} disabled={deleting || machines.length === 0}>
+            {deleting ? "Eliminando..." : "Eliminar todas"}
+          </Button>
         </div>
       </div>
 
@@ -60,7 +89,7 @@ export default function MachinesPage() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {filteredMachines.map((machine) => (
-          <MachineCard key={machine.id} machine={machine} />
+          <MachineCard key={machine.id} machine={machine} onDelete={handleDelete} />
         ))}
       </div>
 

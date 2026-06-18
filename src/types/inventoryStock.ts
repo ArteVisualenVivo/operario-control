@@ -9,6 +9,8 @@
 export type StockCategory = "puntales" | "riendas" | "andamio_accesorios" | "consumibles"
 export type StockUnit = "unidad" | "metro" | "kg"
 
+export type StockSubtype = "puntal" | "rienda" | "plataforma" | "diagonal" | "otros"
+
 export interface InventoryStock {
   id: string
   name: string
@@ -17,6 +19,7 @@ export interface InventoryStock {
   stockTotal: number
   stockAvailable: number
   stockRented: number
+  subtype?: StockSubtype | null
   locationType: "deposito"
   createdAt: Date
   updatedAt: Date
@@ -27,4 +30,5 @@ export interface CreateStockInput {
   category: StockCategory
   unit: StockUnit
   stockTotal: number
+  subtype?: StockSubtype | null
 }

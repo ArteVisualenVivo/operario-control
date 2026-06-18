@@ -1,6 +1,6 @@
 import {
   collection, addDoc, updateDoc, deleteDoc, doc, getDoc, getDocs,
-  query, orderBy, serverTimestamp, Timestamp,
+  query, orderBy, serverTimestamp, Timestamp, writeBatch,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { createAuditLog } from "./audit"
@@ -147,6 +147,28 @@ export async function getMachine(id: string): Promise<Machine | null> {
   const snap = await getDoc(ref)
   if (!snap.exists()) return null
   return docToMachine(snap)
+}
+
+export async function deleteAllMachines(): Promise<number> {
+  const snapshot = await getDocs(collection(db, COLLECTION))
+  const docs = snapshot.docs
+  const total = docs.length
+
+  for (let i = 0; i < docs.length; i += 500) {
+    const batch = writeBatch(db)
+    const chunk = docs.slice(i, i + 500)
+
+    for (const docSnap of chunk) {
+      batch.delete(docSnap.ref)
+    }
+    await batch.commit()
+
+    for (const docSnap of chunk) {
+      await createAuditLog("delete", "machine", docSnap.id, docSnap.data() as Record<string, unknown> ?? null, null)
+    }
+  }
+
+  return total
 }
 
 export async function getMachines(): Promise<Machine[]> {

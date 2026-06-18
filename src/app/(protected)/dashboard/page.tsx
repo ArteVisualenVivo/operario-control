@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import SeedInventory from "@/components/machines/SeedInventory"
-import type { MachineStatus, Machine } from "@/types"
+import type { MachineStatus, Machine, InventoryStock } from "@/types"
 import { statusLabels, formatDate } from "@/lib/ui"
 
 interface MachineGroup {
@@ -266,6 +266,51 @@ export default function DashboardPage() {
             )}
           </div>
         )}
+
+        {(() => {
+          const scaffoldItems = stockItems.filter(i => i.category === "andamio_accesorios")
+          if (scaffoldItems.length === 0) return null
+
+          const grouped: Record<string, InventoryStock[]> = {}
+          for (const item of scaffoldItems) {
+            const key = item.subtype ?? "otros"
+            if (!grouped[key]) grouped[key] = []
+            grouped[key].push(item)
+          }
+
+          const subtypeLabels: Record<string, string> = {
+            puntal: "Puntales", rienda: "Riendas", plataforma: "Plataformas",
+            diagonal: "Diagonales", otros: "Otros",
+          }
+
+          return (
+            <div className="mt-6 border-t pt-4">
+              <h3 className="text-sm font-semibold text-muted-foreground mb-3">
+                Componentes de andamios
+              </h3>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {Object.entries(grouped).map(([subtype, items]) => {
+                  const total = items.reduce((s, i) => s + i.stockTotal, 0)
+                  const available = items.reduce((s, i) => s + i.stockAvailable, 0)
+                  const rented = items.reduce((s, i) => s + i.stockRented, 0)
+                  return (
+                    <Card key={subtype}>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base">{subtypeLabels[subtype] ?? subtype}</CardTitle>
+                        <p className="text-xs text-muted-foreground">{items.length} registro(s)</p>
+                      </CardHeader>
+                      <CardContent className="space-y-1 text-sm">
+                        <p>Total: <strong>{total}</strong></p>
+                        <p className="text-green-600">Disponibles: <strong>{available}</strong></p>
+                        <p className="text-blue-600">Alquilados: <strong>{rented}</strong></p>
+                      </CardContent>
+                    </Card>
+                  )
+                })}
+              </div>
+            </div>
+          )
+        })()}
       </div>
     </div>
   )

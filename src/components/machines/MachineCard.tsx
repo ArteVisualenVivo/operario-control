@@ -10,9 +10,10 @@ import { CATEGORY_LABELS, CATEGORY_COLORS } from "@/lib/categories"
 interface MachineCardProps {
   machine: Machine
   onRepair?: (id: string) => void
+  onDelete?: (id: string) => void
 }
 
-export default function MachineCard({ machine, onRepair }: MachineCardProps) {
+export default function MachineCard({ machine, onRepair, onDelete }: MachineCardProps) {
   const router = useRouter()
 
   return (
@@ -89,6 +90,14 @@ export default function MachineCard({ machine, onRepair }: MachineCardProps) {
               <p><span className="text-muted-foreground">Obra:</span> {machine.location.project.name}</p>
             )}
           </>
+        )}
+        {onDelete && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(machine.id) }}
+            className="text-xs text-red-600 hover:text-red-800 underline mt-2 block"
+          >
+            Eliminar máquina
+          </button>
         )}
       </CardContent>
     </Card>

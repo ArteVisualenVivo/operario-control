@@ -42,9 +42,15 @@ export function useMachines() {
     await load()
   }, [load])
 
+  const deleteAll = useCallback(async () => {
+    const count = await machineService.deleteAllMachines()
+    await load()
+    return count
+  }, [load])
+
   return {
     machines, loading, create, update,
     rent, returnMachine,
-    remove, reload: load,
+    remove, deleteAll, reload: load,
   }
 }

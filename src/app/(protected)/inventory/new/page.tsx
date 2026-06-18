@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import type { StockCategory, StockUnit } from "@/types"
+import type { StockCategory, StockUnit, StockSubtype } from "@/types"
 import { toast } from "sonner"
 
 const categoryOptions: { value: StockCategory; label: string }[] = [
@@ -23,6 +23,14 @@ const unitOptions: { value: StockUnit; label: string }[] = [
   { value: "kg", label: "Kg" },
 ]
 
+const subtypeOptions: { value: StockSubtype; label: string }[] = [
+  { value: "puntal", label: "Puntal" },
+  { value: "rienda", label: "Rienda" },
+  { value: "plataforma", label: "Plataforma" },
+  { value: "diagonal", label: "Diagonal" },
+  { value: "otros", label: "Otros" },
+]
+
 export default function NewStockPage() {
   const { create } = useInventoryStock()
   const router = useRouter()
@@ -31,6 +39,7 @@ export default function NewStockPage() {
   const [category, setCategory] = useState<StockCategory>("puntales")
   const [unit, setUnit] = useState<StockUnit>("unidad")
   const [stockTotal, setStockTotal] = useState(1)
+  const [subtype, setSubtype] = useState<StockSubtype>("puntal")
   const [loading, setLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -38,11 +47,11 @@ export default function NewStockPage() {
     setLoading(true)
 
     try {
-      await create({ name, category, unit, stockTotal })
+      await create({ name, category, unit, stockTotal, subtype: category === "andamio_accesorios" ? subtype : null })
       toast.success("Material creado")
       router.push("/dashboard")
-    } catch {
-      toast.error("Error al crear material")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al crear material")
     } finally {
       setLoading(false)
     }
@@ -86,6 +95,25 @@ export default function NewStockPage() {
                   <option key={u.value} value={u.value}>{u.label}</option>
                 ))}
               </select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="subtype">
+                Subtipo
+                {category === "andamio_accesorios" && <span className="text-red-500 ml-1">*</span>}
+              </Label>
+              <select
+                id="subtype"
+                value={subtype}
+                onChange={(e) => setSubtype(e.target.value as StockSubtype)}
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
+              >
+                {subtypeOptions.map((s) => (
+                  <option key={s.value} value={s.value}>{s.label}</option>
+                ))}
+              </select>
+              {category === "andamio_accesorios" && (
+                <p className="text-xs text-muted-foreground">Obligatorio para materiales de andamio</p>
+              )}
             </div>
             <div className="space-y-2">
               <Label htmlFor="stockTotal">Stock total</Label>

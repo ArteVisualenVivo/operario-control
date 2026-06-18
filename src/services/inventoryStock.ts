@@ -12,7 +12,7 @@ import {
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { createAuditLog } from "./audit"
-import type { InventoryStock, CreateStockInput } from "@/types"
+import type { InventoryStock, CreateStockInput, StockSubtype } from "@/types"
 
 const COLLECTION = "inventory_stock"
 
@@ -32,6 +32,7 @@ function docToStock(docSnap: { id: string; data: () => Record<string, unknown> }
     stockTotal: (data.stockTotal as number) ?? 0,
     stockAvailable: (data.stockAvailable as number) ?? 0,
     stockRented: (data.stockRented as number) ?? 0,
+    subtype: (data.subtype as StockSubtype) ?? null,
     locationType: "deposito",
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
@@ -52,6 +53,10 @@ export async function getStockItem(id: string): Promise<InventoryStock | null> {
 }
 
 export async function createStockItem(input: CreateStockInput): Promise<string> {
+  if (input.category === "andamio_accesorios" && !input.subtype) {
+    throw new Error("El subtipo es obligatorio para materiales de tipo 'Andamio Accesorios'")
+  }
+
   const docData: Record<string, unknown> = {
     name: input.name,
     category: input.category,
@@ -59,6 +64,7 @@ export async function createStockItem(input: CreateStockInput): Promise<string> 
     stockTotal: input.stockTotal,
     stockAvailable: input.stockTotal,
     stockRented: 0,
+    subtype: input.subtype ?? null,
     locationType: "deposito",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -70,7 +76,7 @@ export async function createStockItem(input: CreateStockInput): Promise<string> 
 
 export async function updateStockItem(
   id: string,
-  data: Partial<Pick<InventoryStock, "name" | "category" | "unit" | "stockTotal">>,
+  data: Partial<Pick<InventoryStock, "name" | "category" | "unit" | "stockTotal" | "subtype">>,
 ): Promise<void> {
   const ref = doc(db, COLLECTION, id)
   const before = (await getDoc(ref)).data() as Record<string, unknown> | undefined
