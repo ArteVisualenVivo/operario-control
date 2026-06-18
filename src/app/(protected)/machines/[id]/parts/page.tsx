@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import SparePartCard from "@/components/machines/SparePartCard"
+import ErrorState from "@/components/ui/ErrorState"
 import { toast } from "sonner"
 import type { Machine, SparePartCategory, CreateSparePartInput } from "@/types"
 import type { MachineBlueprint } from "@/services/machineBlueprints"
@@ -28,7 +29,7 @@ const CATEGORY_OPTIONS: { value: SparePartCategory; label: string }[] = [
 export default function MachinePartsPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const { spareParts, loading, create, update, remove, usePart, restockPart } = useSpareParts(id)
+  const { spareParts, loading, error, create, update, remove, usePart, restockPart } = useSpareParts(id)
   const [machine, setMachine] = useState<Machine | null>(null)
   const [machineLoading, setMachineLoading] = useState(true)
 
@@ -121,6 +122,7 @@ export default function MachinePartsPage() {
     setShowBlueprintSelector(true)
   }
 
+  if (error) return <ErrorState error={error} />
   if (machineLoading || loading) return <p className="text-muted-foreground">Cargando...</p>
   if (!machine) return <p className="text-muted-foreground">Máquina no encontrada</p>
 

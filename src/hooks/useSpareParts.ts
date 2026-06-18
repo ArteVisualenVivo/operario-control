@@ -2,17 +2,26 @@
 
 import { useEffect, useState, useCallback } from "react"
 import type { SparePart, CreateSparePartInput } from "@/types"
+import type { AppError } from "@/types/errors"
+import { parseFirebaseError } from "@/lib/parseFirebaseError"
 import * as sparePartsService from "@/services/spareParts"
 
 export function useSpareParts(machineId: string) {
   const [spareParts, setSpareParts] = useState<SparePart[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<AppError>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
-    const data = await sparePartsService.getSparePartsByMachine(machineId)
-    setSpareParts(data)
-    setLoading(false)
+    setError(null)
+    try {
+      const data = await sparePartsService.getSparePartsByMachine(machineId)
+      setSpareParts(data)
+    } catch (e) {
+      setError(parseFirebaseError(e, "machine_spare_parts"))
+    } finally {
+      setLoading(false)
+    }
   }, [machineId])
 
   useEffect(() => { load() }, [load])
@@ -43,6 +52,6 @@ export function useSpareParts(machineId: string) {
   }, [load])
 
   return {
-    spareParts, loading, create, update, remove, usePart, restockPart, reload: load,
+    spareParts, loading, error, create, update, remove, usePart, restockPart, reload: load,
   }
 }

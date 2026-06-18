@@ -3,17 +3,17 @@
 import { useEffect, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { getMachine } from "@/services/machines"
-import { getSparePartsByMachine } from "@/services/spareParts"
-import { getBlueprints } from "@/services/machineBlueprints"
+import { useSpareParts } from "@/hooks/useSpareParts"
+import { useMachineBlueprints } from "@/hooks/useMachineBlueprints"
 import { useMachines } from "@/hooks/useMachines"
+import ErrorState from "@/components/ui/ErrorState"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
-import type { Machine, MachineCategory, MachineLocation, MachineRental, LocationInfo, SparePart } from "@/types"
-import type { MachineBlueprint } from "@/services/machineBlueprints"
+import type { Machine, MachineCategory, MachineLocation, MachineRental, LocationInfo } from "@/types"
 import { CATEGORY_LABELS } from "@/lib/categories"
 import { statusColors, statusLabels, locationLabels, formatDate } from "@/lib/ui"
 
@@ -44,32 +44,11 @@ export default function MachineDetailPage() {
   const [rExpectedEndDate, setRExpectedEndDate] = useState("")
   const [rIsOpenEnded, setRIsOpenEnded] = useState(false)
 
-  const [spareParts, setSpareParts] = useState<SparePart[]>([])
-  const [spLoading, setSpLoading] = useState(true)
-
-  const [blueprints, setBlueprints] = useState<MachineBlueprint[]>([])
-  const [bpLoading, setBpLoading] = useState(true)
+  const { spareParts, loading: spLoading, error: spError } = useSpareParts(id)
+  const { blueprints, loading: bpLoading, error: bpError } = useMachineBlueprints(id)
 
   useEffect(() => {
     getMachine(id).then((m) => { setMachine(m); setLoading(false) })
-  }, [id])
-
-  useEffect(() => {
-    if (id) {
-      getSparePartsByMachine(id).then((parts) => {
-        setSpareParts(parts)
-        setSpLoading(false)
-      })
-    }
-  }, [id])
-
-  useEffect(() => {
-    if (id) {
-      getBlueprints(id).then((bps) => {
-        setBlueprints(bps)
-        setBpLoading(false)
-      })
-    }
   }, [id])
 
   const reload = async () => {
@@ -329,7 +308,9 @@ export default function MachineDetailPage() {
                 </Button>
               </div>
             </div>
-            {bpLoading ? (
+            {bpError ? (
+              <ErrorState error={bpError} />
+            ) : bpLoading ? (
               <p className="text-xs text-muted-foreground">Cargando...</p>
             ) : blueprints.length === 0 ? (
               <p className="text-xs text-muted-foreground">
@@ -368,7 +349,9 @@ export default function MachineDetailPage() {
                 Ver todos
               </Button>
             </div>
-            {spLoading ? (
+            {spError ? (
+              <ErrorState error={spError} />
+            ) : spLoading ? (
               <p className="text-xs text-muted-foreground">Cargando...</p>
             ) : spareParts.length === 0 ? (
               <p className="text-xs text-muted-foreground">

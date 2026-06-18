@@ -1,5 +1,5 @@
 import {
-  collection, addDoc, deleteDoc, doc, getDocs, query, where, orderBy, Timestamp,
+  collection, addDoc, deleteDoc, doc, getDoc, getDocs, query, where, orderBy, Timestamp,
 } from "firebase/firestore"
 import { ref, uploadBytes, getDownloadURL, deleteObject } from "firebase/storage"
 import { db, storage } from "@/lib/firebase"
@@ -84,10 +84,10 @@ export async function getBlueprints(machineId: string): Promise<MachineBlueprint
 
 export async function deleteBlueprint(id: string): Promise<void> {
   const ref_ = doc(db, COLLECTION, id)
-  const snap = await getDocs(query(collection(db, COLLECTION), where("__name__", "==", id)))
-  if (snap.empty) throw new Error("Despiece no encontrado")
+  const snap = await getDoc(ref_)
+  if (!snap.exists()) throw new Error("Despiece no encontrado")
 
-  const data = snap.docs[0].data() as { fileUrl?: string }
+  const data = snap.data() as { fileUrl?: string }
   const before = { ...data, id }
 
   if (data.fileUrl) {

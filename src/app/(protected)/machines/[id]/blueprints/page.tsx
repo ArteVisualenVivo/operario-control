@@ -4,6 +4,7 @@ import { useParams, useRouter } from "next/navigation"
 import { useMachineBlueprints } from "@/hooks/useMachineBlueprints"
 import { deleteBlueprint } from "@/services/machineBlueprints"
 import BlueprintUploader from "@/components/machines/BlueprintUploader"
+import ErrorState from "@/components/ui/ErrorState"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
@@ -11,7 +12,9 @@ import { toast } from "sonner"
 export default function MachineBlueprintsPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const { blueprints, loading, uploadBlueprint, reload } = useMachineBlueprints(id)
+  const { blueprints, loading, error, uploadBlueprint, reload } = useMachineBlueprints(id)
+
+  if (error) return <ErrorState error={error} />
 
   const handleDelete = async (blueprintId: string, fileName: string) => {
     if (!confirm(`¿Eliminar "${fileName}"?`)) return
