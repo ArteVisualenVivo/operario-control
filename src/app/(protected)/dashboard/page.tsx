@@ -7,7 +7,6 @@ import { useMachines } from "@/hooks/useMachines"
 import { useInventoryStock } from "@/hooks/useInventoryStock"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import SeedInventory from "@/components/machines/SeedInventory"
 import type { MachineStatus, Machine, InventoryStock } from "@/types"
@@ -30,6 +29,7 @@ export default function DashboardPage() {
   const router = useRouter()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<MachineStatus | "all">("all")
+  const [showMachines, setShowMachines] = useState(false)
 
   useEffect(() => {
     if (!loading) {
@@ -90,7 +90,9 @@ export default function DashboardPage() {
         const days = getDaysLeft(m.rental?.expectedEndDate)
         return { machine: m, days }
       })
-      .filter((a): a is { machine: Machine; days: number } => a.days !== null && a.days <= 1)
+      .filter((a): a is { machine: Machine; days: number } => a.days !== null && a.days <= 30)
+      .sort((a, b) => a.days - b.days)
+      .slice(0, 5)
   }, [machines])
 
   if (loading) return <p className="text-muted-foreground">Cargando...</p>
@@ -106,30 +108,32 @@ export default function DashboardPage() {
             {alerts.map(({ machine, days }) => (
               <Card
                 key={machine.id}
-                className={`cursor-pointer transition-shadow hover:shadow-md ${
-                  days <= 0
-                    ? "border-red-500 bg-red-50"
-                    : "border-orange-400 bg-orange-50"
-                }`}
+                className="cursor-pointer transition-shadow hover:shadow-md bg-amber-50"
                 onClick={() => router.push(`/machines/${machine.id}`)}
               >
                 <CardContent className="p-3 text-sm space-y-1">
-                  <p className="font-medium">
-                    {days <= 0 ? "VENCE" : "VENCE MAÑANA"}
-                    <span className="ml-1.5 text-muted-foreground font-normal">{machine.name}</span>
-                  </p>
+                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold mb-1 ${
+                    days <= 0
+                      ? "bg-red-200 text-red-800"
+                      : days === 1
+                        ? "bg-orange-200 text-orange-800"
+                        : "bg-yellow-200 text-yellow-800"
+                  }`}>
+                    {days <= 0 ? "VENCIDO" : days === 1 ? "VENCE MAÑANA" : "PRÓXIMO A VENCER"}
+                  </span>
+                  <p className="font-medium">{machine.name}</p>
                   <p className="text-xs text-muted-foreground">{machine.model}</p>
                   {machine.rental && (
                     <>
-                      <p><span className="text-muted-foreground">Cliente:</span> {machine.rental.clientName}</p>
+                      <p><span className="text-muted-foreground">Cliente: </span><strong>{machine.rental.clientName}</strong></p>
                       {machine.location?.client?.address && (
-                        <p><span className="text-muted-foreground">Dir:</span> {machine.location.client.address}</p>
+                        <p><span className="text-muted-foreground">Dir. cliente: </span><strong>{machine.location.client.address}</strong></p>
                       )}
-                      <p><span className="text-muted-foreground">Obra:</span> {machine.rental.projectName}</p>
+                      <p><span className="text-muted-foreground">Obra: </span><strong>{machine.rental.projectName}</strong></p>
                       {machine.location?.project?.address && (
-                        <p><span className="text-muted-foreground">Dir obra:</span> {machine.location.project.address}</p>
+                        <p><span className="text-muted-foreground">Dir. obra: </span><strong>{machine.location.project.address}</strong></p>
                       )}
-                      <p><span className="text-muted-foreground">Vence:</span> {formatDate(machine.rental.expectedEndDate)}</p>
+                      <p><span className="text-muted-foreground">Vence: </span>{formatDate(machine.rental.expectedEndDate)}</p>
                     </>
                   )}
                 </CardContent>
@@ -173,68 +177,55 @@ export default function DashboardPage() {
         </Card>
       </div>
 
-      <div className="flex flex-col gap-4 sm:flex-row">
-        <Input
-          placeholder="Buscar por nombre, modelo, cliente u obra..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm"
-        />
-        <div className="flex gap-2">
-          {(["all", "available", "rented", "maintenance"] as const).map((s) => (
-            <Button key={s} variant={statusFilter === s ? "default" : "outline"} size="sm" onClick={() => setStatusFilter(s)}>
-              {s === "all" ? "Todos" : statusLabels[s]}
-            </Button>
-          ))}
-        </div>
-      </div>
+      <button
+        onClick={() => setShowMachines(!showMachines)}
+        className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <span className="text-xs">{showMachines ? "▼" : "▶"}</span>
+        <span>Ver listado de máquinas</span>
+        <span className="text-xs text-muted-foreground">({grouped.length} grupo{grouped.length !== 1 ? "s" : ""})</span>
+      </button>
 
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <span>{filteredMachines.length} de {machines.length} máquinas</span>
-        {statusFilter !== "all" && (
-          <Badge variant="outline">Filtro: {statusLabels[statusFilter]}</Badge>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {grouped.map((group) => (
-          <Card key={group.key}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-lg">{group.name}</CardTitle>
-              <p className="text-xs text-muted-foreground">Modelo: {group.model}</p>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm">
-              <div className="flex flex-wrap gap-x-4 gap-y-1">
-                <span>Total: <strong>{group.total}</strong></span>
-                <span className="text-green-600">Disp: <strong>{group.available}</strong></span>
-                <span className="text-blue-600">Alq: <strong>{group.rented}</strong></span>
-                <span className="text-yellow-600">Mant: <strong>{group.maintenance}</strong></span>
-              </div>
-              {group.rented > 0 && group.machines.filter(m => m.status === "rented").map(rm => (
-                <div key={rm.id} className="border-t pt-2 text-xs space-y-0.5 text-muted-foreground">
-                  {rm.rental && (
-                    <>
-                      <p>→ Cliente: {rm.rental.clientName}</p>
-                      {rm.location?.client?.address && <p>→ Dir. cliente: {rm.location.client.address}</p>}
-                      <p>→ Obra: {rm.rental.projectName}</p>
-                      {rm.location?.project?.address && <p>→ Dir. obra: {rm.location.project.address}</p>}
-                      <p>→ Inicio: {formatDate(rm.rental.startDate)}</p>
-                      {!rm.rental.isOpenEnded && rm.rental.expectedEndDate && (
-                        <p>→ Fin estimado: {formatDate(rm.rental.expectedEndDate)}</p>
-                      )}
-                      {rm.rental.isOpenEnded && (
-                        <p className="text-blue-600">→ Plazo abierto</p>
-                      )}
-                    </>
-                  )}
+      {showMachines && (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {grouped.map((group) => (
+            <Card key={group.key}>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">{group.name}</CardTitle>
+                <p className="text-xs text-muted-foreground">Modelo: {group.model}</p>
+              </CardHeader>
+              <CardContent className="space-y-2 text-sm">
+                <div className="flex flex-wrap gap-x-4 gap-y-1">
+                  <span>Total: <strong>{group.total}</strong></span>
+                  <span className="text-green-600">Disp: <strong>{group.available}</strong></span>
+                  <span className="text-blue-600">Alq: <strong>{group.rented}</strong></span>
+                  <span className="text-yellow-600">Mant: <strong>{group.maintenance}</strong></span>
                 </div>
-              ))}
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
-      {grouped.length === 0 && <p className="text-center text-muted-foreground">No se encontraron máquinas</p>}
+                {group.rented > 0 && group.machines.filter(m => m.status === "rented").map(rm => (
+                  <div key={rm.id} className="border-t pt-2 text-xs space-y-0.5 text-muted-foreground">
+                    {rm.rental && (
+                      <>
+                        <p>→ Cliente: {rm.rental.clientName}</p>
+                        {rm.location?.client?.address && <p>→ Dir. cliente: {rm.location.client.address}</p>}
+                        <p>→ Obra: {rm.rental.projectName}</p>
+                        {rm.location?.project?.address && <p>→ Dir. obra: {rm.location.project.address}</p>}
+                        <p>→ Inicio: {formatDate(rm.rental.startDate)}</p>
+                        {!rm.rental.isOpenEnded && rm.rental.expectedEndDate && (
+                          <p>→ Fin estimado: {formatDate(rm.rental.expectedEndDate)}</p>
+                        )}
+                        {rm.rental.isOpenEnded && (
+                          <p className="text-blue-600">→ Plazo abierto</p>
+                        )}
+                      </>
+                    )}
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+          ))}
+          {grouped.length === 0 && <p className="text-center text-muted-foreground col-span-full">No se encontraron máquinas</p>}
+        </div>
+      )}
 
       <div className="border-t pt-6 mt-6">
         <div className="flex items-center justify-between mb-4">
@@ -318,6 +309,22 @@ export default function DashboardPage() {
             </div>
           )
         })()}
+      </div>
+
+      <div className="flex flex-col gap-4 sm:flex-row">
+        <Input
+          placeholder="Buscar por nombre, modelo, cliente u obra..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="max-w-sm"
+        />
+        <div className="flex gap-2">
+          {(["all", "available", "rented", "maintenance"] as const).map((s) => (
+            <Button key={s} variant={statusFilter === s ? "default" : "outline"} size="sm" onClick={() => setStatusFilter(s)}>
+              {s === "all" ? "Todos" : statusLabels[s]}
+            </Button>
+          ))}
+        </div>
       </div>
     </div>
   )
