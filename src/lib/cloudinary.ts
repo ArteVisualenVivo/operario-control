@@ -11,7 +11,6 @@ export async function uploadBlueprintToCloudinary(
   const formData = new FormData()
   formData.append("file", file)
   formData.append("upload_preset", "operario_blueprints")
-  formData.append("type", "upload")
 
   const response = await fetch(
     "https://api.cloudinary.com/v1_1/dpcdsorty/auto/upload",
