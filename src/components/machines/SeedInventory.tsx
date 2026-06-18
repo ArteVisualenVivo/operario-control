@@ -67,6 +67,7 @@ const STOCK_ITEMS: SeedStockItem[] = [
   { name: "Riendas", size: "cortas", category: "riendas", stockTotal: 100 },
   { name: "Puntales", size: "3m", category: "puntales", stockTotal: 100 },
   { name: "Puntales", size: "2m", category: "puntales", stockTotal: 100 },
+  { name: "Tablones", size: "3m", category: "andamio_accesorios", stockTotal: 100 },
 ]
 
 export default function SeedInventory({ onComplete }: { onComplete?: () => void }) {
