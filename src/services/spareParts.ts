@@ -29,6 +29,7 @@ function docToSparePart(docSnap: { id: string; data: () => Record<string, unknow
     stockAvailable: (data.stockAvailable as number) ?? 0,
     stockUsed: (data.stockUsed as number) ?? 0,
     source: (data.source as SparePartSource) ?? "manual",
+    blueprintId: (data.blueprintId as string) ?? undefined,
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
   }
@@ -76,6 +77,7 @@ export async function createSparePart(input: CreateSparePartInput): Promise<stri
     stockAvailable: input.stockTotal,
     stockUsed: 0,
     source: input.source ?? "manual",
+    blueprintId: input.blueprintId ?? null,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   }
