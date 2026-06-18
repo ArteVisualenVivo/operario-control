@@ -30,5 +30,18 @@ export function useInventoryStock() {
     await load()
   }, [load])
 
-  return { items, loading, create, reload: load }
+  const update = useCallback(async (
+    id: string,
+    data: Partial<Pick<InventoryStock, "name" | "category" | "unit" | "stockTotal" | "subtype">>,
+  ) => {
+    await inventoryStockService.updateStockItem(id, data)
+    await load()
+  }, [load])
+
+  const remove = useCallback(async (id: string) => {
+    await inventoryStockService.deleteStockItem(id)
+    await load()
+  }, [load])
+
+  return { items, loading, create, update, remove, reload: load }
 }

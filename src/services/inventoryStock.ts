@@ -7,7 +7,7 @@
  */
 
 import {
-  collection, addDoc, updateDoc, doc, getDoc, getDocs,
+  collection, addDoc, updateDoc, deleteDoc, doc, getDoc, getDocs,
   query, orderBy, serverTimestamp, Timestamp,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
@@ -124,6 +124,14 @@ export async function rentStockItem(id: string, quantity: number): Promise<void>
   await updateDoc(ref, updates)
   const after = { ...before, ...updates }
   await createAuditLog("update", "inventory_stock", id, before ?? null, after)
+}
+
+export async function deleteStockItem(id: string): Promise<void> {
+  const ref = doc(db, COLLECTION, id)
+  const before = (await getDoc(ref)).data() as Record<string, unknown> | undefined
+  if (!before) throw new Error("Material no encontrado")
+  await deleteDoc(ref)
+  await createAuditLog("delete", "inventory_stock", id, before ?? null, null)
 }
 
 export async function returnStockItem(id: string, quantity: number): Promise<void> {
