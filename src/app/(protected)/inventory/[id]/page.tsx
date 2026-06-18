@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import type { StockCategory, StockUnit, StockSubtype } from "@/types"
+import type { StockCategory, StockUnit, StockSize } from "@/types"
 import { toast } from "sonner"
 import * as inventoryStockService from "@/services/inventoryStock"
 import type { InventoryStock } from "@/types"
@@ -25,12 +25,16 @@ const unitOptions: { value: StockUnit; label: string }[] = [
   { value: "kg", label: "Kg" },
 ]
 
-const subtypeOptions: { value: StockSubtype; label: string }[] = [
-  { value: "puntal", label: "Puntal" },
-  { value: "rienda", label: "Rienda" },
-  { value: "plataforma", label: "Plataforma" },
-  { value: "diagonal", label: "Diagonal" },
-  { value: "otros", label: "Otros" },
+const sizeOptions: { value: StockSize | ""; label: string }[] = [
+  { value: "", label: "Sin medida" },
+  { value: "1m", label: "1 metro" },
+  { value: "1.5m", label: "1.5 metros" },
+  { value: "2m", label: "2 metros" },
+  { value: "2.5m", label: "2.5 metros" },
+  { value: "3m", label: "3 metros" },
+  { value: "4m", label: "4 metros" },
+  { value: "6m", label: "6 metros" },
+  { value: "custom", label: "Otra medida" },
 ]
 
 export default function StockDetailPage() {
@@ -47,7 +51,7 @@ export default function StockDetailPage() {
   const [category, setCategory] = useState<StockCategory>("puntales")
   const [unit, setUnit] = useState<StockUnit>("unidad")
   const [stockTotal, setStockTotal] = useState(1)
-  const [subtype, setSubtype] = useState<StockSubtype>("puntal")
+  const [size, setSize] = useState<StockSize | "">("")
 
   useEffect(() => {
     const id = params.id as string
@@ -58,7 +62,7 @@ export default function StockDetailPage() {
         setCategory(data.category)
         setUnit(data.unit)
         setStockTotal(data.stockTotal)
-        setSubtype(data.subtype ?? "otros")
+        setSize((data.size as StockSize) ?? "")
       }
       setLoading(false)
     })
@@ -73,7 +77,7 @@ export default function StockDetailPage() {
     try {
       await update(item.id, {
         name, category, unit, stockTotal,
-        subtype: category === "andamio_accesorios" ? subtype : null,
+        size: size || null,
       })
       toast.success("Material actualizado")
       router.back()
@@ -138,23 +142,18 @@ export default function StockDetailPage() {
               </select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="subtype">
-                Subtipo
-                {category === "andamio_accesorios" && <span className="text-red-500 ml-1">*</span>}
-              </Label>
+              <Label htmlFor="size">Medida</Label>
               <select
-                id="subtype"
-                value={subtype}
-                onChange={(e) => setSubtype(e.target.value as StockSubtype)}
+                id="size"
+                value={size}
+                onChange={(e) => setSize(e.target.value as StockSize | "")}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background"
               >
-                {subtypeOptions.map((s) => (
+                {sizeOptions.map((s) => (
                   <option key={s.value} value={s.value}>{s.label}</option>
                 ))}
               </select>
-              {category === "andamio_accesorios" && (
-                <p className="text-xs text-muted-foreground">Obligatorio para materiales de andamio</p>
-              )}
+              <p className="text-xs text-muted-foreground">Seleccionar medida para control de stock por tamaño</p>
             </div>
             <div className="space-y-2">
               <Label htmlFor="stockTotal">Stock total</Label>

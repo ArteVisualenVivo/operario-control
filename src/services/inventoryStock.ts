@@ -12,7 +12,7 @@ import {
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { createAuditLog } from "./audit"
-import type { InventoryStock, CreateStockInput, StockSubtype } from "@/types"
+import type { InventoryStock, CreateStockInput, StockSubtype, StockSize } from "@/types"
 
 const COLLECTION = "inventory_stock"
 
@@ -33,6 +33,7 @@ function docToStock(docSnap: { id: string; data: () => Record<string, unknown> }
     stockAvailable: (data.stockAvailable as number) ?? 0,
     stockRented: (data.stockRented as number) ?? 0,
     subtype: (data.subtype as StockSubtype) ?? null,
+    size: (data.size as StockSize | string) ?? null,
     locationType: "deposito",
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
@@ -53,10 +54,6 @@ export async function getStockItem(id: string): Promise<InventoryStock | null> {
 }
 
 export async function createStockItem(input: CreateStockInput): Promise<string> {
-  if (input.category === "andamio_accesorios" && !input.subtype) {
-    throw new Error("El subtipo es obligatorio para materiales de tipo 'Andamio Accesorios'")
-  }
-
   const docData: Record<string, unknown> = {
     name: input.name,
     category: input.category,
@@ -65,6 +62,7 @@ export async function createStockItem(input: CreateStockInput): Promise<string> 
     stockAvailable: input.stockTotal,
     stockRented: 0,
     subtype: input.subtype ?? null,
+    size: input.size ?? null,
     locationType: "deposito",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
@@ -76,7 +74,7 @@ export async function createStockItem(input: CreateStockInput): Promise<string> 
 
 export async function updateStockItem(
   id: string,
-  data: Partial<Pick<InventoryStock, "name" | "category" | "unit" | "stockTotal" | "subtype">>,
+  data: Partial<Pick<InventoryStock, "name" | "category" | "unit" | "stockTotal" | "subtype" | "size">>,
 ): Promise<void> {
   const ref = doc(db, COLLECTION, id)
   const before = (await getDoc(ref)).data() as Record<string, unknown> | undefined

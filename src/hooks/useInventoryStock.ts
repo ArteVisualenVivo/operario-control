@@ -32,7 +32,7 @@ export function useInventoryStock() {
 
   const update = useCallback(async (
     id: string,
-    data: Partial<Pick<InventoryStock, "name" | "category" | "unit" | "stockTotal" | "subtype">>,
+    data: Partial<Pick<InventoryStock, "name" | "category" | "unit" | "stockTotal" | "subtype" | "size">>,
   ) => {
     await inventoryStockService.updateStockItem(id, data)
     await load()

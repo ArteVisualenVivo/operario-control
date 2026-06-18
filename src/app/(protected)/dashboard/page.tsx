@@ -256,7 +256,9 @@ export default function DashboardPage() {
               >
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg">{item.name}</CardTitle>
-                  <p className="text-xs text-muted-foreground">Unidad: {item.unit}</p>
+                  <p className="text-xs text-muted-foreground">
+                {item.unit}{item.size ? ` | Medida: ${item.size}` : ""}
+              </p>
                 </CardHeader>
                 <CardContent className="space-y-1 text-sm">
                   <p>Total: <strong>{item.stockTotal}</strong></p>
@@ -277,30 +279,31 @@ export default function DashboardPage() {
 
           const grouped: Record<string, InventoryStock[]> = {}
           for (const item of scaffoldItems) {
-            const key = item.subtype ?? "otros"
+            const key = item.size ?? "sin_medida"
             if (!grouped[key]) grouped[key] = []
             grouped[key].push(item)
           }
 
-          const subtypeLabels: Record<string, string> = {
-            puntal: "Puntales", rienda: "Riendas", plataforma: "Plataformas",
-            diagonal: "Diagonales", otros: "Otros",
+          const sizeLabels: Record<string, string> = {
+            "1m": "1 m", "1.5m": "1.5 m", "2m": "2 m",
+            "2.5m": "2.5 m", "3m": "3 m", "4m": "4 m",
+            "6m": "6 m", custom: "Otra medida", sin_medida: "Sin medida",
           }
 
           return (
             <div className="mt-6 border-t pt-4">
               <h3 className="text-sm font-semibold text-muted-foreground mb-3">
-                Componentes de andamios
+                Componentes de andamios por medida
               </h3>
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                {Object.entries(grouped).map(([subtype, items]) => {
+                {Object.entries(grouped).map(([sizeKey, items]) => {
                   const total = items.reduce((s, i) => s + i.stockTotal, 0)
                   const available = items.reduce((s, i) => s + i.stockAvailable, 0)
                   const rented = items.reduce((s, i) => s + i.stockRented, 0)
                   return (
-                    <Card key={subtype}>
+                    <Card key={sizeKey}>
                       <CardHeader className="pb-2">
-                        <CardTitle className="text-base">{subtypeLabels[subtype] ?? subtype}</CardTitle>
+                        <CardTitle className="text-base">{sizeLabels[sizeKey] ?? sizeKey}</CardTitle>
                         <p className="text-xs text-muted-foreground">{items.length} registro(s)</p>
                       </CardHeader>
                       <CardContent className="space-y-1 text-sm">
