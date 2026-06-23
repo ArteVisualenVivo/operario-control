@@ -13,6 +13,7 @@ const navItems = [
   { href: "/andamios", label: "Andamios" },
   { href: "/rentals", label: "Alquileres" },
   { href: "/repairs", label: "Reparaciones" },
+  { href: "/stock-movements", label: "Mov. Stock" },
   { href: "/maintenance", label: "Mantenimiento" },
 ]
 

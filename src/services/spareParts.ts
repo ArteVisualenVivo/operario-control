@@ -4,6 +4,7 @@ import {
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { createAuditLog } from "./audit"
+import { createMovement } from "./stockMovements"
 import type { SparePart, CreateSparePartInput, SparePartCategory, SparePartSource } from "@/types"
 
 const COLLECTION = "machine_spare_parts"
@@ -171,4 +172,5 @@ export async function restockPart(id: string, quantity: number): Promise<void> {
   await updateDoc(ref, updates)
   const after = { ...before, ...updates }
   await createAuditLog("update", "machine_spare_part", id, before ?? null, after)
+  await createMovement(id, "INGRESO", "REPOSICION", `Reposición manual (+${quantity})`, quantity)
 }

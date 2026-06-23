@@ -1,5 +1,5 @@
 export type StockMovementType = "INGRESO" | "EGRESO"
-export type StockMovementSource = "REPARACION"
+export type StockMovementSource = "REPARACION" | "REPOSICION"
 
 export interface StockMovement {
   id: string

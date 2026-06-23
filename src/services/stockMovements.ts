@@ -44,3 +44,20 @@ export async function getMovementsByPart(partId: string): Promise<StockMovement[
     }
   })
 }
+
+export async function getAllMovements(): Promise<StockMovement[]> {
+  const q = query(collection(db, COLLECTION), orderBy("date", "desc"))
+  const snapshot = await getDocs(q)
+  return snapshot.docs.map((doc) => {
+    const data = doc.data()
+    return {
+      id: doc.id,
+      partId: data.partId as string,
+      date: (data.date as Timestamp)?.toDate() ?? new Date(),
+      type: data.type as StockMovementType,
+      source: data.source as StockMovementSource,
+      referenceId: data.referenceId as string,
+      quantity: (data.quantity as number) ?? 0,
+    }
+  })
+}
