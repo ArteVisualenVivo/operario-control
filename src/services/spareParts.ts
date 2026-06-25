@@ -1,6 +1,6 @@
 import {
   collection, addDoc, updateDoc, deleteDoc, doc, getDoc, getDocs,
-  query, where, serverTimestamp, Timestamp,
+  query, where, orderBy, serverTimestamp, Timestamp,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { createAuditLog } from "./audit"
@@ -33,6 +33,12 @@ function docToSparePart(docSnap: { id: string; data: () => Record<string, unknow
     createdAt: toDate(data.createdAt),
     updatedAt: toDate(data.updatedAt),
   }
+}
+
+export async function getAllSpareParts(): Promise<SparePart[]> {
+  const q = query(collection(db, COLLECTION), orderBy("partName"))
+  const snapshot = await getDocs(q)
+  return snapshot.docs.map(docToSparePart)
 }
 
 export async function getSparePartsByMachine(machineId: string): Promise<SparePart[]> {

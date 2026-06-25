@@ -1,18 +1,27 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import { useRepairs } from "@/hooks/useRepairs"
+import { useMaintenanceSettings } from "@/hooks/useMaintenanceSettings"
+import RepairForm from "@/components/repairs/RepairForm"
+import type { CreateRepairInput } from "@/types"
 
 export default function NewRepairPage() {
   const router = useRouter()
+  const { create } = useRepairs()
+  const { settings, loading } = useMaintenanceSettings()
+
+  if (loading) return <p className="text-muted-foreground">Cargando...</p>
+  if (!settings) return <p className="text-muted-foreground">Error al cargar configuración</p>
+
+  const handleSubmit = async (data: CreateRepairInput) => {
+    await create(data)
+    router.push("/repairs")
+  }
 
   return (
-    <div className="mx-auto max-w-md space-y-6">
-      <h1 className="text-2xl font-bold">Nueva reparación</h1>
-      <p className="text-muted-foreground">
-        Las reparaciones se gestionan desde la ficha de cada máquina.
-      </p>
-      <Button onClick={() => router.push("/machines")}>Ir a máquinas</Button>
+    <div className="mx-auto max-w-2xl space-y-6">
+      <RepairForm settings={settings} onSubmit={handleSubmit} onCancel={() => router.push("/repairs")} />
     </div>
   )
 }

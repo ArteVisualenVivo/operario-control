@@ -1,0 +1,220 @@
+=== CHAT LOG: Operario Control ===
+
+Fecha: 2026-06-18
+Asistente: opencode (deepseek-v4-flash-free)
+
+========================================
+HISTORIAL DE SESIÓN
+========================================
+
+## 1. RECUPERACIÓN DEL PROYECTO
+
+El usuario retomó la conversación después de que se perdiera el contexto. 
+Se restauró el estado del proyecto desde los archivos existentes.
+
+Estado inicial del proyecto:
+- Next.js 16 App Router + Firebase + Tailwind v4 + Shadcn/ui v4
+- Máquinas, inventario, dashboard, andamios funcionando
+- Sistema de repuestos con catálogo por modelo de máquina
+- Despieces técnicos con PDFs en Cloudinary
+- Seed de 38 máquinas + stocks + repuestos
+- Auditoría en todas las operaciones CRUD
+
+## 2. ERROR: FIREBASE STORAGE UPLOAD
+
+Usuario reportó error al subir PDF de despiece técnico.
+Diagnóstico: Firebase Storage requiere plan Blaze (pago), no funciona en Spark (gratuito).
+
+Solución: Migrar de Firebase Storage a Cloudinary para upload de blueprints.
+
+## 3. MIGRACIÓN A CLOUDINARY
+
+Archivos creados/modificados:
+- src/lib/cloudinary.ts (nuevo) → subida unsigned a Cloudinary
+- src/services/machineBlueprints.ts (modificado) → usar Cloudinary en vez de Firebase Storage
+- src/lib/firebase.ts (modificado) → eliminar getStorage/storage export
+
+Campos en Firestore: name, publicId, fileUrl, fileType (en vez de fileName/fileType).
+
+## 4. ERROR: PRESET CLOUDINARY (PDF NO SE VE)
+
+Después de migrar, PDFs no se visualizaban en el navegador.
+
+Causa 1: El preset tenía type=authenticated (requiere login). 
+Solución: Se recreó el preset vía API con type=upload (público).
+
+Causa 2: Cloudinary bloquea delivery de PDFs por defecto.
+Solución: Usuario habilitó "Allow delivery of PDF and ZIP files" en Cloudinary Settings.
+
+## 5. ERROR: ÍNDICE COMPUESTO EN FIRESTORE
+
+Error INDEX_MISSING al cargar spare parts.
+
+Causa: spareParts.ts usaba orderBy("partName") + where("machineId") sin índice compuesto.
+
+Solución:
+- Eliminar orderBy("partName") de getSparePartsByMachine()
+- Agregar sort in-memory con localeCompare en useSpareParts()
+
+## 6. EXTRACCIÓN AUTOMÁTICA DE REPUESTOS DESDE PDF
+
+Usuario solicita que al subir un PDF de despiece Bosch, los repuestos se extraigan automáticamente.
+
+Implementación:
+- Instalar pdfjs-dist
+- Crear src/services/pdfPartsExtractor.ts
+  - Extrae texto de PDF con pdfjs-dist (worker desde CDN jsdelivr)
+  - Detecta códigos Bosch formato "1 619 P10 958" + descripciones
+  - Agrupa por coordenadas Y para manejar tablas
+- Modificar uploadBlueprint() en machineBlueprints.ts
+  - Después de subir a Cloudinary + Firestore, llama a extractPartsFromPdf()
+  - Crea repuestos automáticamente en machine_spare_parts
+  - Maneja duplicados y errores silenciosamente
+
+## 7. BUG: STOCKTOTAL NO DECRECE AL USAR REPUESTO
+
+Usuario: "Total: 1, Disp: 1, Uso: 0 → uso → Total: 1, Disp: 0, Uso: 1. Total debería ser 0."
+
+Fix: Modificar usePart() en spareParts.ts para decrementar stockTotal también.
+
+## 8. BUG: REPUESTOS LEGACY PERSISTEN AL RE-SUBIR PDF
+
+Usuario: al eliminar PDF y re-subir, los repuestos viejos siguen apareciendo.
+
+Causa: El primer upload creó repuestos SIN blueprintId (antes de que existiera el campo).
+deleteBlueprint() buscaba where("blueprintId") y no los encontraba.
+
+Fix #1: En uploadBlueprint(), antes de extraer, borrar todos los repuestos con 
+source === "blueprint" para esa máquina (limpia cualquier legacy).
+
+Fix #2: En deleteBlueprint(), además de blueprintId, buscar legacy parts
+(source === "blueprint" sin blueprintId) para la misma máquina.
+
+Fix #3: Agregar botón "Eliminar importados" en la página de repuestos.
+Función deleteBlueprintSpareParts() en spareParts.ts.
+
+## 9. BUG: CLOUDINARY NO ELIMINA AL BORRAR DESPIECE
+
+Usuario: al eliminar despiece desde la app, el archivo no se borra de Cloudinary.
+
+Causa 1: API route usaba image/destroy para todos los archivos, pero los PDFs
+son raw, no image.
+
+Causa 2: crypto.subtle.digest (SHA-1) puede fallar en runtime del servidor.
+
+Soluciones:
+- Guardar resourceType ("image" o "raw") de Cloudinary al subir
+- src/app/api/cloudinary/delete/route.ts (creado):
+  - Recibe publicId + resourceType
+  - Usa Basic Auth (api_key:api_secret en base64) en vez de SHA-1
+  - Endpoint dinámico: image/destroy o raw/destroy
+- cloudinary.ts: deleteFromCloudinary(publicId, resourceType)
+- machineBlueprints.ts: pasar resourceType al eliminar
+
+## 10. CREDENCIALES CLOUDINARY PARA ELIMINACIÓN
+
+Usuario encontró las credenciales Root API en el dashboard de Cloudinary:
+- API Key: 241839134494653
+- API Secret: 1d6a_-qzdDTIq_oCN4_CZBdISfE
+
+Se agregaron a .env.local como CLOUDINARY_API_KEY y CLOUDINARY_API_SECRET.
+
+## 11. AUDITORÍA DEL SISTEMA
+
+Usuario solicita auditoría completa incluyendo Cloudinary, Firebase, Vercel.
+
+Se generó docs/auditoria-sistema.md con:
+- Resumen general del proyecto
+- Infraestructura Cloud (Firebase colecciones/índices, Cloudinary preset/endpoints/auth, Vercel requisitos)
+- Data model completo (Machine, SparePart, InventoryStock, Blueprint, Draft)
+- Todos los servicios con funciones exportadas
+- Todos los hooks con parámetros/retornos
+- Componentes UI (Shadcn + dominio)
+- 15 rutas de aplicación
+- 24 dependencias
+- 8 problemas conocidos
+- 9 recomendaciones técnicas
+
+## 12. EXPORTACIÓN DEL CHAT
+
+Usuario solicita un .txt de toda la conversación.
+
+========================================
+ARCHIVOS CLAVE DEL PROYECTO
+========================================
+
+src/
+├── app/
+│   ├── (protected)/
+│   │   ├── andamios/page.tsx
+│   │   ├── dashboard/page.tsx
+│   │   ├── inventory/ (new, [id])
+│   │   ├── machines/ (new, [id], [id]/blueprints, [id]/parts)
+│   │   ├── rentals/ (new, [id])
+│   │   ├── repairs/ (new, [id])
+│   │   └── layout.tsx
+│   ├── api/cloudinary/delete/route.ts
+│   ├── login/page.tsx
+│   ├── layout.tsx
+│   └── page.tsx
+├── components/
+│   ├── machines/
+│   │   ├── BlueprintImportPanel.tsx
+│   │   ├── BlueprintUploader.tsx
+│   │   ├── ImportInventory.tsx
+│   │   ├── MachineCard.tsx
+│   │   ├── SeedInventory.tsx
+│   │   └── SparePartCard.tsx
+│   └── ui/ (badge, button, card, dialog, ErrorState, input, label, select, separator, sonner, table)
+├── hooks/
+│   ├── useAuth.ts
+│   ├── useBlueprintDrafts.ts
+│   ├── useInventoryStock.ts
+│   ├── useMachineBlueprints.ts
+│   ├── useMachines.ts
+│   ├── useRentals.ts
+│   ├── useRepairs.ts
+│   └── useSpareParts.ts
+├── lib/
+│   ├── AuthContext.tsx
+│   ├── categories.ts
+│   ├── cloudinary.ts
+│   ├── firebase.ts
+│   ├── parseFirebaseError.ts
+│   ├── scaffoldConfig.ts
+│   ├── ui.ts
+│   └── utils.ts
+├── services/
+│   ├── audit.ts
+│   ├── auth.ts
+│   ├── blueprintDrafts.ts
+│   ├── inventoryStock.ts
+│   ├── machineBlueprints.ts
+│   ├── machines.ts
+│   ├── pdfPartsExtractor.ts
+│   ├── recommendationAudit.ts
+│   ├── recommendationEngine.ts
+│   ├── rentals.ts
+│   ├── repairs.ts
+│   ├── scaffoldRental.ts
+│   └── spareParts.ts
+├── types/
+│   ├── audit.ts
+│   ├── errors.ts
+│   ├── index.ts
+│   ├── inventoryStock.ts
+│   ├── machine.ts
+│   ├── rental.ts
+│   ├── repair.ts
+│   └── sparePart.ts
+└── styles/globals.css
+
+scripts/
+├── audit.ts
+├── export-logs.ts
+├── fix-rented-machines.ts
+└── seed-machines.ts
+
+docs/
+├── auditoria-sistema.md
+└── chat-log.txt (este archivo)
