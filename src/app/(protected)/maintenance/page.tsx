@@ -1,58 +1,134 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { formatDate } from "@/lib/ui"
-import {
-  getUpcomingWarranty,
-  getUpcomingOilChanges,
-  getUpcomingBearingChanges,
-  getOverdueMaintenances,
-  getRecentRepairs,
-} from "@/services/repairs"
+import MaintenanceStatusBadge from "@/components/repairs/MaintenanceStatusBadge"
+import { getRepairs } from "@/services/repairs"
 import type { MachineRepair } from "@/types"
 
-interface AlertSectionProps {
-  title: string
-  repairs: MachineRepair[]
-  emptyText: string
-  badgeColor: "red" | "amber" | "green"
-  dateLabel: string
-  getDate: (r: MachineRepair) => Date | undefined
+function addDays(date: Date, days: number): Date {
+  const result = new Date(date)
+  result.setDate(result.getDate() + days)
+  return result
 }
 
-function AlertSection({ title, repairs, emptyText, badgeColor, dateLabel, getDate }: AlertSectionProps) {
+type AlertType = "oil" | "bearing" | "maintenance"
+
+interface AlertEntry {
+  repair: MachineRepair
+  types: AlertType[]
+}
+
+const ALERT_LABELS: Record<AlertType, string> = {
+  oil: "Aceite",
+  bearing: "Rodamientos",
+  maintenance: "Mantenimiento",
+}
+
+const ALERT_DATE_FIELDS: Record<AlertType, keyof MachineRepair> = {
+  oil: "oilChangeDueDate",
+  bearing: "bearingChangeDueDate",
+  maintenance: "maintenanceDueDate",
+}
+
+function classifyRepairs(repairs: MachineRepair[]) {
+  const now = new Date()
+  const in7Days = addDays(now, 7)
+  const in30Days = addDays(now, 30)
+
+  const vencidos: AlertEntry[] = []
+  const proximos7d: AlertEntry[] = []
+  const proximos30d: AlertEntry[] = []
+
+  for (const r of repairs) {
+    const vencidosTypes: AlertType[] = []
+    const proximos7dTypes: AlertType[] = []
+    const proximos30dTypes: AlertType[] = []
+
+    for (const t of ["oil", "bearing", "maintenance"] as AlertType[]) {
+      const field = ALERT_DATE_FIELDS[t]
+      const date = r[field] as Date | undefined
+      if (!date) continue
+      if (date <= now) {
+        vencidosTypes.push(t)
+      } else if (date <= in7Days) {
+        proximos7dTypes.push(t)
+      } else if (date <= in30Days) {
+        proximos30dTypes.push(t)
+      }
+    }
+
+    if (vencidosTypes.length > 0) {
+      vencidos.push({ repair: r, types: vencidosTypes })
+    } else if (proximos7dTypes.length > 0) {
+      proximos7d.push({ repair: r, types: proximos7dTypes })
+    } else if (proximos30dTypes.length > 0) {
+      proximos30d.push({ repair: r, types: proximos30dTypes })
+    }
+  }
+
+  return { vencidos, proximos7d, proximos30d }
+}
+
+const BADGE_COLORS = {
+  vencidos: "border-red-300",
+  proximos7d: "border-amber-300",
+  proximos30d: "border-green-300",
+} as const
+
+function AlertSection({
+  title,
+  entries,
+  emptyText,
+  borderColor,
+}: {
+  title: string
+  entries: AlertEntry[]
+  emptyText: string
+  borderColor: string
+}) {
   const router = useRouter()
-  const badgeClass =
-    badgeColor === "red" ? "bg-red-200 text-red-800" :
-    badgeColor === "amber" ? "bg-amber-200 text-amber-800" : "bg-green-200 text-green-800"
 
   return (
-    <Card>
+    <Card className={`border-t-4 ${borderColor}`}>
       <CardHeader className="pb-2">
         <CardTitle className="text-base">{title}</CardTitle>
       </CardHeader>
       <CardContent>
-        {repairs.length === 0 ? (
+        {entries.length === 0 ? (
           <p className="text-sm text-muted-foreground">{emptyText}</p>
         ) : (
           <div className="space-y-2">
-            {repairs.slice(0, 10).map((r) => (
+            {entries.map((entry) => (
               <div
-                key={r.id}
+                key={entry.repair.id}
                 className="flex items-center justify-between rounded-lg border p-3 text-sm cursor-pointer hover:bg-muted/30 transition-colors"
-                onClick={() => router.push(`/repairs/${r.id}`)}
+                onClick={() => router.push(`/repairs/${entry.repair.id}`)}
               >
-                <div className="space-y-0.5">
-                  <p className="font-medium">{r.machineName}</p>
-                  <p className="text-xs text-muted-foreground">{r.clientName} — {r.technician}</p>
+                <div className="space-y-1">
+                  <p className="font-medium">{entry.repair.machineName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {entry.repair.clientName} — {entry.repair.technician}
+                  </p>
+                  <div className="flex flex-wrap gap-1 pt-0.5">
+                    {entry.types.map((t) => (
+                      <MaintenanceStatusBadge
+                        key={t}
+                        dueDate={entry.repair[ALERT_DATE_FIELDS[t]] as Date | undefined}
+                        label={ALERT_LABELS[t]}
+                        compact
+                      />
+                    ))}
+                  </div>
                 </div>
-                <div className="text-right">
-                  <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${badgeClass}`}>
-                    {formatDate(getDate(r))}
-                  </span>
+                <div className="text-right text-xs text-muted-foreground shrink-0">
+                  {entry.types.map((t) => {
+                    const d = entry.repair[ALERT_DATE_FIELDS[t]] as Date | undefined
+                    return d ? <p key={t}>{ALERT_LABELS[t]}: {formatDate(d)}</p> : null
+                  })}
                 </div>
               </div>
             ))}
@@ -64,94 +140,51 @@ function AlertSection({ title, repairs, emptyText, badgeColor, dateLabel, getDat
 }
 
 export default function MaintenancePage() {
-  const [expiredWarranties, setExpiredWarranties] = useState<MachineRepair[]>([])
-  const [upcomingWarranties, setUpcomingWarranties] = useState<MachineRepair[]>([])
-  const [oilChanges, setOilChanges] = useState<MachineRepair[]>([])
-  const [bearingChanges, setBearingChanges] = useState<MachineRepair[]>([])
-  const [overdueMaintenances, setOverdueMaintenances] = useState<MachineRepair[]>([])
-  const [recentRepairs, setRecentRepairs] = useState<MachineRepair[]>([])
+  const [repairs, setRepairs] = useState<MachineRepair[]>([])
   const [loading, setLoading] = useState(true)
 
   const load = async () => {
     setLoading(true)
-    const [warranty, oil, bearing, overdue, recent] = await Promise.all([
-      getUpcomingWarranty(),
-      getUpcomingOilChanges(),
-      getUpcomingBearingChanges(),
-      getOverdueMaintenances(),
-      getRecentRepairs(30),
-    ])
-    setExpiredWarranties(warranty.expired)
-    setUpcomingWarranties(warranty.upcoming7)
-    setOilChanges(oil)
-    setBearingChanges(bearing)
-    setOverdueMaintenances(overdue)
-    setRecentRepairs(recent)
+    const data = await getRepairs()
+    setRepairs(data)
     setLoading(false)
   }
 
   useEffect(() => { load() }, [])
+
+  const classified = useMemo(() => classifyRepairs(repairs), [repairs])
 
   if (loading) return <p className="text-muted-foreground">Cargando...</p>
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Mantenimiento y Garantías</h1>
+        <h1 className="text-2xl font-bold">Mantenimiento y Alertas</h1>
         <Button variant="outline" size="sm" onClick={load}>Actualizar</Button>
       </div>
       <p className="text-sm text-muted-foreground">
-        Alertas de mantenimiento preventivo basadas en las reparaciones registradas.
+        Alertas automáticas calculadas desde las reparaciones registradas.
+        Cada equipo aparece en la sección de mayor urgencia.
       </p>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4">
         <AlertSection
-          title={`Garantías vencidas (${expiredWarranties.length})`}
-          repairs={expiredWarranties}
-          emptyText="No hay garantías vencidas."
-          badgeColor="red"
-          dateLabel="Vence"
-          getDate={(r) => r.warrantyUntil}
-        />
-        <AlertSection
-          title={`Garantías próximas a vencer (${upcomingWarranties.length})`}
-          repairs={upcomingWarranties}
-          emptyText="No hay garantías próximas a vencer."
-          badgeColor="amber"
-          dateLabel="Vence"
-          getDate={(r) => r.warrantyUntil}
-        />
-        <AlertSection
-          title={`Cambios de aceite próximos (${oilChanges.length})`}
-          repairs={oilChanges}
-          emptyText="No hay cambios de aceite próximos."
-          badgeColor="amber"
-          dateLabel="Vence"
-          getDate={(r) => r.oilChangeDueDate}
-        />
-        <AlertSection
-          title={`Cambios de rodamientos próximos (${bearingChanges.length})`}
-          repairs={bearingChanges}
-          emptyText="No hay cambios de rodamientos próximos."
-          badgeColor="amber"
-          dateLabel="Vence"
-          getDate={(r) => r.bearingChangeDueDate}
-        />
-        <AlertSection
-          title={`Mantenimientos vencidos (${overdueMaintenances.length})`}
-          repairs={overdueMaintenances}
+          title={`Vencidos (${classified.vencidos.length})`}
+          entries={classified.vencidos}
           emptyText="No hay mantenimientos vencidos."
-          badgeColor="red"
-          dateLabel="Vence"
-          getDate={(r) => r.maintenanceDueDate}
+          borderColor={BADGE_COLORS.vencidos}
         />
         <AlertSection
-          title={`Reparaciones recientes (${recentRepairs.length})`}
-          repairs={recentRepairs}
-          emptyText="No hay reparaciones en los últimos 30 días."
-          badgeColor="green"
-          dateLabel="Ingreso"
-          getDate={(r) => r.entryDate}
+          title={`Próximos 7 días (${classified.proximos7d.length})`}
+          entries={classified.proximos7d}
+          emptyText="No hay mantenimientos próximos en 7 días."
+          borderColor={BADGE_COLORS.proximos7d}
+        />
+        <AlertSection
+          title={`Próximos 30 días (${classified.proximos30d.length})`}
+          entries={classified.proximos30d}
+          emptyText="No hay mantenimientos próximos en 30 días."
+          borderColor={BADGE_COLORS.proximos30d}
         />
       </div>
     </div>
