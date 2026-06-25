@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import SeedInventory from "@/components/machines/SeedInventory"
+import WorkshopSummary from "@/components/dashboard/WorkshopSummary"
 import type { MachineStatus, Machine } from "@/types"
 import { statusLabels, formatDate } from "@/lib/ui"
 import { SCAFFOLD_RECIPE } from "@/lib/scaffoldConfig"
@@ -156,6 +157,8 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
+
+      <WorkshopSummary />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines")}>

@@ -8,6 +8,7 @@ import { useMachineBlueprints } from "@/hooks/useMachineBlueprints"
 import { useMachines } from "@/hooks/useMachines"
 import { getRepairsByMachine } from "@/services/repairs"
 import type { MachineRepair } from "@/types"
+import MaintenanceTimeline from "@/components/machines/MaintenanceTimeline"
 import ErrorState from "@/components/ui/ErrorState"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -394,42 +395,7 @@ export default function MachineDetailPage() {
                 Ver todas
               </Button>
             </div>
-            {machineRepairs.length === 0 ? (
-              <p className="text-xs text-muted-foreground">Sin reparaciones registradas.</p>
-            ) : (
-              <div className="space-y-2">
-                {machineRepairs.slice(0, 5).map((r) => {
-                  const wDays = Math.ceil((new Date(r.warrantyUntil).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
-                  return (
-                    <div
-                      key={r.id}
-                      className="rounded border bg-muted/20 p-2 text-xs space-y-1 cursor-pointer hover:bg-muted/40 transition-colors"
-                      onClick={() => router.push(`/repairs/${r.id}`)}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium">{formatDate(r.entryDate)} → {formatDate(r.exitDate)}</span>
-                        <span>{r.technician}</span>
-                      </div>
-                      <p><span className="text-muted-foreground">Cliente:</span> {r.clientName}</p>
-                      <p><span className="text-muted-foreground">Falla:</span> {r.reportedIssue}</p>
-                      <p><span className="text-muted-foreground">Reparación:</span> {r.repairPerformed}</p>
-                      <div className="flex gap-2 pt-1">
-                        <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-semibold ${
-                          wDays <= 0 ? "bg-red-200 text-red-800" : wDays <= 7 ? "bg-amber-200 text-amber-800" : "bg-green-200 text-green-800"
-                        }`}>
-                          Garantía: {wDays <= 0 ? "Vencida" : `${wDays}d`}
-                        </span>
-                      </div>
-                    </div>
-                  )
-                })}
-                {machineRepairs.length > 5 && (
-                  <Button variant="link" size="sm" className="h-auto p-0 text-xs" onClick={() => router.push(`/repairs?machine=${id}`)}>
-                    Ver todas ({machineRepairs.length})
-                  </Button>
-                )}
-              </div>
-            )}
+            <MaintenanceTimeline repairs={machineRepairs} machineId={id} />
           </div>
 
           <div>

@@ -254,3 +254,38 @@ export async function getRecentRepairs(days = 30): Promise<MachineRepair[]> {
   cutoff.setDate(cutoff.getDate() - days)
   return all.filter((r) => r.entryDate >= cutoff)
 }
+
+export async function getWorkshopStats(): Promise<{
+  inTaller: number
+  finishedToday: number
+  overdue: number
+  upcoming: number
+}> {
+  const all = await getRepairs()
+  const now = new Date()
+  const in7Days = addDays(now, 7)
+  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+
+  const inTaller = all.filter((r) => r.status === "EN_TALLER").length
+
+  const finishedToday = all.filter(
+    (r) => r.status === "FINALIZADO" && r.exitDate >= todayStart,
+  ).length
+
+  const hasOverdue = (r: MachineRepair) =>
+    (r.oilChangeDueDate && r.oilChangeDueDate < now) ||
+    (r.bearingChangeDueDate && r.bearingChangeDueDate < now) ||
+    (r.maintenanceDueDate && r.maintenanceDueDate < now)
+
+  const hasUpcoming = (r: MachineRepair) =>
+    (r.oilChangeDueDate && r.oilChangeDueDate >= now && r.oilChangeDueDate <= in7Days) ||
+    (r.bearingChangeDueDate && r.bearingChangeDueDate >= now && r.bearingChangeDueDate <= in7Days) ||
+    (r.maintenanceDueDate && r.maintenanceDueDate >= now && r.maintenanceDueDate <= in7Days)
+
+  return {
+    inTaller,
+    finishedToday,
+    overdue: all.filter(hasOverdue).length,
+    upcoming: all.filter(hasUpcoming).length,
+  }
+}
