@@ -34,7 +34,7 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   mantenimiento: { color: "bg-blue-200 text-blue-800", label: "En mto." },
   sin_stock: { color: "bg-red-200 text-red-800", label: "Sin stock" },
   vacio: { color: "bg-muted text-muted-foreground", label: "Vacío" },
-  normal: { color: "bg-green-200 text-green-800", label: "Normal" },
+
 }
 
 function groupMachines(machines: Machine[], categoryFilter: string): StockRow[] {
@@ -63,6 +63,8 @@ function groupMachines(machines: Machine[], categoryFilter: string): StockRow[] 
     let status: string
     if (maintenance > 0 && total === maintenance) {
       status = "mantenimiento"
+    } else if (available === 0) {
+      status = "sin_stock"
     } else if (available === total) {
       status = "completo"
     } else {
@@ -109,7 +111,7 @@ export default function StockPage() {
     if (typeFilter === "all" || typeFilter === "Material") {
       for (const m of materials) {
         const inUse = m.stockRented
-        const status = m.stockTotal === 0 ? "vacio" : m.stockAvailable === 0 ? "sin_stock" : "normal"
+        const status = m.stockTotal === 0 ? "vacio" : m.stockAvailable === 0 ? "sin_stock" : m.stockAvailable < m.stockTotal ? "parcial" : "completo"
         rows.push({
           type: "Material",
           id: m.id,
@@ -128,7 +130,7 @@ export default function StockPage() {
     if (typeFilter === "all" || typeFilter === "Repuesto") {
       for (const p of spareParts) {
         const inUse = p.stockUsed
-        const status = p.stockTotal === 0 ? "vacio" : p.stockAvailable === 0 ? "sin_stock" : "normal"
+        const status = p.stockTotal === 0 ? "vacio" : p.stockAvailable === 0 ? "sin_stock" : p.stockAvailable < p.stockTotal ? "parcial" : "completo"
         rows.push({
           type: "Repuesto",
           id: p.id,
@@ -226,7 +228,7 @@ export default function StockPage() {
           ))}
         </div>
         <div className="flex gap-1 flex-wrap">
-          {(["all", "completo", "parcial", "normal", "sin_stock"] as const).map((s) => (
+          {(["all", "completo", "parcial", "sin_stock"] as const).map((s) => (
             <Button
               key={s}
               variant={statusFilter === s ? "default" : "outline"}
