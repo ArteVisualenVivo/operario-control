@@ -99,7 +99,11 @@ export async function rentMachine(id: string, rental: MachineRental): Promise<vo
 
   const category = before?.["category"] as string | undefined
   if (category === "scaffold") {
-    await rentScaffoldComponents()
+    await rentScaffoldComponents({
+      clientName: rental.clientName,
+      projectName: rental.projectName,
+      reference: id,
+    })
   }
 
   const rentalData = marshalRental(rental)
@@ -122,7 +126,12 @@ export async function returnMachine(id: string): Promise<void> {
 
   const category = before?.["category"] as string | undefined
   if (category === "scaffold") {
-    await returnScaffoldComponents()
+    const currentRentalData = before?.rental as Record<string, unknown> | undefined
+    await returnScaffoldComponents({
+      clientName: currentRentalData?.clientName as string | undefined,
+      projectName: currentRentalData?.projectName as string | undefined,
+      reference: id,
+    })
   }
 
   const currentRental = before?.rental as Record<string, unknown> | undefined

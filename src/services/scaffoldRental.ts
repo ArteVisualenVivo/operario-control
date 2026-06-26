@@ -5,7 +5,9 @@ function label(component: { name: string; size?: string }): string {
   return component.size ? `${component.name} (${component.size})` : component.name
 }
 
-export async function rentScaffoldComponents(): Promise<void> {
+export async function rentScaffoldComponents(
+  options?: { clientName?: string; projectName?: string; reference?: string },
+): Promise<void> {
   const allStock = await getStockItems()
 
   for (const component of SCAFFOLD_RECIPE) {
@@ -33,13 +35,15 @@ export async function rentScaffoldComponents(): Promise<void> {
       if (remaining <= 0) break
       if (item.stockAvailable <= 0) continue
       const take = Math.min(item.stockAvailable, remaining)
-      await rentStockItem(item.id, take)
+      await rentStockItem(item.id, take, options)
       remaining -= take
     }
   }
 }
 
-export async function returnScaffoldComponents(): Promise<void> {
+export async function returnScaffoldComponents(
+  options?: { clientName?: string; projectName?: string; reference?: string },
+): Promise<void> {
   const allStock = await getStockItems()
 
   for (const component of SCAFFOLD_RECIPE) {
@@ -59,7 +63,7 @@ export async function returnScaffoldComponents(): Promise<void> {
       if (remaining <= 0) break
       if (item.stockRented <= 0) continue
       const take = Math.min(item.stockRented, remaining)
-      await returnStockItem(item.id, take)
+      await returnStockItem(item.id, take, options)
       remaining -= take
     }
   }

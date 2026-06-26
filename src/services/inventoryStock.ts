@@ -12,7 +12,9 @@ import {
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { createAuditLog } from "./audit"
+import { createInventoryMovement } from "./inventoryMovements"
 import type { InventoryStock, CreateStockInput, StockSubtype, StockSize } from "@/types"
+import type { InventoryMovementType } from "@/types/inventoryMovement"
 
 const COLLECTION = "inventory_stock"
 
@@ -103,7 +105,11 @@ export async function updateStockItem(
   await createAuditLog("update", "inventory_stock", id, before ?? null, after)
 }
 
-export async function rentStockItem(id: string, quantity: number): Promise<void> {
+export async function rentStockItem(
+  id: string,
+  quantity: number,
+  options?: { clientName?: string; projectName?: string; reference?: string },
+): Promise<void> {
   if (quantity <= 0) throw new Error("La cantidad debe ser mayor a 0")
 
   const ref = doc(db, COLLECTION, id)
@@ -127,6 +133,14 @@ export async function rentStockItem(id: string, quantity: number): Promise<void>
   await updateDoc(ref, updates)
   const after = { ...before, ...updates }
   await createAuditLog("update", "inventory_stock", id, before ?? null, after)
+  await createInventoryMovement({
+    materialId: id,
+    type: "ALQUILER" as InventoryMovementType,
+    quantity,
+    clientName: options?.clientName,
+    projectName: options?.projectName,
+    reference: options?.reference,
+  })
 }
 
 export async function deleteStockItem(id: string): Promise<void> {
@@ -137,7 +151,11 @@ export async function deleteStockItem(id: string): Promise<void> {
   await createAuditLog("delete", "inventory_stock", id, before ?? null, null)
 }
 
-export async function returnStockItem(id: string, quantity: number): Promise<void> {
+export async function returnStockItem(
+  id: string,
+  quantity: number,
+  options?: { clientName?: string; projectName?: string; reference?: string },
+): Promise<void> {
   if (quantity <= 0) throw new Error("La cantidad debe ser mayor a 0")
 
   const ref = doc(db, COLLECTION, id)
@@ -161,4 +179,12 @@ export async function returnStockItem(id: string, quantity: number): Promise<voi
   await updateDoc(ref, updates)
   const after = { ...before, ...updates }
   await createAuditLog("update", "inventory_stock", id, before ?? null, after)
+  await createInventoryMovement({
+    materialId: id,
+    type: "DEVOLUCION" as InventoryMovementType,
+    quantity,
+    clientName: options?.clientName,
+    projectName: options?.projectName,
+    reference: options?.reference,
+  })
 }
