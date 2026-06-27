@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import SeedInventory from "@/components/machines/SeedInventory"
 import WorkshopSummary from "@/components/dashboard/WorkshopSummary"
 import SmartAlertsPanel from "@/components/dashboard/SmartAlertsPanel"
+import { useStockIntelligence } from "@/hooks/useStockIntelligence"
 import type { MachineStatus, Machine } from "@/types"
 import { statusLabels, formatDate } from "@/lib/ui"
 import { SCAFFOLD_RECIPE } from "@/lib/scaffoldConfig"
@@ -29,6 +30,7 @@ interface MachineGroup {
 export default function DashboardPage() {
   const { machines, loading } = useMachines()
   const { items: stockItems, loading: stockLoading } = useInventoryStock()
+  const { intelligence: stockIntelligence, loading: siLoading } = useStockIntelligence()
   const router = useRouter()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<MachineStatus | "all">("all")
@@ -303,6 +305,137 @@ export default function DashboardPage() {
           </div>
         )}
 
+      </div>
+
+      <div className="border-t pt-6 mt-6">
+        <h2 className="text-xl font-semibold mb-4">📦 Stock Intelligence</h2>
+
+        {siLoading ? (
+          <p className="text-muted-foreground">Analizando stock...</p>
+        ) : stockIntelligence ? (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Health Score</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex items-center gap-2">
+                    <p className="text-3xl font-bold">{stockIntelligence.healthScore.overall}</p>
+                    <span className="text-lg">/100</span>
+                  </div>
+                  <div className="mt-1 h-2 w-full rounded-full bg-gray-200">
+                    <div
+                      className={`h-2 rounded-full transition-all ${
+                        stockIntelligence.healthScore.overall >= 70
+                          ? "bg-green-500"
+                          : stockIntelligence.healthScore.overall >= 40
+                            ? "bg-yellow-500"
+                            : "bg-red-500"
+                      }`}
+                      style={{ width: `${stockIntelligence.healthScore.overall}%` }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">En riesgo</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold text-red-600">{stockIntelligence.criticalItems.length}</p>
+                  <p className="text-xs text-muted-foreground">ítems críticos</p>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Consumo semanal</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {(() => {
+                    const top = stockIntelligence.topConsumed
+                    const total = top.reduce((s, i) => s + i.total, 0)
+                    return (
+                      <>
+                        <p className="text-3xl font-bold">{total}</p>
+                        <p className="text-xs text-muted-foreground">unidades alquiladas (top 5)</p>
+                      </>
+                    )
+                  })()}
+                </CardContent>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Tendencia</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold">
+                    {stockIntelligence.trend === "up" ? "↑" : stockIntelligence.trend === "down" ? "↓" : "→"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {stockIntelligence.trend === "up" ? "En aumento" : stockIntelligence.trend === "down" ? "En descenso" : "Estable"}
+                  </p>
+                </CardContent>
+              </Card>
+            </div>
+
+            {stockIntelligence.topConsumed.length > 0 && (
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Top 5 materiales más consumidos</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-1">
+                    {stockIntelligence.topConsumed.map((item, i) => (
+                      <div
+                        key={item.materialId}
+                        className="flex items-center justify-between rounded border p-2 text-sm cursor-pointer hover:bg-muted/30"
+                        onClick={() => router.push(`/inventory/${item.materialId}`)}
+                      >
+                        <span>
+                          <span className="font-medium text-muted-foreground mr-2">#{i + 1}</span>
+                          {item.materialName}
+                        </span>
+                        <span className="font-mono text-sm">{item.total} uds</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {stockIntelligence.criticalItems.length > 0 && (
+              <Card className="border-t-4 border-red-400">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base text-red-700">
+                    🔴 Ítems críticos ({stockIntelligence.criticalItems.length})
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-1">
+                    {stockIntelligence.criticalItems.map((item) => (
+                      <div
+                        key={item.id}
+                        className="flex items-center justify-between rounded-lg border p-2 text-sm cursor-pointer hover:bg-red-50"
+                        onClick={() => {
+                          const path = item.entityType === "MATERIAL"
+                            ? `/inventory/${item.entityId}`
+                            : item.entityType === "SPARE_PART"
+                              ? `/machines/${item.entityId}/parts`
+                              : `/machines/${item.entityId}`
+                          router.push(path)
+                        }}
+                      >
+                        <span>{item.message}</span>
+                        <span className="text-xs text-muted-foreground">{item.detail}</span>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        ) : null}
       </div>
 
     </div>

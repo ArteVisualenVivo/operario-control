@@ -140,6 +140,7 @@ export default function SeedInventory({ onComplete }: { onComplete?: () => void 
         name: item.name, category: item.category, unit: "unidad",
         stockTotal: item.stockTotal, stockAvailable: item.stockTotal,
         stockRented: 0, size: item.size, subtype: null, locationType: "deposito",
+        source: "seed",
         createdAt: Timestamp.now(), updatedAt: Timestamp.now(),
       })
       sInserted++

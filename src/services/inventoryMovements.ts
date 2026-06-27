@@ -1,5 +1,5 @@
 import {
-  collection, addDoc, getDocs, query, where, orderBy, Timestamp,
+  collection, addDoc, getDocs, query, where, orderBy, limit, Timestamp,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import type { InventoryMovement, InventoryMovementType, CreateInventoryMovementInput } from "@/types"
@@ -44,6 +44,34 @@ export async function getInventoryMovementsByMaterial(materialId: string): Promi
     collection(db, COLLECTION),
     where("materialId", "==", materialId),
     orderBy("date", "desc"),
+  )
+  const snapshot = await getDocs(q)
+  return snapshot.docs.map((doc) => {
+    const data = doc.data()
+    return {
+      id: doc.id,
+      materialId: data.materialId as string,
+      date: (data.date as Timestamp)?.toDate() ?? new Date(),
+      type: data.type as InventoryMovementType,
+      quantity: (data.quantity as number) ?? 0,
+      clientName: data.clientName as string | undefined,
+      projectName: data.projectName as string | undefined,
+      reference: data.reference as string | undefined,
+      rentalId: data.rentalId as string | undefined,
+    }
+  })
+}
+
+export async function getRecentInventoryMovements(
+  daysAgo: number,
+  maxItems: number,
+): Promise<InventoryMovement[]> {
+  const since = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000)
+  const q = query(
+    collection(db, COLLECTION),
+    where("date", ">=", since),
+    orderBy("date", "desc"),
+    limit(maxItems),
   )
   const snapshot = await getDocs(q)
   return snapshot.docs.map((doc) => {

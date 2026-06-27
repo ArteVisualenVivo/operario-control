@@ -4,18 +4,23 @@ import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Separator } from "@/components/ui/separator"
 import { getRepairs } from "@/services/repairs"
+import { useStockIntelligence } from "@/hooks/useStockIntelligence"
 import type { MachineRepair } from "@/types"
+import type { StockAlert } from "@/types"
 
 interface SmartAlert {
   id: string
   severity: "critical" | "preventive" | "recommendation"
   title: string
   description: string
-  machineId: string
-  machineName: string
+  machineId?: string
+  machineName?: string
   machineModel?: string
   repairId?: string
+  entityType?: string
+  href?: string
 }
 
 const SEVERITY_CONFIG = {
@@ -196,6 +201,28 @@ function generateRecommendations(repairs: MachineRepair[]): SmartAlert[] {
   return recs
 }
 
+const STOCK_SEVERITY_MAP: Record<string, "critical" | "preventive" | "recommendation"> = {
+  CRITICAL: "critical",
+  WARNING: "preventive",
+  INFO: "recommendation",
+}
+
+function stockToSmartAlert(alert: StockAlert): SmartAlert {
+  let href: string
+  if (alert.entityType === "MATERIAL") href = `/inventory/${alert.entityId}`
+  else if (alert.entityType === "SPARE_PART") href = `/machines/${alert.entityId}/parts`
+  else href = `/machines/${alert.entityId}`
+
+  return {
+    id: alert.id,
+    severity: STOCK_SEVERITY_MAP[alert.type] ?? "recommendation",
+    title: alert.message,
+    description: alert.detail ?? "",
+    entityType: alert.entityType,
+    href,
+  }
+}
+
 function AlertSection({
   severity,
   alerts,
@@ -207,6 +234,12 @@ function AlertSection({
   const config = SEVERITY_CONFIG[severity]
 
   if (alerts.length === 0) return null
+
+  const navigate = (alert: SmartAlert) => {
+    if (alert.href) { router.push(alert.href); return }
+    if (alert.repairId) { router.push(`/repairs/${alert.repairId}`); return }
+    if (alert.machineId) { router.push(`/machines/${alert.machineId}`); return }
+  }
 
   return (
     <Card className={`border-t-4 ${config.border}`}>
@@ -221,38 +254,31 @@ function AlertSection({
             <div
               key={alert.id}
               className="flex items-center justify-between rounded-lg border p-3 text-sm cursor-pointer hover:bg-muted/30 transition-colors"
-              onClick={() => {
-                if (alert.repairId) {
-                  router.push(`/repairs/${alert.repairId}`)
-                } else {
-                  router.push(`/machines/${alert.machineId}`)
-                }
-              }}
+              onClick={() => navigate(alert)}
             >
               <div className="space-y-0.5">
                 <div className="flex items-center gap-2">
                   <p className="font-medium">{alert.title}</p>
                   <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-semibold ${config.badge}`}>
-                    {config.label.slice(0, -1)}
+                    {alert.entityType === "MATERIAL" ? "Stock" :
+                     alert.entityType === "SPARE_PART" ? "Repuesto" :
+                     config.label.slice(0, -1)}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">{alert.description}</p>
-                <p className="text-xs">
-                  <span className="text-muted-foreground">Máquina: </span>
-                  {alert.machineName}
-                  {alert.machineModel ? ` (${alert.machineModel})` : ""}
-                </p>
+                {alert.machineName && (
+                  <p className="text-xs">
+                    <span className="text-muted-foreground">Máquina: </span>
+                    {alert.machineName}
+                    {alert.machineModel ? ` (${alert.machineModel})` : ""}
+                  </p>
+                )}
               </div>
               <Button
                 variant="ghost"
                 size="sm"
                 className="text-xs shrink-0"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  router.push(alert.repairId
-                    ? `/repairs/${alert.repairId}`
-                    : `/machines/${alert.machineId}`)
-                }}
+                onClick={(e) => { e.stopPropagation(); navigate(alert) }}
               >
                 Ver
               </Button>
@@ -267,6 +293,7 @@ function AlertSection({
 export default function SmartAlertsPanel() {
   const [repairs, setRepairs] = useState<MachineRepair[]>([])
   const [loading, setLoading] = useState(true)
+  const { intelligence, loading: stockLoading } = useStockIntelligence()
 
   useEffect(() => {
     getRepairs().then((data) => {
@@ -276,24 +303,30 @@ export default function SmartAlertsPanel() {
   }, [])
 
   const alerts = useMemo(() => {
-    const critical = detectIgnoredMaintenance(repairs)
-    const preventive = [...detectRepetitiveFailures(repairs), ...detectOverloadedMachines(repairs)]
-    const recommendations = generateRecommendations(repairs)
+    const repairCritical = detectIgnoredMaintenance(repairs)
+    const repairPreventive = [...detectRepetitiveFailures(repairs), ...detectOverloadedMachines(repairs)]
+    const repairRecommendations = generateRecommendations(repairs)
 
-    return { critical, preventive, recommendations }
-  }, [repairs])
+    const stockAlerts = (intelligence?.alerts ?? []).map(stockToSmartAlert)
+
+    const critical = [...repairCritical, ...stockAlerts.filter((a) => a.severity === "critical")]
+    const preventive = [...repairPreventive, ...stockAlerts.filter((a) => a.severity === "preventive")]
+    const recommendations = [...repairRecommendations, ...stockAlerts.filter((a) => a.severity === "recommendation")]
+
+    return { critical, preventive, recommendations, stockCount: stockAlerts.length }
+  }, [repairs, intelligence])
 
   const total =
     alerts.critical.length + alerts.preventive.length + alerts.recommendations.length
 
-  if (loading) {
+  if (loading || stockLoading) {
     return (
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-base">Alertas inteligentes</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-muted-foreground">Analizando reparaciones...</p>
+          <p className="text-sm text-muted-foreground">Analizando reparaciones y stock...</p>
         </CardContent>
       </Card>
     )
@@ -307,7 +340,7 @@ export default function SmartAlertsPanel() {
         </CardHeader>
         <CardContent>
           <p className="text-sm text-muted-foreground">
-            Sin alertas detectadas. Todas las máquinas dentro de parámetros normales.
+            Sin alertas detectadas. Todas las máquinas y stock dentro de parámetros normales.
           </p>
         </CardContent>
       </Card>
@@ -318,12 +351,40 @@ export default function SmartAlertsPanel() {
     <div className="space-y-4">
       <h2 className="text-sm font-semibold">Alertas inteligentes y recomendaciones</h2>
       <p className="text-xs text-muted-foreground -mt-3">
-        Detectadas automáticamente desde las reparaciones registradas.
+        Detectadas desde reparaciones y análisis de stock.
       </p>
 
       <AlertSection severity="critical" alerts={alerts.critical} />
       <AlertSection severity="preventive" alerts={alerts.preventive} />
       <AlertSection severity="recommendation" alerts={alerts.recommendations} />
+
+      {intelligence && alerts.stockCount > 0 && (
+        <>
+          <Separator className="my-2" />
+          <div className="rounded-lg border p-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium">📦 Stock Intelligence</p>
+                <p className="text-xs text-muted-foreground">
+                  Health Score: <strong>{intelligence.healthScore.overall}/100</strong>
+                  {intelligence.healthScore.overall >= 70 ? " 🟢" : intelligence.healthScore.overall >= 40 ? " 🟡" : " 🔴"}
+                  {" · "}
+                  Tendencia: {intelligence.trend === "up" ? "↑" : intelligence.trend === "down" ? "↓" : "→"}
+                  {" · "}
+                  {intelligence.criticalItems.length} críticos
+                </p>
+              </div>
+              <div className="flex gap-1 text-xs">
+                <span className="text-green-600">M: {intelligence.healthScore.materials}%</span>
+                <span className="text-muted-foreground">|</span>
+                <span className="text-amber-600">R: {intelligence.healthScore.spareParts}%</span>
+                <span className="text-muted-foreground">|</span>
+                <span className="text-blue-600">Mq: {intelligence.healthScore.machines}%</span>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   )
 }
