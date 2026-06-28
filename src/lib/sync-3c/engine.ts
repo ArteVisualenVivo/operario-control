@@ -193,7 +193,13 @@ export async function syncRepairsToMaintenance(
     return rows.findIndex((row) => {
       if (!Array.isArray(row)) return false
       const normalizedCells = row.map(normalizeToken)
-      return normalizedCells.includes("numero") && normalizedCells.some((cell) => cell.startsWith("fecha"))
+      const hasOrder = normalizedCells.some((cell) =>
+        ["numero", "nro", "nro_orden"].includes(cell) || cell.includes("numero"),
+      )
+      const hasDate = normalizedCells.some((cell) =>
+        cell.startsWith("fecha") || cell.includes("entrega") || cell.includes("egreso"),
+      )
+      return hasOrder && hasDate
     })
   }
 
@@ -216,15 +222,15 @@ export async function syncRepairsToMaintenance(
 
   // Formato sin "ExcelItems": TIPO, NUMERO, FECHA, ..., ESTADO, ...
   // Formato con "ExcelItems": comparte TIPO/NUMERO/FECHA y agrega columnas de items.
-  const COL_TYPE = col(["tipo"], 0)
+  const COL_TYPE = col(["tipo", "tipdoc", "tipo_doc"], 0)
   const COL_ORDER = col(["numero", "nro", "nro_orden"], 1)
   const COL_ENTRY_DATE = col(["fecha", "fecha_ingreso", "ingreso"], 2)
-  const COL_RETURN_DATE = col(["fecha_entrega", "entrega", "fecha_retiro", "retiro"], -1)
+  const COL_RETURN_DATE = col(["fecha_entrega", "entrega", "egreso", "fecha_retiro", "retiro"], -1)
   const COL_REPAIR_DATE = col(["fecha_reparacion", "reparacion"], -1)
-  const COL_CLIENT = col(["razon_social", "cliente_nombre", "nombre_cliente"], 4)
+  const COL_CLIENT = col(["razon_social", "cliente_nombre", "nombre_cliente", "cliente"], 4)
   const COL_CLIENT_CODE = col(["cliente", "cod_cliente", "cliente_id"], 3)
-  const COL_MACHINE = col(["texto", "maquina", "equipo", "articulo", "descripcion"], 8)
-  const COL_STATUS = col(["estado", "situacion"], -1)
+  const COL_MACHINE = col(["texto", "maquina", "equipo", "articulo", "descripcion", "descrip", "observ"], 8)
+  const COL_STATUS = col(["estado", "estado_repara_txt", "situacion"], -1)
   const COL_DOC_ID = col(["doc_id", "docid"], 5)
   const COL_ITEM_ID = col(["item_id", "itemid"], 6)
   const COL_ARTICLE_ID = col(["articu_id", "articulo_id", "article_id"], 7)
@@ -293,7 +299,7 @@ export async function syncRepairsToMaintenance(
     if (!value || value.length < 3) return false
     const normalized = normalizeToken(value)
     if (HEADER_BLACKLIST.some((token) => normalized.includes(token))) return false
-    return /^x\s?\d{4}-\d{8}$/i.test(value.replace(/\s+/g, " "))
+    return /^x\s?\d{4}-\d{6,8}$/i.test(value.replace(/\s+/g, " "))
   }
 
   const cleanOptionalText = (value: unknown): string | null => {
@@ -485,6 +491,12 @@ export async function syncRepairsToMaintenance(
         const key = normalizeToken(headerCell).replace(/\s+/g, "_")
         if (key) sourceData[key] = row[index] ?? null
       })
+    }
+    if (typeof sourceData.entrega !== "undefined" && !returnDate) {
+      const parsedEntrega = parseEntryDate(sourceData.entrega)
+      if (parsedEntrega) {
+        sourceData.fecha_entrega = sourceData.entrega
+      }
     }
 
     const ref = collection.doc(orderNumber)
