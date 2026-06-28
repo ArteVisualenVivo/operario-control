@@ -280,7 +280,7 @@ export async function syncRepairsToMaintenance(
     if (!value || value.length < 3) return false
     const normalized = normalizeToken(value)
     if (HEADER_BLACKLIST.some((token) => normalized.includes(token))) return false
-    return /\d/.test(value)
+    return /^x\s?\d{4}-\d{8}$/i.test(value.replace(/\s+/g, " "))
   }
 
   const cleanOptionalText = (value: unknown): string | null => {

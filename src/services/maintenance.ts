@@ -56,6 +56,7 @@ export interface MaintenanceInput {
 
 const COLLECTION = "maintenance"
 const AUDIT_ENTITY: "maintenance" = "maintenance"
+const ORDER_PATTERN = /^X\s?\d{4}-\d{8}$/i
 
 function toDate(val: unknown): Date {
   if (val instanceof Date) return val
@@ -92,7 +93,7 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
       createdAt: toDate(data.createdAt),
       updatedAt: toDate(data.updatedAt),
     }
-  })
+  }).filter((record) => ORDER_PATTERN.test(record.orderNumber))
 }
 
 export async function createOrUpdateMaintenance(input: MaintenanceInput): Promise<void> {

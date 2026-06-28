@@ -1,11 +1,13 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useEffect, useMemo, useState } from "react"
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { formatDate } from "@/lib/ui"
 import { getMaintenanceRecords } from "@/services/maintenance"
 import type { MaintenanceRecord } from "@/services/maintenance"
+
+const ORDER_PATTERN = /^X\s?\d{4}-\d{8}$/i
 
 export default function MaintenancePage() {
   const [orders, setOrders] = useState<MaintenanceRecord[]>([])
@@ -18,14 +20,18 @@ export default function MaintenancePage() {
     setLoading(false)
   }
 
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+  }, [])
 
   const visibleOrders = useMemo(() => {
-    return [...orders].sort((a, b) => {
-      const aTime = a.entryDate ? new Date(a.entryDate).getTime() : 0
-      const bTime = b.entryDate ? new Date(b.entryDate).getTime() : 0
-      return bTime - aTime
-    })
+    return [...orders]
+      .filter((order) => ORDER_PATTERN.test(order.orderNumber))
+      .sort((a, b) => {
+        const aTime = a.entryDate ? new Date(a.entryDate).getTime() : 0
+        const bTime = b.entryDate ? new Date(b.entryDate).getTime() : 0
+        return bTime - aTime
+      })
   }, [orders])
 
   if (loading) return <p className="text-muted-foreground">Cargando...</p>
@@ -34,29 +40,31 @@ export default function MaintenancePage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Mantenimiento</h1>
-        <Button variant="outline" size="sm" onClick={load}>Actualizar</Button>
+        <Button variant="outline" size="sm" onClick={load}>
+          Actualizar
+        </Button>
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Órdenes de mantenimiento</CardTitle>
+          <CardTitle>Ordenes de mantenimiento</CardTitle>
         </CardHeader>
         <CardContent>
           {visibleOrders.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No hay órdenes de mantenimiento disponibles.</p>
+            <p className="text-sm text-muted-foreground">No hay ordenes de mantenimiento disponibles.</p>
           ) : (
-            <div className="rounded-md border">
+            <div className="rounded-md border overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b">
-                    <th className="p-2 text-left">Número de Orden</th>
+                    <th className="p-2 text-left">Numero de Orden</th>
                     <th className="p-2 text-left">Cliente</th>
-                    <th className="p-2 text-left">Máquina</th>
+                    <th className="p-2 text-left">Maquina</th>
                     <th className="p-2 text-left">Fecha Ingreso</th>
                     <th className="p-2 text-left">Fecha Entrega</th>
-                    <th className="p-2 text-left">Fecha ReparaciÃ³n</th>
+                    <th className="p-2 text-left">Fecha Reparacion</th>
                     <th className="p-2 text-left">Estado</th>
-                    <th className="p-2 text-left">Técnico</th>
+                    <th className="p-2 text-left">Tecnico</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -79,15 +87,16 @@ export default function MaintenancePage() {
         </CardContent>
       </Card>
 
-      {/* Estructura preparada para futuras fases */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card>
-          <CardHeader><CardTitle>Próximas fases</CardTitle></CardHeader>
+          <CardHeader>
+            <CardTitle>Proximas fases</CardTitle>
+          </CardHeader>
           <CardContent>
             <ul className="text-sm text-muted-foreground list-disc pl-4 space-y-1">
-              <li>Fecha de reparación</li>
+              <li>Fecha de reparacion</li>
               <li>Fecha de retiro</li>
-              <li>Garantía</li>
+              <li>Garantia</li>
               <li>Historial</li>
               <li>Tiempo en taller</li>
             </ul>
