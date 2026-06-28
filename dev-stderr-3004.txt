@@ -1832,3 +1832,33 @@ Caused by:
 Import trace for requested module:
 ./src/services/maintenance.ts
 ./src/app/(protected)/maintenance/page.tsx
+[browser] ./src/services/maintenance.ts
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\Cesar\Desktop\operario-control\src\services\maintenance.ts
+    1: El sistema no puede encontrar el archivo especificado. (os error 2)
+
+Import trace for requested module:
+./src/services/maintenance.ts
+./src/app/(protected)/maintenance/page.tsx 
+[browser] ./src/services/maintenance.ts
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\Cesar\Desktop\operario-control\src\services\maintenance.ts
+    1: El sistema no puede encontrar el archivo especificado. (os error 2)
+
+Import trace for requested module:
+./src/services/maintenance.ts
+./src/app/(protected)/maintenance/page.tsx 
+[browser] ./src/services/maintenance.ts
+Error: 
+
+Caused by:
+    0: Failed to read source code from C:\Users\Cesar\Desktop\operario-control\src\services\maintenance.ts
+    1: El sistema no puede encontrar el archivo especificado. (os error 2)
+
+Import trace for requested module:
+./src/services/maintenance.ts
+./src/app/(protected)/maintenance/page.tsx 

@@ -1,0 +1,3 @@
+{
+  "/api/cloudinary/delete/route": "app/api/cloudinary/delete/route.js"
+}

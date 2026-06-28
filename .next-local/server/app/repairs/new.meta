@@ -1,0 +1,17 @@
+{
+  "headers": {
+    "x-nextjs-stale-time": "300",
+    "x-nextjs-prerender": "1",
+    "x-next-cache-tags": "_N_T_/layout,_N_T_/(protected)/layout,_N_T_/(protected)/repairs/layout,_N_T_/(protected)/repairs/new/layout,_N_T_/(protected)/repairs/new/page,_N_T_/repairs/new"
+  },
+  "segmentPaths": [
+    "/_tree",
+    "/_full",
+    "/!KHByb3RlY3RlZCk/repairs/new/__PAGE__",
+    "/!KHByb3RlY3RlZCk/repairs/new",
+    "/!KHByb3RlY3RlZCk/repairs",
+    "/!KHByb3RlY3RlZCk",
+    "/_index",
+    "/_head"
+  ]
+}

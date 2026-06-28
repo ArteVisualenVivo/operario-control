@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "functions": {
+    "/api/sync-3c": {
+      "maxDuration": 120
+    },
+    "/api/sync-3c/agent-status": {},
+    "/api/sync-3c/status": {}
+  }
+}

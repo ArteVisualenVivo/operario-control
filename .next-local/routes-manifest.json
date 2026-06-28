@@ -1,0 +1,232 @@
+{
+  "version": 3,
+  "pages404": true,
+  "appType": "app",
+  "caseSensitive": false,
+  "basePath": "",
+  "redirects": [
+    {
+      "source": "/:path+/",
+      "destination": "/:path+",
+      "internal": true,
+      "priority": true,
+      "statusCode": 308,
+      "regex": "^(?:/((?:[^/]+?)(?:/(?:[^/]+?))*))/$"
+    }
+  ],
+  "headers": [],
+  "onMatchHeaders": [],
+  "rewrites": {
+    "beforeFiles": [],
+    "afterFiles": [],
+    "fallback": []
+  },
+  "dynamicRoutes": [
+    {
+      "page": "/inventory/[id]",
+      "regex": "^/inventory/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/inventory/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/machines/[id]",
+      "regex": "^/machines/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/machines/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/machines/[id]/blueprints",
+      "regex": "^/machines/([^/]+?)/blueprints(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/machines/(?<nxtPid>[^/]+?)/blueprints(?:/)?$"
+    },
+    {
+      "page": "/machines/[id]/parts",
+      "regex": "^/machines/([^/]+?)/parts(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/machines/(?<nxtPid>[^/]+?)/parts(?:/)?$"
+    },
+    {
+      "page": "/rentals/[id]",
+      "regex": "^/rentals/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/rentals/(?<nxtPid>[^/]+?)(?:/)?$"
+    },
+    {
+      "page": "/repairs/[id]",
+      "regex": "^/repairs/([^/]+?)(?:/)?$",
+      "routeKeys": {
+        "nxtPid": "nxtPid"
+      },
+      "namedRegex": "^/repairs/(?<nxtPid>[^/]+?)(?:/)?$"
+    }
+  ],
+  "staticRoutes": [
+    {
+      "page": "/",
+      "regex": "^/(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/(?:/)?$"
+    },
+    {
+      "page": "/_global-error",
+      "regex": "^/_global\\-error(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_global\\-error(?:/)?$"
+    },
+    {
+      "page": "/_not-found",
+      "regex": "^/_not\\-found(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/_not\\-found(?:/)?$"
+    },
+    {
+      "page": "/andamios",
+      "regex": "^/andamios(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/andamios(?:/)?$"
+    },
+    {
+      "page": "/api/cloudinary/delete",
+      "regex": "^/api/cloudinary/delete(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/cloudinary/delete(?:/)?$"
+    },
+    {
+      "page": "/api/sync-3c",
+      "regex": "^/api/sync\\-3c(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/sync\\-3c(?:/)?$"
+    },
+    {
+      "page": "/api/sync-3c/agent-status",
+      "regex": "^/api/sync\\-3c/agent\\-status(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/sync\\-3c/agent\\-status(?:/)?$"
+    },
+    {
+      "page": "/api/sync-3c/status",
+      "regex": "^/api/sync\\-3c/status(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/api/sync\\-3c/status(?:/)?$"
+    },
+    {
+      "page": "/dashboard",
+      "regex": "^/dashboard(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/dashboard(?:/)?$"
+    },
+    {
+      "page": "/favicon.ico",
+      "regex": "^/favicon\\.ico(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/favicon\\.ico(?:/)?$"
+    },
+    {
+      "page": "/inventory",
+      "regex": "^/inventory(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/inventory(?:/)?$"
+    },
+    {
+      "page": "/inventory/new",
+      "regex": "^/inventory/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/inventory/new(?:/)?$"
+    },
+    {
+      "page": "/inventory-movements",
+      "regex": "^/inventory\\-movements(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/inventory\\-movements(?:/)?$"
+    },
+    {
+      "page": "/login",
+      "regex": "^/login(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/login(?:/)?$"
+    },
+    {
+      "page": "/machines",
+      "regex": "^/machines(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/machines(?:/)?$"
+    },
+    {
+      "page": "/machines/new",
+      "regex": "^/machines/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/machines/new(?:/)?$"
+    },
+    {
+      "page": "/maintenance",
+      "regex": "^/maintenance(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/maintenance(?:/)?$"
+    },
+    {
+      "page": "/rentals",
+      "regex": "^/rentals(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/rentals(?:/)?$"
+    },
+    {
+      "page": "/rentals/new",
+      "regex": "^/rentals/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/rentals/new(?:/)?$"
+    },
+    {
+      "page": "/repairs",
+      "regex": "^/repairs(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/repairs(?:/)?$"
+    },
+    {
+      "page": "/repairs/new",
+      "regex": "^/repairs/new(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/repairs/new(?:/)?$"
+    },
+    {
+      "page": "/stock",
+      "regex": "^/stock(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/stock(?:/)?$"
+    },
+    {
+      "page": "/stock-movements",
+      "regex": "^/stock\\-movements(?:/)?$",
+      "routeKeys": {},
+      "namedRegex": "^/stock\\-movements(?:/)?$"
+    }
+  ],
+  "dataRoutes": [],
+  "rsc": {
+    "header": "rsc",
+    "varyHeader": "rsc, next-router-state-tree, next-router-prefetch, next-router-segment-prefetch",
+    "prefetchHeader": "next-router-prefetch",
+    "didPostponeHeader": "x-nextjs-postponed",
+    "contentTypeHeader": "text/x-component",
+    "suffix": ".rsc",
+    "prefetchSegmentHeader": "next-router-segment-prefetch",
+    "prefetchSegmentSuffix": ".segment.rsc",
+    "prefetchSegmentDirSuffix": ".segments",
+    "clientParamParsing": false,
+    "dynamicRSCPrerender": false
+  },
+  "rewriteHeaders": {
+    "pathHeader": "x-nextjs-rewritten-path",
+    "queryHeader": "x-nextjs-rewritten-query"
+  }
+}

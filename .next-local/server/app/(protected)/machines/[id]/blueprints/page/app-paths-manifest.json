@@ -1,0 +1,3 @@
+{
+  "/(protected)/machines/[id]/blueprints/page": "app/(protected)/machines/[id]/blueprints/page.js"
+}

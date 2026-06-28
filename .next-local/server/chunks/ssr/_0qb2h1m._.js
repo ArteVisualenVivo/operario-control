@@ -1,0 +1,3 @@
+module.exports=[55142,a=>{"use strict";var b=a.i(72131),c=a.i(37408);let d=b.forwardRef(function(a,b){let{className:d,render:e,orientation:f="horizontal",style:g,...h}=a;return(0,c.useRenderElement)("div",a,{state:{orientation:f},ref:b,props:[{role:"separator","aria-orientation":f},h]})});a.s(["Separator",0,d])},5084,a=>{"use strict";var b=a.i(87924),c=a.i(55142),d=a.i(68114);a.s(["Separator",0,function({className:a,orientation:e="horizontal",...f}){return(0,b.jsx)(c.Separator,{"data-slot":"separator",orientation:e,className:(0,d.cn)("shrink-0 bg-border data-horizontal:h-px data-horizontal:w-full data-vertical:w-px data-vertical:self-stretch",a),...f})}])}];
+
+//# sourceMappingURL=_0qb2h1m._.js.map
