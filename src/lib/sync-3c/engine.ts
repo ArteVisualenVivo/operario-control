@@ -317,6 +317,31 @@ export async function syncRepairsToMaintenance(
     return Number.isFinite(parsed) ? parsed : null
   }
 
+  const dateComparable = (value: unknown): string | null => {
+    const date = value instanceof Date ? value : parseEntryDate(value)
+    if (!date) return null
+    return date.toISOString()
+  }
+
+  const normalizable = (value: unknown): unknown => {
+    if (value instanceof Date) return value.toISOString()
+    if (value && typeof value === "object") {
+      if ("toDate" in value && typeof (value as { toDate?: () => Date }).toDate === "function") {
+        const d = (value as { toDate: () => Date }).toDate()
+        return d instanceof Date ? d.toISOString() : value
+      }
+    }
+    return value
+  }
+
+  const payloadSignature = (payload: Record<string, unknown>): string =>
+    JSON.stringify(
+      Object.entries(payload)
+        .filter(([key]) => key !== "updatedAt" && key !== "createdAt")
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([key, value]) => [key, normalizable(value)]),
+    )
+
   const cell = (row: unknown[], index: number): unknown => {
     if (index < 0) return undefined
     return row[index]
@@ -530,6 +555,39 @@ export async function syncRepairsToMaintenance(
 
     if (!before.exists) {
       payload.createdAt = now
+    }
+
+    if (before.exists) {
+      const beforeData = before.data() as Record<string, unknown>
+      const beforePayload = {
+        orderNumber: beforeData.orderNumber ?? null,
+        entryDate: dateComparable(beforeData.entryDate),
+        returnDate: dateComparable(beforeData.returnDate),
+        repairDate: dateComparable(beforeData.repairDate),
+        clientName: beforeData.clientName ?? null,
+        clientCode: beforeData.clientCode ?? null,
+        machineName: beforeData.machineName ?? null,
+        docId: beforeData.docId ?? null,
+        itemId: beforeData.itemId ?? null,
+        articleId: beforeData.articleId ?? null,
+        quantity: beforeData.quantity ?? null,
+        unitPrice: beforeData.unitPrice ?? null,
+        totalPrice: beforeData.totalPrice ?? null,
+        taxed: beforeData.taxed ?? null,
+        notTaxed: beforeData.notTaxed ?? null,
+        exempt: beforeData.exempt ?? null,
+        capitalGood: beforeData.capitalGood ?? null,
+        useGood: beforeData.useGood ?? null,
+        equivalentCoefficient: beforeData.equivalentCoefficient ?? null,
+        netPrice: beforeData.netPrice ?? null,
+        status: beforeData.status ?? null,
+        originalData: beforeData.originalData ?? null,
+        sourceRow: beforeData.sourceRow ?? null,
+      }
+      if (payloadSignature(beforePayload) === payloadSignature(payload)) {
+        result.skipped++
+        continue
+      }
     }
 
     try {
