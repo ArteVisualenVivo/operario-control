@@ -33,6 +33,16 @@ function findDateLikeValue(data: Record<string, unknown> | undefined, patterns: 
   return undefined
 }
 
+function asDate(value: unknown): Date | undefined {
+  if (value instanceof Date) return value
+  if (value instanceof Timestamp) return value.toDate()
+  if (typeof value === "string") {
+    const parsed = new Date(value)
+    return isNaN(parsed.getTime()) ? undefined : parsed
+  }
+  return undefined
+}
+
 function docToRepair(docSnap: { id: string; data: () => Record<string, unknown> }): MachineRepair {
   const data = docSnap.data()
   const exitDate = data.exitDate ? toDate(data.exitDate) : toDate(data.createdAt)
@@ -97,8 +107,8 @@ function calculateAutoDates(
 }
 
 function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRecords>>[number]): MachineRepair {
-  const originalReturn = findDateLikeValue(record.originalData, ["entrega", "egreso", "salida", "retiro", "return"])
-  const originalRepair = findDateLikeValue(record.originalData, ["reparacion", "reparaciÃ³n", "taller", "repair"])
+  const originalReturn = asDate(findDateLikeValue(record.originalData, ["entrega", "egreso", "salida", "retiro", "return"]))
+  const originalRepair = asDate(findDateLikeValue(record.originalData, ["reparacion", "reparaciÃ³n", "taller", "repair"]))
   const statusText = `${record.status} ${record.originalData ? Object.values(record.originalData).join(" ") : ""}`.toUpperCase()
   const exitDate = record.returnDate ?? record.repairDate ?? (originalReturn instanceof Date ? originalReturn : undefined) ?? record.entryDate
   const hasExitDate = Boolean(record.returnDate || record.repairDate || originalReturn || statusText.includes("ENTREG"))

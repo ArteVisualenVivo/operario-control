@@ -110,6 +110,14 @@ function findDateLikeValue(data: Record<string, unknown> | undefined, patterns: 
   return undefined
 }
 
+function firstDateCandidate(...values: unknown[]): Date | undefined {
+  for (const value of values) {
+    const date = toDate(value)
+    if (isValidDate(date)) return date
+  }
+  return undefined
+}
+
 export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
   const q = query(collection(db, COLLECTION), orderBy("entryDate", "desc"))
   const snapshot = await getDocs(q)
@@ -122,27 +130,27 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
       const originalEntry = findDateLikeValue(originalData, ["fecha_ingreso", "ingreso", "entrada", "entry", "fecha"])
       const originalStatus = findDateLikeValue(originalData, ["estado", "situacion", "situaciÃ³n"])
 
-      const entryDateCandidate = toDate(data.entryDate)
-      const returnDateCandidate = toDate(
-        data.returnDate ??
-        originalReturn ??
-        originalData?.entrega ??
-        originalData?.fecha_entrega ??
-        originalData?.egreso ??
-        originalData?.salida
+      const entryDateCandidate = firstDateCandidate(data.entryDate, originalEntry, data.createdAt)
+      const returnDateCandidate = firstDateCandidate(
+        data.returnDate,
+        originalReturn,
+        originalData?.entrega,
+        originalData?.fecha_entrega,
+        originalData?.egreso,
+        originalData?.salida,
       )
-      const repairDateCandidate = toDate(
-        data.repairDate ??
-        originalRepair ??
-        originalData?.fecha_reparacion ??
-        originalData?.reparacion
+      const repairDateCandidate = firstDateCandidate(
+        data.repairDate,
+        originalRepair,
+        originalData?.fecha_reparacion,
+        originalData?.reparacion,
       )
-      const fallbackEntry = isValidDate(toDate(originalEntry)) ? toDate(originalEntry) : toDate(data.createdAt)
+      const fallbackEntry = entryDateCandidate ?? toDate(data.createdAt)
 
       return {
         id: d.id,
         orderNumber: data.orderNumber as string,
-        entryDate: isValidDate(entryDateCandidate) ? entryDateCandidate : fallbackEntry,
+        entryDate: fallbackEntry,
         type: data.type as string | undefined,
         clientName: data.clientName as string,
         clientCode: data.clientCode as string | undefined,
@@ -163,8 +171,8 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
         netPrice: typeof data.netPrice === "number" ? data.netPrice : null,
         originalData,
         sourceRow: typeof data.sourceRow === "number" ? data.sourceRow : undefined,
-        repairDate: isValidDate(repairDateCandidate) ? repairDateCandidate : (originalRepair ? toDate(originalRepair) : undefined),
-        returnDate: isValidDate(returnDateCandidate) ? returnDateCandidate : (originalReturn ? toDate(originalReturn) : undefined),
+        repairDate: repairDateCandidate ?? undefined,
+        returnDate: returnDateCandidate ?? undefined,
         warranty: data.warranty ? toDate(data.warranty) : undefined,
         history: data.history as string | undefined,
         shopTime: data.shopTime as number | undefined,
