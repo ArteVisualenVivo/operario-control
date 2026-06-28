@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import SeedInventory from "@/components/machines/SeedInventory"
+import Sync3CButton from "@/components/sync/Sync3CButton"
 import WorkshopSummary from "@/components/dashboard/WorkshopSummary"
 import SmartAlertsPanel from "@/components/dashboard/SmartAlertsPanel"
 import { useStockIntelligence } from "@/hooks/useStockIntelligence"
@@ -117,7 +118,10 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <SeedInventory onComplete={() => window.location.reload()} />
+      <div className="flex flex-wrap items-start gap-3">
+        <SeedInventory onComplete={() => window.location.reload()} />
+        <Sync3CButton onComplete={() => window.location.reload()} variant="outline" />
+      </div>
 
       {alerts.length > 0 && (
         <div className="space-y-2">

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { useMachines } from "@/hooks/useMachines"
 import { useInventoryStock } from "@/hooks/useInventoryStock"
 import { useSparePartsCache } from "@/hooks/useSparePartsCache"
+import Sync3CButton from "@/components/sync/Sync3CButton"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -209,6 +210,7 @@ export default function StockPage() {
       </div>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+        <Sync3CButton onComplete={() => window.location.reload()} variant="outline" size="sm" />
         <Input
           placeholder="Buscar por nombre..."
           value={search}
