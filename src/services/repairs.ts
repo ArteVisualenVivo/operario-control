@@ -88,7 +88,8 @@ function calculateAutoDates(
 }
 
 function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRecords>>[number]): MachineRepair {
-  const hasExitDate = Boolean(record.returnDate || record.repairDate)
+  const statusText = `${record.status} ${record.originalData ? Object.values(record.originalData).join(" ") : ""}`.toUpperCase()
+  const hasExitDate = Boolean(record.returnDate || record.repairDate || statusText.includes("ENTREG"))
   return {
     id: `maintenance:${record.id}`,
     machineId: record.orderNumber,

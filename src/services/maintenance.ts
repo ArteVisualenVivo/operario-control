@@ -104,18 +104,36 @@ function toDate(val: unknown): Date {
   return new Date("")
 }
 
+function findDateLikeValue(data: Record<string, unknown> | undefined, patterns: string[]): unknown {
+  if (!data) return undefined
+  for (const [key, value] of Object.entries(data)) {
+    const normalized = key.toLowerCase()
+    if (patterns.some((pattern) => normalized.includes(pattern))) return value
+  }
+  return undefined
+}
+
 export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
   const q = query(collection(db, COLLECTION), orderBy("entryDate", "desc"))
   const snapshot = await getDocs(q)
   return snapshot.docs.map((d) => {
     const data = d.data()
     const originalData = (data.originalData as Record<string, unknown> | undefined) ?? undefined
-    const originalReturn = originalData
-      ? (originalData.entrega ?? originalData.fecha_entrega ?? originalData.return_date ?? originalData.fecha_retiro)
-      : undefined
-    const originalRepair = originalData
-      ? (originalData.reparacion ?? originalData.fecha_reparacion)
-      : undefined
+    const originalReturn = findDateLikeValue(originalData, [
+      "entrega",
+      "egreso",
+      "salida",
+      "retiro",
+      "return",
+      "fecha2",
+    ])
+    const originalRepair = findDateLikeValue(originalData, [
+      "reparacion",
+      "reparación",
+      "taller",
+      "repair",
+    ])
+    const originalStatus = findDateLikeValue(originalData, ["estado", "situacion", "situación"])
     return {
       id: d.id,
       orderNumber: data.orderNumber as string,
@@ -124,7 +142,7 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
       clientName: data.clientName as string,
       clientCode: data.clientCode as string | undefined,
       machineName: data.machineName as string,
-      status: data.status as string,
+      status: (data.status as string) || (typeof originalStatus === "string" ? originalStatus : "Recepción"),
       docId: data.docId as string | undefined,
       itemId: typeof data.itemId === "number" ? data.itemId : null,
       articleId: data.articleId as string | undefined,
