@@ -185,6 +185,61 @@ WaitForExcel() {
 }
 
 ; ============================================================================
+; WATCH EXPORT
+; ============================================================================
+
+WatchExportFile() {
+    Log("[SCAN] Iniciando búsqueda de archivos Excel/CSV 3C (60s)...")
+
+    dirs := [
+        "C:\Users\Cesar\Downloads",
+        "C:\Users\Cesar\Documents",
+        A_Temp,
+        "C:\Temp",
+        "C:\3C",
+        "C:\3CWin",
+        "C:\ProgramData",
+        A_Desktop,
+        A_MyDocuments
+    ]
+
+    exts := ["*.xlsx", "*.xls", "*.xlsm", "*.csv"]
+
+    for i, scanDir in dirs {
+        if DirExist(scanDir)
+            Log("[SCAN] Monitoreando: " scanDir)
+        else
+            Log("[SCAN] No existe: " scanDir)
+    }
+
+    found := false
+    Loop 60 {
+        Sleep(1000)
+        for i, scanDir in dirs {
+            if !DirExist(scanDir)
+                continue
+            for j, pattern in exts {
+                Loop Files scanDir "\" pattern {
+                    if (A_LoopFileTimeModified >= A_Now - 3) {
+                        Log("[SCAN] Encontrado:")
+                        Log("[SCAN]   Ruta: " A_LoopFileFullPath)
+                        Log("[SCAN]   Fecha: " A_LoopFileTimeModified)
+                        Log("[SCAN]   Tamaño: " A_LoopFileSizeKB " KB")
+                        found := true
+                    }
+                }
+            }
+        }
+    }
+
+    if !found
+        Log("[SCAN] No se detectó ningún archivo nuevo en ninguna ruta monitoreada")
+
+    Log("[SCAN] Diagnóstico finalizado.")
+    return ""
+}
+
+; ============================================================================
 ; MAIN
 ; ============================================================================
 startTime := A_TickCount
@@ -199,17 +254,49 @@ Check3CRunning()
 try {
     NavigateAndExport()
     WaitForExcel()
-    dur := Format("{:.1f}s", (A_TickCount - startTime) / 1000)
-    Log("[OK] Sync completado en " dur)
-    SaveStatus("exito", "completado", dur)
-    MsgBox("Exportación completada")
+
+    ; === WATCHER ===
+    downloadDir := EnvGet("LOCALAPPDATA") "\Temp\tresc"
+
+    Log("[WATCHER] Directorio fijo 3C: " downloadDir)
+
+    if !DirExist(downloadDir) {
+        Log("[WATCHER ERROR] No existe carpeta tresc en Temp")
+        MsgBox("No existe carpeta 3C: " downloadDir)
+        ExitApp
+    }
+
+    exportsDir := A_ScriptDir "\..\automation-watcher\3c_exports"
+    if !DirExist(exportsDir)
+        DirCreate(exportsDir)
+
+    Loop 60 {
+        Sleep(1000)
+
+        Loop Files downloadDir "\tresc*.xls" {
+            Log("[WATCHER] ARCHIVO DETECTADO:")
+            Log("[WATCHER] Ruta: " A_LoopFileFullPath)
+            Log("[WATCHER] Fecha: " A_LoopFileTimeModified)
+            Log("[WATCHER] Tamaño: " A_LoopFileSizeKB " KB")
+
+            FileCopy(
+                A_LoopFileFullPath,
+                exportsDir "\" A_LoopFileName,
+                1
+            )
+
+            Log("[OK] Archivo copiado a exports")
+            MsgBox("3C EXPORT DETECTADO Y COPIADO")
+            ExitApp
+        }
+    }
+
+    Log("[WATCHER] TIMEOUT — no se detectaron archivos tresc*.xls en Temp\tresc")
+    MsgBox("TIMEOUT: no se encontró exportación de 3C")
+    ExitApp
 } catch as err {
-    dur := Format("{:.1f}s", (A_TickCount - startTime) / 1000)
-    Log("ERROR: " err.Message)
-    Log("Stack: " err.Stack)
-    SaveStatus("fallo", err.Message, dur)
-    MsgBox("Error en automatización 3C.`n`n" err.Message "`n`n" .
-           "Presionar F5 para reintentar.", "Error de automatización", "Icon!")
+    Log("[WATCHER ERROR] " err.Message)
+    MsgBox("Error en WATCHER.`n`n" err.Message, "Error", "Icon!")
 }
 
 Log("=== FIN ===")

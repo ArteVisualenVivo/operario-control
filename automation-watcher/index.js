@@ -31,10 +31,19 @@ function log(msg) {
 // ============================================================
 // PROCESAMIENTO
 // ============================================================
+const DOWNLOADS_DIR = "C:/Users/Cesar/Downloads"
+
+const VALID_EXTS = [".xlsx", ".xls"]
+
 async function processFile(filePath) {
   const filename = path.basename(filePath)
 
-  log(`Archivo detectado: ${filename}`)
+  const originDir = path.dirname(filePath)
+  if (originDir.includes("Downloads")) {
+    console.log(`[WATCHER] Excel detectado en Downloads: ${filename}`)
+  } else {
+    console.log(`[WATCHER] Excel detectado en 3c_exports: ${filename}`)
+  }
 
   // Esperar a que termine la escritura
   await new Promise((r) => setTimeout(r, config.excelWaitMs))
@@ -85,10 +94,10 @@ async function processFile(filePath) {
     processedCount: state.processedCount + 1,
   })
 
-  log(`[OK] Sincronizado: ${result.updated} actualizados, ${result.skipped} omitidos`)
+  log(`[SYNC] Inventario sincronizado: ${result.updated} actualizados, ${result.created} creados, ${result.skipped} omitidos`)
 
   for (const w of result.warnings) {
-    log(`  ⚠ ${w}`)
+    console.warn(`[WARN] ${w}`)
   }
 }
 
@@ -102,24 +111,32 @@ function start() {
     log(`Carpeta creada: ${config.watchDir}`)
   }
 
-  log(`Iniciando watcher: ${config.watchDir}`)
+  log(`Iniciando watcher:`)
+  log(`  - ${config.watchDir}`)
+  log(`  - ${DOWNLOADS_DIR}`)
   log(`Modo estricto: ${config.strictMode}`)
 
-  const watcher = chokidar.watch(config.watchDir, {
-    ignoreInitial: true,
-    depth: 0,
-    awaitWriteFinish: {
-      stabilityThreshold: 1500,
-      pollInterval: 300,
-    },
-  })
+  const watcher = chokidar.watch(
+    [
+      path.resolve(__dirname, "3c_exports"),
+      DOWNLOADS_DIR,
+    ],
+    {
+      ignoreInitial: true,
+      depth: 0,
+      awaitWriteFinish: {
+        stabilityThreshold: 1500,
+        pollInterval: 300,
+      },
+    }
+  )
 
   watcher.on("add", (filePath) => {
     const ext = path.extname(filePath).toLowerCase()
     const base = path.basename(filePath)
 
-    // Ignorar temporales de Excel y no-xlsx
-    if (base.startsWith("~$") || ext !== ".xlsx") return
+    // Ignorar temporales de Excel y no-xlsx/xls
+    if (base.startsWith("~$") || !VALID_EXTS.includes(ext)) return
 
     // Pequeño debounce extra para evitar doble trigger
     setTimeout(() => processFile(filePath), 500)

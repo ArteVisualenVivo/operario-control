@@ -16,6 +16,7 @@ export type StockSize = "1m" | "1.5m" | "2m" | "2.5m" | "3m" | "4m" | "6m" | "la
 export interface InventoryStock {
   id: string
   name: string
+  codigo?: string
   category: StockCategory
   unit: StockUnit
   stockTotal: number
@@ -24,6 +25,9 @@ export interface InventoryStock {
   subtype?: StockSubtype | null
   size?: StockSize | string | null
   locationType: "deposito"
+  deposito?: number
+  source?: "manual" | "3c"
+  stockWarning?: boolean
   createdAt: Date
   updatedAt: Date
 }

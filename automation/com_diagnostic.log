@@ -1,0 +1,27 @@
+[2026-06-28 14:17:30] Iniciando test COM...
+[2026-06-28 14:17:30] [OK] ComObjActive conectado
+[2026-06-28 14:17:30] Excel Version: 16.0
+[2026-06-28 14:17:30] Workbook count: 1
+[2026-06-28 14:17:30] ActiveWorkbook: Libro1
+[2026-06-28 14:17:30] Path: Libro1
+[2026-06-28 14:17:30] Saved: 1
+[2026-06-28 14:17:30] ReadOnly: 0
+[2026-06-28 14:17:30] Test finalizado.
+[2026-06-28 14:18:22] Iniciando test COM...
+[2026-06-28 14:18:22] [OK] ComObjActive conectado
+[2026-06-28 14:18:22] Excel Version: 16.0
+[2026-06-28 14:18:22] Workbook count: 1
+[2026-06-28 14:18:22] ActiveWorkbook: Libro1
+[2026-06-28 14:18:22] Path: Libro1
+[2026-06-28 14:18:22] Saved: 1
+[2026-06-28 14:18:22] ReadOnly: 0
+[2026-06-28 14:18:22] Test finalizado.
+[2026-06-28 14:51:29] Iniciando test COM...
+[2026-06-28 14:51:29] [ERROR] Message: (0x800401E3) Operación no disponible
+[2026-06-28 14:51:29] [ERROR] What: ComObjActive
+[2026-06-28 14:51:29] [ERROR] Extra: 
+[2026-06-28 14:51:29] [ERROR] Stack: C:\Users\Cesar\Desktop\operario-control\automation\test_com.ahk (10) : [ComObjActive] xl := ComObjActive("Excel.Application")
+C:\Users\Cesar\Desktop\operario-control\automation\test_com.ahk (10) : [] xl := ComObjActive("Excel.Application")
+> Auto-execute
+
+[2026-06-28 14:51:29] Test finalizado.
