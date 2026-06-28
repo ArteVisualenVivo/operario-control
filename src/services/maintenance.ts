@@ -59,8 +59,12 @@ const AUDIT_ENTITY: "maintenance" = "maintenance"
 
 function toDate(val: unknown): Date {
   if (val instanceof Date) return val
+  if (val && typeof val === "object" && "toDate" in val && typeof (val as { toDate?: () => Date }).toDate === "function") {
+    const date = (val as { toDate: () => Date }).toDate()
+    if (date instanceof Date && !Number.isNaN(date.getTime())) return date
+  }
   if (typeof val === "string") return new Date(val)
-  return new Date()
+  return new Date("")
 }
 
 export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {

@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useState, useMemo } from "react"
-import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { formatDate } from "@/lib/ui"
@@ -54,6 +53,8 @@ export default function MaintenancePage() {
                     <th className="p-2 text-left">Cliente</th>
                     <th className="p-2 text-left">Máquina</th>
                     <th className="p-2 text-left">Fecha Ingreso</th>
+                    <th className="p-2 text-left">Fecha Entrega</th>
+                    <th className="p-2 text-left">Fecha ReparaciÃ³n</th>
                     <th className="p-2 text-left">Estado</th>
                     <th className="p-2 text-left">Técnico</th>
                   </tr>
@@ -65,6 +66,8 @@ export default function MaintenancePage() {
                       <td className="p-2">{order.clientName}</td>
                       <td className="p-2">{order.machineName}</td>
                       <td className="p-2">{formatDate(order.entryDate)}</td>
+                      <td className="p-2">{formatDate(order.returnDate)}</td>
+                      <td className="p-2">{formatDate(order.repairDate)}</td>
                       <td className="p-2">{order.status}</td>
                       <td className="p-2">{order.technician ?? "—"}</td>
                     </tr>
