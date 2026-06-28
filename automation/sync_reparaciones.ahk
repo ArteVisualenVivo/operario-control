@@ -1,74 +1,59 @@
 #Include sync_common.ahk
 
 ; ============================================================================
-; sync_3c.ahk — Módulo STOCK
-; Solo contiene la navegación específica de Stock.
+; sync_reparaciones.ahk — Módulo ÓRDENES DE REPARACIÓN
+; Solo contiene la navegación específica de Reparaciones.
 ; El motor compartido vive en sync_common.ahk.
 ; ============================================================================
 
 ; ============================================================================
-; NAVEGACIÓN STOCK
+; NAVEGACIÓN REPARACIONES
 ; ============================================================================
 
-NavigateStock() {
+NavigateReparaciones() {
     ; Resync — intentar volver a estado base
     Log("Resync: enviando Ctrl+Home")
     SendInput("^Home")
     Sleep(resyncDelay)
 
-    ; 1 — Abrir Almacenes
-    ClickAt("Almacenes")
+    ; 1 — Click Reparaciones
+    ClickAt("Reparaciones")
     Sleep(afterClick)
     ValidarFoco()
 
-    ; 2 — Abrir Informes
-    ClickAt("Informes")
-    Sleep(afterSubmenu)
-    ValidarFoco()
-
-    ; 3 — Seleccionar Existencias
-    ClickAt("Existencias")
-    Sleep(afterSubmenu)
-    ValidarFoco()
-
-    ; 4 — Elegir Depósitos
-    ClickAt("Depositos")
+    ; 2 — Tildar Excel con ítems
+    ClickAt("ExcelItems")
     Sleep(afterClick)
     ValidarFoco()
 
-    ; 5 — Seleccionar todos
-    ClickAt("SeleccionarTodos")
+    ; 3 — Tildar imprimir todas
+    ClickAt("PrintAll")
     Sleep(afterClick)
     ValidarFoco()
 
-    ; 6 — Click en Consulta
-    ClickAt("Consulta")
-    Sleep(afterQuery)
+    ; 4 — Click imprimir
+    ClickAt("Imprimir")
+    Sleep(afterClick)
     ValidarFoco()
 
-    ; 7 — Aceptar
-    ClickAt("Aceptar")
-    Sleep(afterAccept)
-    ValidarFoco()
-
-    ; 8 — Click en Excel
-    ClickAt("Excel")
+    ; 5 — Seleccionar formato Excel
+    ClickAt("ExcelFormat")
     Sleep(afterExcel)
 
-    Log("Exportación completada. Esperando Excel...")
+    Log("Exportación de reparaciones completada. Esperando Excel...")
 }
 
 ; ============================================================================
 ; MAIN
 ; ============================================================================
 startTime := A_TickCount
-Log("=== INICIO STOCK ===")
+Log("=== INICIO REPARACIONES ===")
 Sleep(initDelay)
 
 try {
     FocusFix()
     Check3CRunning()
-    NavigateStock()
+    NavigateReparaciones()
     WaitForExcel()
     WatchAndCopy()
 
@@ -78,12 +63,12 @@ try {
     Sleep(500)
     WinActivate(windowTitle)
     Sleep(500)
-    ClickAt("Salir")
+    ClickAt("SalirRep")
     Sleep(1000)
-    Log("[NAV] Main menu restored")
+    Log("[NAV] Main menu restored (Reparaciones)")
 } catch as err {
     Log("[ERROR] " err.Message)
 }
 
-Log("=== FIN STOCK ===")
+Log("=== FIN REPARACIONES ===")
 ExitApp

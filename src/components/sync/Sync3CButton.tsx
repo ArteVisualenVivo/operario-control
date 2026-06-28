@@ -2,10 +2,18 @@
 
 import { useState, useCallback, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 import { toast } from "sonner"
 
 type SyncState = "idle" | "pending" | "running" | "completed" | "error"
 type AgentStatus = "unknown" | "online" | "running" | "offline"
+type SyncModule = "stock" | "reparaciones"
 
 interface Sync3CResult {
   success: boolean
@@ -65,6 +73,11 @@ function agentIndicator(status: AgentStatus): { dot: string; label: string } {
   }
 }
 
+const MODULE_LABELS: Record<SyncModule, string> = {
+  stock: "Stock",
+  reparaciones: "Reparaciones",
+}
+
 export default function Sync3CButton({
   onComplete,
   variant = "default",
@@ -72,6 +85,7 @@ export default function Sync3CButton({
   className,
 }: Sync3CButtonProps) {
   const [state, setState] = useState<SyncState>("idle")
+  const [module, setModule] = useState<SyncModule>("stock")
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("unknown")
   const [agentData, setAgentData] = useState<AgentStatusData | null>(null)
   const [result, setResult] = useState<Sync3CResult | null>(null)
@@ -167,7 +181,11 @@ export default function Sync3CButton({
     setState("pending")
 
     try {
-      const res = await fetch("/api/sync-3c", { method: "POST" })
+      const res = await fetch("/api/sync-3c", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ module }),
+      })
       const data = await res.json()
 
       if (!res.ok || data.error) {
@@ -193,7 +211,7 @@ export default function Sync3CButton({
       toast.error("Error de conexión al sincronizar")
       setState("idle")
     }
-  }, [pollStatus, stopPolling])
+  }, [pollStatus, stopPolling, module])
 
   const reset = useCallback(() => {
     setState("idle")
@@ -219,7 +237,9 @@ export default function Sync3CButton({
   }, [fetchAgentStatus, stopPolling])
 
   const agentInfo = agentIndicator(agentStatus)
-  const disabled = agentStatus === "offline" || state === "pending" || state === "running"
+  const isBusy = state === "pending" || state === "running"
+  const disabled = agentStatus === "offline" || isBusy
+  const moduleLabel = MODULE_LABELS[module]
 
   return (
     <div className={`flex items-center gap-2 ${className ?? ""}`}>
@@ -230,9 +250,25 @@ export default function Sync3CButton({
         {agentInfo.dot}
       </span>
 
+      <Select
+        value={module}
+        onValueChange={(val: string | null) => {
+          if (val === "stock" || val === "reparaciones") setModule(val)
+        }}
+        disabled={disabled || state !== "idle"}
+      >
+        <SelectTrigger className="w-[140px]" aria-label="Módulo de sincronización">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="stock">Stock</SelectItem>
+          <SelectItem value="reparaciones">Reparaciones</SelectItem>
+        </SelectContent>
+      </Select>
+
       {state === "idle" && (
         <Button variant={variant} size={size} onClick={handleSync} disabled={disabled}>
-          Sincronizar 3C
+          Sincronizar {moduleLabel}
         </Button>
       )}
 
@@ -244,7 +280,7 @@ export default function Sync3CButton({
 
       {state === "running" && (
         <Button variant="outline" size={size} disabled>
-          Sincronizando 3C...
+          Sincronizando {moduleLabel}...
         </Button>
       )}
 

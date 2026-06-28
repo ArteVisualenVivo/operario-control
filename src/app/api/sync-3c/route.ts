@@ -21,8 +21,18 @@ function getFirebaseAdmin() {
   return admin
 }
 
-export async function POST() {
+export async function POST(request: Request) {
   try {
+    const body = await request.json().catch(() => ({}))
+    const module = body.module || "stock"
+
+    if (!["stock", "reparaciones"].includes(module)) {
+      return NextResponse.json(
+        { success: false, error: "Módulo inválido. Usar: stock, reparaciones" },
+        { status: 400 },
+      )
+    }
+
     const admin = getFirebaseAdmin()
     const { getFirestore, FieldValue } = require("firebase-admin/firestore")
     const db = getFirestore()
@@ -30,6 +40,7 @@ export async function POST() {
     const docRef = colRef.doc()
 
     await docRef.set({
+      module,
       status: "pending",
       createdAt: FieldValue.serverTimestamp(),
       startedAt: null,

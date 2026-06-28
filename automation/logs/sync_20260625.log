@@ -1,0 +1,112 @@
+[2026-06-25 09:03:56] === INICIO ===
+[2026-06-25 09:03:58] Ventana '3C' detectada y activada
+[2026-06-25 09:03:58] Resync: enviando Ctrl+Home
+[2026-06-25 09:03:58] Click en Almacenes (888,189)
+[2026-06-25 09:03:58] Click en Informes (921,370)
+[2026-06-25 09:03:59] Click en Existencias (1105,401)
+[2026-06-25 09:03:59] Click en Depositos (704,476)
+[2026-06-25 09:04:00] Click en SeleccionarTodos (962,858)
+[2026-06-25 09:04:00] Click en Consulta (440,341)
+[2026-06-25 09:04:01] ERROR: Ventana '3C' perdió el foco
+[2026-06-25 09:04:57] === INICIO ===
+[2026-06-25 09:04:59] Ventana '3C' detectada y activada
+[2026-06-25 09:04:59] Resync: enviando Ctrl+Home
+[2026-06-25 09:04:59] Click en Almacenes (888,189)
+[2026-06-25 09:04:59] Click en Informes (921,370)
+[2026-06-25 09:05:00] Click en Existencias (1105,401)
+[2026-06-25 09:05:00] Click en Depositos (704,476)
+[2026-06-25 09:05:01] Click en SeleccionarTodos (962,858)
+[2026-06-25 09:05:01] Click en Consulta (440,341)
+[2026-06-25 09:05:02] Click en Aceptar (1196,902)
+[2026-06-25 09:05:04] Click en Excel (940,575)
+[2026-06-25 09:05:09] Exportación completada. Esperando Excel...
+[2026-06-25 09:05:09] Esperando Excel (timeout: 30s)...
+[2026-06-25 09:05:11] Excel detectado correctamente
+[2026-06-25 09:05:11] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-06-25 09:05:12] [WATCHER] ARCHIVO DETECTADO:
+[2026-06-25 09:05:12] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc6339099870177333591.xls
+[2026-06-25 09:05:12] [WATCHER] Fecha: 20260625090510
+[2026-06-25 09:05:12] [WATCHER] Tamaño: 904 KB
+[2026-06-25 09:05:12] [OK] Archivo copiado a exports
+[2026-06-25 12:09:58] === INICIO ===
+[2026-06-25 12:10:00] Ventana '3C' detectada y activada
+[2026-06-25 12:10:00] Resync: enviando Ctrl+Home
+[2026-06-25 12:10:00] Click en Almacenes (888,189)
+[2026-06-25 12:10:00] Click en Informes (921,370)
+[2026-06-25 12:10:01] Click en Existencias (1105,401)
+[2026-06-25 12:10:02] Click en Depositos (704,476)
+[2026-06-25 12:10:02] Click en SeleccionarTodos (962,858)
+[2026-06-25 12:10:03] Click en Consulta (440,341)
+[2026-06-25 12:10:03] Click en Aceptar (1196,902)
+[2026-06-25 12:10:05] Click en Excel (940,575)
+[2026-06-25 12:10:10] Exportación completada. Esperando Excel...
+[2026-06-25 12:10:10] Esperando Excel (timeout: 30s)...
+[2026-06-25 12:10:40] WARNING: Excel no detectado tras 30s
+[2026-06-25 12:10:40] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-06-25 12:10:41] [WATCHER] ARCHIVO DETECTADO:
+[2026-06-25 12:10:41] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc6339099870177333591.xls
+[2026-06-25 12:10:41] [WATCHER] Fecha: 20260625090509
+[2026-06-25 12:10:41] [WATCHER] Tamaño: 904 KB
+[2026-06-25 12:10:41] [OK] Archivo copiado a exports
+[2026-06-25 12:12:18] === INICIO ===
+[2026-06-25 12:12:20] Ventana '3C' detectada y activada
+[2026-06-25 12:12:20] Resync: enviando Ctrl+Home
+[2026-06-25 12:12:20] Click en Almacenes (888,189)
+[2026-06-25 12:12:20] Click en Informes (921,370)
+[2026-06-25 12:12:21] Click en Existencias (1105,401)
+[2026-06-25 12:12:22] Click en Depositos (704,476)
+[2026-06-25 12:12:22] Click en SeleccionarTodos (962,858)
+[2026-06-25 12:12:23] Click en Consulta (440,341)
+[2026-06-25 12:12:23] Click en Aceptar (1196,902)
+[2026-06-25 12:12:25] Click en Excel (940,575)
+[2026-06-25 12:12:30] Exportación completada. Esperando Excel...
+[2026-06-25 12:12:30] Esperando Excel (timeout: 30s)...
+[2026-06-25 12:12:33] Excel detectado correctamente
+[2026-06-25 12:12:33] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-06-25 12:12:34] [WATCHER] ARCHIVO DETECTADO:
+[2026-06-25 12:12:34] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc3322200897081466075.xls
+[2026-06-25 12:12:34] [WATCHER] Fecha: 20260625121232
+[2026-06-25 12:12:34] [WATCHER] Tamaño: 905 KB
+[2026-06-25 12:12:34] [OK] Archivo copiado a exports
+[2026-06-25 12:40:19] === INICIO ===
+[2026-06-25 12:40:20] Ventana '3C' detectada y activada
+[2026-06-25 12:40:20] Resync: enviando Ctrl+Home
+[2026-06-25 12:40:21] Click en Almacenes (888,189)
+[2026-06-25 12:40:21] Click en Informes (921,370)
+[2026-06-25 12:40:22] Click en Existencias (1105,401)
+[2026-06-25 12:40:22] Click en Depositos (704,476)
+[2026-06-25 12:40:23] Click en SeleccionarTodos (962,858)
+[2026-06-25 12:40:23] Click en Consulta (440,341)
+[2026-06-25 12:40:23] Click en Aceptar (1196,902)
+[2026-06-25 12:40:25] Click en Excel (940,575)
+[2026-06-25 12:40:30] Exportación completada. Esperando Excel...
+[2026-06-25 12:40:30] Esperando Excel (timeout: 30s)...
+[2026-06-25 12:40:32] Excel detectado correctamente
+[2026-06-25 12:40:32] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-06-25 12:40:33] [WATCHER] ARCHIVO DETECTADO:
+[2026-06-25 12:40:33] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc3322200897081466075.xls
+[2026-06-25 12:40:33] [WATCHER] Fecha: 20260625121230
+[2026-06-25 12:40:34] [WATCHER] Tamaño: 905 KB
+[2026-06-25 12:40:34] [OK] Archivo copiado a exports
+[2026-06-25 15:48:36] === INICIO ===
+[2026-06-25 15:48:37] Ventana '3C' detectada y activada
+[2026-06-25 15:48:37] Resync: enviando Ctrl+Home
+[2026-06-25 15:48:38] Click en Almacenes (888,189)
+[2026-06-25 15:48:38] Click en Informes (921,370)
+[2026-06-25 15:48:39] Click en Existencias (1105,401)
+[2026-06-25 15:48:39] Click en Depositos (704,476)
+[2026-06-25 15:48:40] Click en SeleccionarTodos (962,858)
+[2026-06-25 15:48:40] Click en Consulta (440,341)
+[2026-06-25 15:48:41] Click en Aceptar (1196,902)
+[2026-06-25 15:48:43] Click en Excel (940,575)
+[2026-06-25 15:48:48] Exportación completada. Esperando Excel...
+[2026-06-25 15:48:48] Esperando Excel (timeout: 30s)...
+[2026-06-25 15:48:50] Excel detectado correctamente
+[2026-06-25 15:48:50] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-06-25 15:48:51] [WATCHER] ARCHIVO DETECTADO:
+[2026-06-25 15:48:51] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc538400889068703487.xls
+[2026-06-25 15:48:51] [WATCHER] Fecha: 20260625154849
+[2026-06-25 15:48:51] [WATCHER] Tamaño: 905 KB
+[2026-06-25 15:48:51] [OK] Archivo copiado a exports
+[2026-06-25 15:48:52] Click en Salir (946,250)
+[2026-06-25 15:48:53] [NAV] Main menu restored

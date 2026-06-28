@@ -12,9 +12,32 @@ import { syncItems } from "../src/lib/sync-3c/engine.js"
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PROJECT_ROOT = path.resolve(__dirname, "..")
 const AHK_DIR = path.join(PROJECT_ROOT, "automation")
-const AHK_SCRIPT = path.join(AHK_DIR, "sync_3c.ahk")
+
+const MODULE_SCRIPTS = {
+  stock: "sync_3c.ahk",
+  reparaciones: "sync_reparaciones.ahk",
+}
 const EXPORTS_DIR = path.resolve(PROJECT_ROOT, "automation-watcher", "3c_exports")
 const SA_PATH = path.join(__dirname, "service-account.json")
+
+const LOG_FILE = path.join(__dirname, "agent.log")
+const logStream = fs.createWriteStream(LOG_FILE, { flags: "a" })
+const origLog = console.log
+const origError = console.error
+console.log = (...args) => {
+  const msg = `[${new Date().toISOString()}] ${args.join(" ")}`
+  logStream.write(msg + "\n")
+  origLog.apply(console, args)
+}
+console.error = (...args) => {
+  const msg = `[${new Date().toISOString()}] [ERROR] ${args.join(" ")}`
+  logStream.write(msg + "\n")
+  origError.apply(console, args)
+}
+
+process.on("exit", () => logStream.end())
+process.on("SIGINT", () => { logStream.end(); process.exit(0) })
+process.on("SIGTERM", () => { logStream.end(); process.exit(0) })
 
 const MACHINE_NAME = process.env.COMPUTERNAME || process.env.HOSTNAME || "unknown-pc"
 const COMMANDS_COLLECTION = "sync-3c-commands"
@@ -73,7 +96,7 @@ function findAhkExe() {
   return null
 }
 
-function runAhk() {
+function runAhk(scriptPath) {
   return new Promise((resolve, reject) => {
     const exe = findAhkExe()
     if (!exe) {
@@ -81,9 +104,9 @@ function runAhk() {
       return
     }
 
-    const child = spawn(exe, [AHK_SCRIPT], {
+    const child = spawn(exe, [scriptPath], {
       cwd: AHK_DIR,
-      windowsHide: false,
+      windowsHide: true,
       shell: false,
     })
 
@@ -146,7 +169,16 @@ async function claimAndExecute(db, doc) {
     await agentRef.set({ status: "running", lastHeartbeat: Timestamp.now(), machineName: MACHINE_NAME }, { merge: true })
     console.log(`[AGENT] Processing command ${doc.id}`)
 
-    await runAhk()
+    const data = doc.data()
+    const module = data.module || "stock"
+    const scriptName = MODULE_SCRIPTS[module]
+    if (!scriptName) {
+      throw new Error(`Módulo desconocido: "${module}"`)
+    }
+    const scriptPath = path.join(AHK_DIR, scriptName)
+    console.log(`[AGENT] Module: ${module} → ${scriptName}`)
+
+    await runAhk(scriptPath)
 
     const latest = await waitForExport()
     console.log(`[AGENT] Export found: ${latest.name}`)
@@ -297,16 +329,6 @@ async function main() {
   void pollForCommands(db)
 
   console.log("[AGENT] Initial sweep complete, waiting for commands...")
-
-  process.on("SIGINT", () => {
-    console.log("\n[AGENT] Shutting down...")
-    process.exit(0)
-  })
-
-  process.on("SIGTERM", () => {
-    console.log("\n[AGENT] Shutting down...")
-    process.exit(0)
-  })
 }
 
 main().catch((err) => {
