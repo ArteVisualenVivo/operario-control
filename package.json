@@ -11,7 +11,8 @@
     "seed": "npx tsx scripts/seed-machines.ts",
     "audit": "npx tsx scripts/audit.ts",
     "fix:rented": "npx tsx scripts/fix-rented-machines.ts",
-    "watch:3c": "node automation-watcher/index.js"
+    "watch:3c": "node automation-watcher/index.js",
+    "sync-agent": "npx tsx sync-agent/agent.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
