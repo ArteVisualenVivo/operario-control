@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+import "dotenv/config"
 import { Redis } from "@upstash/redis"
 import { spawn, execSync } from "child_process"
 import fs from "fs"
