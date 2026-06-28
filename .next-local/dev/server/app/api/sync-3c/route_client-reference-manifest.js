@@ -1,0 +1,1 @@
+globalThis.__RSC_MANIFEST=(globalThis.__RSC_MANIFEST||{});globalThis.__RSC_MANIFEST["/api/sync-3c/route"]={"moduleLoading":{"prefix":"/_next/"},"ssrModuleMapping":{},"edgeSSRModuleMapping":{},"clientModules":{},"entryCSSFiles":{"C:\\Users\\Cesar\\Desktop\\operario-control\\src\\app\\api\\sync-3c\\route":[]},"rscModuleMapping":{},"edgeRscModuleMapping":{}};

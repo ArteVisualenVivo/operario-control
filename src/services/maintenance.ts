@@ -5,7 +5,6 @@ import {
   getDocs,
   setDoc,
   query,
-  where,
   orderBy,
   serverTimestamp,
 } from "firebase/firestore"
@@ -28,7 +27,6 @@ export interface MaintenanceRecord {
   serial?: string
   technician?: string
   observations?: string
-
   docId?: string
   itemId?: number | null
   articleId?: string
@@ -42,14 +40,11 @@ export interface MaintenanceRecord {
   useGood?: number | null
   equivalentCoefficient?: number | null
   netPrice?: number | null
-
   originalData?: Record<string, unknown>
   sourceRow?: number
-
   warranty?: Date
   history?: string
   shopTime?: number
-
   createdAt: Date
   updatedAt: Date
 }
@@ -68,7 +63,6 @@ export interface MaintenanceInput {
   serial?: string
   technician?: string
   observations?: string
-
   docId?: string
   itemId?: number | null
   articleId?: string
@@ -84,7 +78,6 @@ export interface MaintenanceInput {
   netPrice?: number | null
   originalData?: Record<string, unknown>
   sourceRow?: number
-
   warranty?: Date
   history?: string
   shopTime?: number
@@ -104,6 +97,10 @@ function toDate(val: unknown): Date {
   return new Date("")
 }
 
+function isValidDate(val: unknown): val is Date {
+  return val instanceof Date && !Number.isNaN(val.getTime())
+}
+
 function findDateLikeValue(data: Record<string, unknown> | undefined, patterns: string[]): unknown {
   if (!data) return undefined
   for (const [key, value] of Object.entries(data)) {
@@ -116,57 +113,54 @@ function findDateLikeValue(data: Record<string, unknown> | undefined, patterns: 
 export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
   const q = query(collection(db, COLLECTION), orderBy("entryDate", "desc"))
   const snapshot = await getDocs(q)
-  return snapshot.docs.map((d) => {
-    const data = d.data()
-    const originalData = (data.originalData as Record<string, unknown> | undefined) ?? undefined
-    const originalReturn = findDateLikeValue(originalData, [
-      "entrega",
-      "egreso",
-      "salida",
-      "retiro",
-      "return",
-      "fecha2",
-    ])
-    const originalRepair = findDateLikeValue(originalData, [
-      "reparacion",
-      "reparación",
-      "taller",
-      "repair",
-    ])
-    const originalStatus = findDateLikeValue(originalData, ["estado", "situacion", "situación"])
-    return {
-      id: d.id,
-      orderNumber: data.orderNumber as string,
-      entryDate: toDate(data.entryDate),
-      type: data.type as string | undefined,
-      clientName: data.clientName as string,
-      clientCode: data.clientCode as string | undefined,
-      machineName: data.machineName as string,
-      status: (data.status as string) || (typeof originalStatus === "string" ? originalStatus : "Recepción"),
-      docId: data.docId as string | undefined,
-      itemId: typeof data.itemId === "number" ? data.itemId : null,
-      articleId: data.articleId as string | undefined,
-      quantity: typeof data.quantity === "number" ? data.quantity : null,
-      unitPrice: typeof data.unitPrice === "number" ? data.unitPrice : null,
-      totalPrice: typeof data.totalPrice === "number" ? data.totalPrice : null,
-      taxed: typeof data.taxed === "number" ? data.taxed : null,
-      notTaxed: typeof data.notTaxed === "number" ? data.notTaxed : null,
-      exempt: typeof data.exempt === "number" ? data.exempt : null,
-      capitalGood: typeof data.capitalGood === "number" ? data.capitalGood : null,
-      useGood: typeof data.useGood === "number" ? data.useGood : null,
-      equivalentCoefficient: typeof data.equivalentCoefficient === "number" ? data.equivalentCoefficient : null,
-      netPrice: typeof data.netPrice === "number" ? data.netPrice : null,
-      originalData: (data.originalData as Record<string, unknown> | undefined) ?? undefined,
-      sourceRow: typeof data.sourceRow === "number" ? data.sourceRow : undefined,
-      repairDate: data.repairDate ? toDate(data.repairDate) : (originalRepair ? toDate(originalRepair) : undefined),
-      returnDate: data.returnDate ? toDate(data.returnDate) : (originalReturn ? toDate(originalReturn) : undefined),
-      warranty: data.warranty ? toDate(data.warranty) : undefined,
-      history: data.history as string | undefined,
-      shopTime: data.shopTime as number | undefined,
-      createdAt: toDate(data.createdAt),
-      updatedAt: toDate(data.updatedAt),
-    }
-  }).filter((record) => ORDER_PATTERN.test(record.orderNumber))
+  return snapshot.docs
+    .map((d) => {
+      const data = d.data()
+      const originalData = (data.originalData as Record<string, unknown> | undefined) ?? undefined
+      const originalReturn = findDateLikeValue(originalData, ["entrega", "egreso", "salida", "retiro", "return", "fecha2"])
+      const originalRepair = findDateLikeValue(originalData, ["reparacion", "reparaciÃ³n", "taller", "repair"])
+      const originalEntry = findDateLikeValue(originalData, ["fecha_ingreso", "ingreso", "entrada", "entry", "fecha"])
+      const originalStatus = findDateLikeValue(originalData, ["estado", "situacion", "situaciÃ³n"])
+
+      const entryDateCandidate = toDate(data.entryDate)
+      const returnDateCandidate = toDate(data.returnDate)
+      const repairDateCandidate = toDate(data.repairDate)
+      const fallbackEntry = isValidDate(toDate(originalEntry)) ? toDate(originalEntry) : toDate(data.createdAt)
+
+      return {
+        id: d.id,
+        orderNumber: data.orderNumber as string,
+        entryDate: isValidDate(entryDateCandidate) ? entryDateCandidate : fallbackEntry,
+        type: data.type as string | undefined,
+        clientName: data.clientName as string,
+        clientCode: data.clientCode as string | undefined,
+        machineName: data.machineName as string,
+        status: (data.status as string) || (typeof originalStatus === "string" ? originalStatus : "RecepciÃ³n"),
+        docId: data.docId as string | undefined,
+        itemId: typeof data.itemId === "number" ? data.itemId : null,
+        articleId: data.articleId as string | undefined,
+        quantity: typeof data.quantity === "number" ? data.quantity : null,
+        unitPrice: typeof data.unitPrice === "number" ? data.unitPrice : null,
+        totalPrice: typeof data.totalPrice === "number" ? data.totalPrice : null,
+        taxed: typeof data.taxed === "number" ? data.taxed : null,
+        notTaxed: typeof data.notTaxed === "number" ? data.notTaxed : null,
+        exempt: typeof data.exempt === "number" ? data.exempt : null,
+        capitalGood: typeof data.capitalGood === "number" ? data.capitalGood : null,
+        useGood: typeof data.useGood === "number" ? data.useGood : null,
+        equivalentCoefficient: typeof data.equivalentCoefficient === "number" ? data.equivalentCoefficient : null,
+        netPrice: typeof data.netPrice === "number" ? data.netPrice : null,
+        originalData,
+        sourceRow: typeof data.sourceRow === "number" ? data.sourceRow : undefined,
+        repairDate: isValidDate(repairDateCandidate) ? repairDateCandidate : (originalRepair ? toDate(originalRepair) : undefined),
+        returnDate: isValidDate(returnDateCandidate) ? returnDateCandidate : (originalReturn ? toDate(originalReturn) : undefined),
+        warranty: data.warranty ? toDate(data.warranty) : undefined,
+        history: data.history as string | undefined,
+        shopTime: data.shopTime as number | undefined,
+        createdAt: toDate(data.createdAt),
+        updatedAt: toDate(data.updatedAt),
+      }
+    })
+    .filter((record) => ORDER_PATTERN.test(record.orderNumber))
 }
 
 export async function createOrUpdateMaintenance(input: MaintenanceInput): Promise<void> {
@@ -204,10 +198,7 @@ export async function createOrUpdateMaintenance(input: MaintenanceInput): Promis
   }
 
   if (!before.exists) {
-    await setDoc(ref, {
-      ...payload,
-      createdAt: serverTimestamp(),
-    })
+    await setDoc(ref, { ...payload, createdAt: serverTimestamp() })
     await createAuditLog("create", AUDIT_ENTITY, ref.id, null, payload)
   } else {
     await setDoc(ref, payload, { merge: true })

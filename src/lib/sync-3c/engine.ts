@@ -524,12 +524,18 @@ export async function syncRepairsToMaintenance(
       }
     }
 
+    const effectiveReturnDate = returnDate
+      ?? (typeof sourceData.entrega !== "undefined" ? parseEntryDate(sourceData.entrega) : null)
+      ?? (typeof sourceData.fecha_entrega !== "undefined" ? parseEntryDate(sourceData.fecha_entrega) : null)
+      ?? (typeof sourceData.egreso !== "undefined" ? parseEntryDate(sourceData.egreso) : null)
+      ?? (typeof sourceData.salida !== "undefined" ? parseEntryDate(sourceData.salida) : null)
+
     const ref = collection.doc(orderNumber)
     const before = await ref.get()
     const payload: Record<string, unknown> = {
       orderNumber,
       entryDate,
-      returnDate,
+      returnDate: effectiveReturnDate,
       repairDate,
       clientName,
       clientCode,
