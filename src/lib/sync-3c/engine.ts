@@ -11,7 +11,7 @@ function getFirebaseAdmin() {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const admin = require("firebase-admin")
 
-  if (admin.apps.length > 0) return admin
+  if (admin.getApps().length > 0) return admin
 
   const serviceAccountJson =
     process.env.FIREBASE_SERVICE_ACCOUNT ||
@@ -37,7 +37,7 @@ function getFirebaseAdmin() {
   const serviceAccount = JSON.parse(serviceAccountJson)
 
   admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
+    credential: admin.cert(serviceAccount),
   })
 
   return admin
@@ -53,7 +53,8 @@ export async function syncItems(
 ): Promise<Sync3CResult> {
   const config = { ...DEFAULTS, ...options?.config }
   const admin = getFirebaseAdmin()
-  const db = admin.firestore()
+  const { getFirestore } = require("firebase-admin/firestore")
+  const db = getFirestore()
   const collection = db.collection("inventory_stock")
 
   const result: Sync3CResult = {

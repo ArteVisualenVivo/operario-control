@@ -4,13 +4,13 @@ export const runtime = "nodejs"
 
 function getFirebaseAdmin() {
   const admin = require("firebase-admin")
-  if (admin.apps.length > 0) return admin
+  if (admin.getApps().length > 0) return admin
 
   const saJson = process.env.FIREBASE_SERVICE_ACCOUNT || null
   if (!saJson) throw new Error("FIREBASE_SERVICE_ACCOUNT no configurada")
 
   admin.initializeApp({
-    credential: admin.credential.cert(JSON.parse(saJson)),
+    credential: admin.cert(JSON.parse(saJson)),
   })
   return admin
 }
@@ -18,7 +18,8 @@ function getFirebaseAdmin() {
 export async function GET() {
   try {
     const admin = getFirebaseAdmin()
-    const db = admin.firestore()
+    const { getFirestore } = require("firebase-admin/firestore")
+    const db = getFirestore()
     const doc = await db.collection("sync-3c-agent").doc("production").get()
 
     if (!doc.exists) {
