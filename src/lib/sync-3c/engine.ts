@@ -225,6 +225,19 @@ export async function syncRepairsToMaintenance(
   const COL_CLIENT_CODE = col(["cliente", "cod_cliente", "cliente_id"], 3)
   const COL_MACHINE = col(["texto", "maquina", "equipo", "articulo", "descripcion"], 8)
   const COL_STATUS = col(["estado", "situacion"], -1)
+  const COL_DOC_ID = col(["doc_id", "docid"], 5)
+  const COL_ITEM_ID = col(["item_id", "itemid"], 6)
+  const COL_ARTICLE_ID = col(["articu_id", "articulo_id", "article_id"], 7)
+  const COL_QUANTITY = col(["cantidad", "qty", "cantidad_solicitada"], 9)
+  const COL_UNIT_PRICE = col(["precio_unitario", "precio"], 10)
+  const COL_TOTAL_PRICE = col(["precio_total", "total"], 11)
+  const COL_TAXED = col(["gravado"], 12)
+  const COL_NOT_TAXED = col(["no_gravado", "no_gravada"], 13)
+  const COL_EXEMPT = col(["exento"], 14)
+  const COL_CAPITAL_GOOD = col(["bien_capital"], 15)
+  const COL_USE_GOOD = col(["bien_uso"], 16)
+  const COL_EQUIVALENT_COEFFICIENT = col(["coeficiente_equivalente"], 17)
+  const COL_NET_PRICE = col(["precio_neto", "neto"], 18)
 
   const logSkippedRow = (rowNumber: number, reason: string, details: Record<string, unknown>) => {
     result.skipped++
@@ -288,6 +301,14 @@ export async function syncRepairsToMaintenance(
     if (!text) return null
     if (HEADER_BLACKLIST.includes(normalizeToken(text))) return null
     return text
+  }
+
+  const cleanOptionalNumber = (value: unknown): number | null => {
+    if (typeof value === "number" && Number.isFinite(value)) return value
+    const text = String(value ?? "").trim().replace(/\./g, "").replace(/,/g, ".")
+    if (!text) return null
+    const parsed = Number(text)
+    return Number.isFinite(parsed) ? parsed : null
   }
 
   const cell = (row: unknown[], index: number): unknown => {
@@ -442,27 +463,56 @@ export async function syncRepairsToMaintenance(
     const clientName = cleanOptionalText(cell(row, COL_CLIENT)) ?? ""
     const clientCode = cleanOptionalText(cell(row, COL_CLIENT_CODE))
     const machineName = cleanOptionalText(cell(row, COL_MACHINE)) ?? ""
+    const docId = cleanOptionalText(cell(row, COL_DOC_ID))
+    const itemId = cleanOptionalNumber(cell(row, COL_ITEM_ID))
+    const articleId = cleanOptionalText(cell(row, COL_ARTICLE_ID))
+    const quantity = cleanOptionalNumber(cell(row, COL_QUANTITY))
+    const unitPrice = cleanOptionalNumber(cell(row, COL_UNIT_PRICE))
+    const totalPrice = cleanOptionalNumber(cell(row, COL_TOTAL_PRICE))
+    const taxed = cleanOptionalNumber(cell(row, COL_TAXED))
+    const notTaxed = cleanOptionalNumber(cell(row, COL_NOT_TAXED))
+    const exempt = cleanOptionalNumber(cell(row, COL_EXEMPT))
+    const capitalGood = cleanOptionalNumber(cell(row, COL_CAPITAL_GOOD))
+    const useGood = cleanOptionalNumber(cell(row, COL_USE_GOOD))
+    const equivalentCoefficient = cleanOptionalNumber(cell(row, COL_EQUIVALENT_COEFFICIENT))
+    const netPrice = cleanOptionalNumber(cell(row, COL_NET_PRICE))
     const now = new Date()
     const status = String(row[COL_STATUS] ?? "").trim() || "Recepción"
+    const sourceData: Record<string, unknown> = {}
+
+    if (headerRowIndex >= 0) {
+      headerRow.forEach((headerCell, index) => {
+        const key = normalizeToken(headerCell).replace(/\s+/g, "_")
+        if (key) sourceData[key] = row[index] ?? null
+      })
+    }
 
     const ref = collection.doc(orderNumber)
     const before = await ref.get()
     const payload: Record<string, unknown> = {
       orderNumber,
       entryDate,
+      returnDate,
+      repairDate,
       clientName,
+      clientCode,
       machineName,
-      brand: null,
-      model: null,
-      serial: null,
+      docId,
+      itemId,
+      articleId,
+      quantity,
+      unitPrice,
+      totalPrice,
+      taxed,
+      notTaxed,
+      exempt,
+      capitalGood,
+      useGood,
+      equivalentCoefficient,
+      netPrice,
       status,
-      technician: null,
-      observations: null,
-      repairDate: null,
-      returnDate: null,
-      warranty: null,
-      history: null,
-      shopTime: null,
+      originalData: sourceData,
+      sourceRow: rowNumber,
       updatedAt: now,
     }
 

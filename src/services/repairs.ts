@@ -4,6 +4,7 @@ import {
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { createAuditLog } from "./audit"
+import { getMaintenanceRecords } from "./maintenance"
 import { getMaintenanceSettings } from "./maintenanceSettings"
 import { usePart } from "./spareParts"
 import { createMovement } from "./stockMovements"
@@ -86,10 +87,49 @@ function calculateAutoDates(
   }
 }
 
+function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRecords>>[number]): MachineRepair {
+  return {
+    id: `maintenance:${record.id}`,
+    machineId: record.orderNumber,
+    machineName: record.machineName,
+    machineModel: record.articleId ?? record.type ?? undefined,
+    internalNumber: record.docId,
+    clientId: record.clientCode,
+    clientName: record.clientName,
+    clientNumber: record.clientCode,
+    reportedIssue: record.originalData?.texto ? String(record.originalData.texto) : record.machineName,
+    diagnosis: undefined,
+    repairPerformed: record.status,
+    technician: "",
+    entryDate: record.entryDate,
+    exitDate: record.returnDate ?? record.repairDate ?? record.entryDate,
+    hoursUsed: undefined,
+    warrantyDays: 90,
+    warrantyUntil: addDays(record.returnDate ?? record.repairDate ?? record.entryDate, 90),
+    oilChangeDueDate: undefined,
+    bearingChangeDueDate: undefined,
+    maintenanceDueDate: undefined,
+    notes: record.type ?? undefined,
+    partsUsed: [],
+    source: "3c",
+    externalId: record.orderNumber,
+    status: record.status === "FINALIZADO" ? "done" : "EN_TALLER",
+    issue: record.machineName,
+    estimatedReturn: record.returnDate ?? null,
+    createdAt: record.createdAt,
+    updatedAt: record.updatedAt,
+  }
+}
+
 export async function getRepairs(): Promise<MachineRepair[]> {
   const q = query(collection(db, COLLECTION), orderBy("entryDate", "desc"))
   const snapshot = await getDocs(q)
-  return snapshot.docs.map(docToRepair)
+  const repairs = snapshot.docs.map(docToRepair)
+  const maintenance = await getMaintenanceRecords()
+  const imported = maintenance.map(maintenanceToRepair)
+  const merged = [...repairs, ...imported]
+  merged.sort((a, b) => b.entryDate.getTime() - a.entryDate.getTime())
+  return merged
 }
 
 export async function getRepairsByMachine(machineId: string): Promise<MachineRepair[]> {

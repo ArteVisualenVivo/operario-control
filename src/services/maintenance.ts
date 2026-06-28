@@ -15,18 +15,37 @@ import { createAuditLog } from "./audit"
 export interface MaintenanceRecord {
   id: string
   orderNumber: string
+  type?: string
   entryDate: Date
+  returnDate?: Date
+  repairDate?: Date
   clientName: string
+  clientCode?: string
   machineName: string
+  status: string
   brand?: string
   model?: string
   serial?: string
-  status: string
   technician?: string
   observations?: string
 
-  repairDate?: Date
-  returnDate?: Date
+  docId?: string
+  itemId?: number | null
+  articleId?: string
+  quantity?: number | null
+  unitPrice?: number | null
+  totalPrice?: number | null
+  taxed?: number | null
+  notTaxed?: number | null
+  exempt?: number | null
+  capitalGood?: number | null
+  useGood?: number | null
+  equivalentCoefficient?: number | null
+  netPrice?: number | null
+
+  originalData?: Record<string, unknown>
+  sourceRow?: number
+
   warranty?: Date
   history?: string
   shopTime?: number
@@ -38,17 +57,34 @@ export interface MaintenanceRecord {
 export interface MaintenanceInput {
   orderNumber: string
   entryDate: Date
+  returnDate?: Date | null
+  repairDate?: Date | null
   clientName: string
+  clientCode?: string
   machineName: string
+  status: string
   brand?: string
   model?: string
   serial?: string
-  status: string
   technician?: string
   observations?: string
 
-  repairDate?: Date
-  returnDate?: Date
+  docId?: string
+  itemId?: number | null
+  articleId?: string
+  quantity?: number | null
+  unitPrice?: number | null
+  totalPrice?: number | null
+  taxed?: number | null
+  notTaxed?: number | null
+  exempt?: number | null
+  capitalGood?: number | null
+  useGood?: number | null
+  equivalentCoefficient?: number | null
+  netPrice?: number | null
+  originalData?: Record<string, unknown>
+  sourceRow?: number
+
   warranty?: Date
   history?: string
   shopTime?: number
@@ -77,14 +113,26 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
       id: d.id,
       orderNumber: data.orderNumber as string,
       entryDate: toDate(data.entryDate),
+      type: data.type as string | undefined,
       clientName: data.clientName as string,
+      clientCode: data.clientCode as string | undefined,
       machineName: data.machineName as string,
-      brand: data.brand as string | undefined,
-      model: data.model as string | undefined,
-      serial: data.serial as string | undefined,
       status: data.status as string,
-      technician: data.technician as string | undefined,
-      observations: data.observations as string | undefined,
+      docId: data.docId as string | undefined,
+      itemId: typeof data.itemId === "number" ? data.itemId : null,
+      articleId: data.articleId as string | undefined,
+      quantity: typeof data.quantity === "number" ? data.quantity : null,
+      unitPrice: typeof data.unitPrice === "number" ? data.unitPrice : null,
+      totalPrice: typeof data.totalPrice === "number" ? data.totalPrice : null,
+      taxed: typeof data.taxed === "number" ? data.taxed : null,
+      notTaxed: typeof data.notTaxed === "number" ? data.notTaxed : null,
+      exempt: typeof data.exempt === "number" ? data.exempt : null,
+      capitalGood: typeof data.capitalGood === "number" ? data.capitalGood : null,
+      useGood: typeof data.useGood === "number" ? data.useGood : null,
+      equivalentCoefficient: typeof data.equivalentCoefficient === "number" ? data.equivalentCoefficient : null,
+      netPrice: typeof data.netPrice === "number" ? data.netPrice : null,
+      originalData: (data.originalData as Record<string, unknown> | undefined) ?? undefined,
+      sourceRow: typeof data.sourceRow === "number" ? data.sourceRow : undefined,
       repairDate: data.repairDate ? toDate(data.repairDate) : undefined,
       returnDate: data.returnDate ? toDate(data.returnDate) : undefined,
       warranty: data.warranty ? toDate(data.warranty) : undefined,
@@ -103,16 +151,27 @@ export async function createOrUpdateMaintenance(input: MaintenanceInput): Promis
   const payload: Record<string, unknown> = {
     orderNumber: input.orderNumber,
     entryDate: input.entryDate,
-    clientName: input.clientName,
-    machineName: input.machineName,
-    brand: input.brand ?? null,
-    model: input.model ?? null,
-    serial: input.serial ?? null,
-    status: input.status,
-    technician: input.technician ?? null,
-    observations: input.observations ?? null,
-    repairDate: input.repairDate ?? null,
     returnDate: input.returnDate ?? null,
+    repairDate: input.repairDate ?? null,
+    clientName: input.clientName,
+    clientCode: input.clientCode ?? null,
+    machineName: input.machineName,
+    status: input.status,
+    docId: input.docId ?? null,
+    itemId: input.itemId ?? null,
+    articleId: input.articleId ?? null,
+    quantity: input.quantity ?? null,
+    unitPrice: input.unitPrice ?? null,
+    totalPrice: input.totalPrice ?? null,
+    taxed: input.taxed ?? null,
+    notTaxed: input.notTaxed ?? null,
+    exempt: input.exempt ?? null,
+    capitalGood: input.capitalGood ?? null,
+    useGood: input.useGood ?? null,
+    equivalentCoefficient: input.equivalentCoefficient ?? null,
+    netPrice: input.netPrice ?? null,
+    originalData: input.originalData ?? null,
+    sourceRow: input.sourceRow ?? null,
     warranty: input.warranty ?? null,
     history: input.history ?? null,
     shopTime: input.shopTime ?? null,

@@ -60,11 +60,13 @@ export default function MaintenancePage() {
                     <th className="p-2 text-left">Numero de Orden</th>
                     <th className="p-2 text-left">Cliente</th>
                     <th className="p-2 text-left">Maquina</th>
+                    <th className="p-2 text-left">Tipo</th>
                     <th className="p-2 text-left">Fecha Ingreso</th>
                     <th className="p-2 text-left">Fecha Entrega</th>
                     <th className="p-2 text-left">Fecha Reparacion</th>
                     <th className="p-2 text-left">Estado</th>
                     <th className="p-2 text-left">Tecnico</th>
+                    <th className="p-2 text-left">Doc / Item</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -73,11 +75,16 @@ export default function MaintenancePage() {
                       <td className="p-2 font-mono">{order.orderNumber}</td>
                       <td className="p-2">{order.clientName}</td>
                       <td className="p-2">{order.machineName}</td>
+                      <td className="p-2">{order.type ?? "—"}</td>
                       <td className="p-2">{formatDate(order.entryDate)}</td>
                       <td className="p-2">{formatDate(order.returnDate)}</td>
                       <td className="p-2">{formatDate(order.repairDate)}</td>
                       <td className="p-2">{order.status}</td>
                       <td className="p-2">{order.technician ?? "—"}</td>
+                      <td className="p-2">
+                        {order.docId ?? "—"}
+                        {order.itemId != null ? ` / ${order.itemId}` : ""}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
