@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 
-import { initializeApp, getApps, cert } from "firebase-admin/app"
-import { getFirestore, Timestamp } from "firebase-admin/firestore"
+import { Redis } from "@upstash/redis"
 import { spawn, execSync } from "child_process"
 import fs from "fs"
 import path from "path"
@@ -12,13 +11,7 @@ import { syncItems } from "../src/lib/sync-3c/engine.js"
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PROJECT_ROOT = path.resolve(__dirname, "..")
 const AHK_DIR = path.join(PROJECT_ROOT, "automation")
-
-const MODULE_SCRIPTS = {
-  stock: "sync_3c.ahk",
-  reparaciones: "sync_reparaciones.ahk",
-}
 const EXPORTS_DIR = path.resolve(PROJECT_ROOT, "automation-watcher", "3c_exports")
-const SA_PATH = path.join(__dirname, "service-account.json")
 
 const LOG_FILE = path.join(__dirname, "agent.log")
 const logStream = fs.createWriteStream(LOG_FILE, { flags: "a" })
@@ -40,14 +33,18 @@ process.on("SIGINT", () => { logStream.end(); process.exit(0) })
 process.on("SIGTERM", () => { logStream.end(); process.exit(0) })
 
 const MACHINE_NAME = process.env.COMPUTERNAME || process.env.HOSTNAME || "unknown-pc"
-const COMMANDS_COLLECTION = "sync-3c-commands"
-const AGENT_DOC_REF = "sync-3c-agent/production"
 
 const AHK_TIMEOUT_MS = 120_000
+const POLL_INTERVAL_MS = 30_000
 const HEARTBEAT_INTERVAL_MS = 30_000
 const EXPORT_RETRIES = 10
 const EXPORT_RETRY_DELAY_MS = 1000
 const STALE_THRESHOLD_MINUTES = 10
+
+const MODULE_SCRIPTS = {
+  stock: "sync_3c.ahk",
+  reparaciones: "sync_reparaciones.ahk",
+}
 
 const CANDIDATE_PATHS = [
   "AutoHotkey64.exe",
@@ -60,23 +57,17 @@ const CANDIDATE_PATHS = [
 
 let isProcessing = false
 
-function getDb() {
-  if (getApps().length === 0) {
-    const saJson =
-      process.env.FIREBASE_SERVICE_ACCOUNT ||
-      (fs.existsSync(SA_PATH) ? fs.readFileSync(SA_PATH, "utf-8") : null)
+function getRedis() {
+  const url = process.env.UPSTASH_REDIS_REST_URL
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN
 
-    if (!saJson) {
-      console.error("[AGENT] FIREBASE_SERVICE_ACCOUNT no configurada.")
-      console.error(`[AGENT] Crear archivo service-account.json en sync-agent/ o setear env var.`)
-      process.exit(1)
-    }
-
-    const serviceAccount = JSON.parse(saJson)
-    initializeApp({ credential: cert(serviceAccount) })
-    console.log("[AGENT] Firebase Admin initialized")
+  if (!url || !token) {
+    console.error("[AGENT] UPSTASH_REDIS_REST_URL y UPSTASH_REDIS_REST_TOKEN son requeridos")
+    console.error("[AGENT] Crear cuenta en https://upstash.com y configurar env vars")
+    process.exit(1)
   }
-  return getFirestore()
+
+  return new Redis({ url, token })
 }
 
 function findAhkExe() {
@@ -162,15 +153,24 @@ function findLatestExport() {
   return files[0] ?? null
 }
 
-async function claimAndExecute(db, doc) {
-  const agentRef = db.doc(AGENT_DOC_REF)
+async function processCommand(redis, commandId, module) {
+  isProcessing = true
 
   try {
-    await agentRef.set({ status: "running", lastHeartbeat: Timestamp.now(), machineName: MACHINE_NAME }, { merge: true })
-    console.log(`[AGENT] Processing command ${doc.id}`)
+    await redis.hset(`sync-3c:command:${commandId}`, {
+      status: "running",
+      startedAt: Date.now(),
+      agent: MACHINE_NAME,
+    })
 
-    const data = doc.data()
-    const module = data.module || "stock"
+    await redis.set("sync-3c:agent:production", JSON.stringify({
+      status: "running",
+      lastHeartbeat: Date.now(),
+      machineName: MACHINE_NAME,
+    }), { ex: 120 })
+
+    console.log(`[AGENT] Processing command ${commandId} [module: ${module}]`)
+
     const scriptName = MODULE_SCRIPTS[module]
     if (!scriptName) {
       throw new Error(`Módulo desconocido: "${module}"`)
@@ -197,105 +197,102 @@ async function claimAndExecute(db, doc) {
       result = await syncItems(items)
     }
 
-    await doc.ref.set({
+    await redis.hset(`sync-3c:command:${commandId}`, {
       status: "completed",
-      result,
-      completedAt: Timestamp.now(),
-      agent: MACHINE_NAME,
-    }, { merge: true })
+      completedAt: Date.now(),
+      result: JSON.stringify(result),
+    })
 
-    console.log(`[AGENT] Command ${doc.id} completed: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`)
+    console.log(`[AGENT] Command ${commandId} completed: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`)
   } catch (err) {
     const message = err instanceof Error ? err.message : "Error desconocido"
-    console.error(`[AGENT] Command ${doc.id} failed: ${message}`)
+    console.error(`[AGENT] Command ${commandId} failed: ${message}`)
 
-    await doc.ref.set({
+    await redis.hset(`sync-3c:command:${commandId}`, {
       status: "failed",
       error: message,
-      completedAt: Timestamp.now(),
-      agent: MACHINE_NAME,
-    }, { merge: true })
-  } finally {
-    await agentRef.set({ status: "idle", lastHeartbeat: Timestamp.now(), machineName: MACHINE_NAME }, { merge: true })
-  }
-}
-
-async function processNextPending(db) {
-  if (isProcessing) return
-  isProcessing = true
-
-  try {
-    while (true) {
-      const snapshot = await db.collection(COMMANDS_COLLECTION)
-        .where("status", "==", "pending")
-        .orderBy("createdAt", "asc")
-        .limit(1)
-        .get()
-
-      if (snapshot.empty) break
-
-      const doc = snapshot.docs[0]
-      const data = doc.data()
-
-      try {
-        await db.runTransaction(async (transaction) => {
-          const fresh = await transaction.get(doc.ref)
-          if (fresh.data()?.status !== "pending") return false
-          transaction.update(doc.ref, {
-            status: "running",
-            startedAt: Timestamp.now(),
-            agent: MACHINE_NAME,
-          })
-          return true
-        })
-      } catch {
-        break
-      }
-
-      await claimAndExecute(db, doc)
-    }
+      completedAt: Date.now(),
+    })
   } finally {
     isProcessing = false
   }
 }
 
-async function recoverStaleCommands(db) {
+async function pollQueue(redis) {
+  console.log("[AGENT] Redis polling started (30s)")
+
+  while (true) {
+    try {
+      if (isProcessing) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
+        continue
+      }
+
+      const commandId = await redis.rpop("sync-3c:queue")
+      if (!commandId) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
+        continue
+      }
+
+      const raw = await redis.hgetall(`sync-3c:command:${commandId}`)
+      if (!raw || raw.status !== "pending") {
+        console.log(`[AGENT] Command ${commandId} skipped (not pending)`)
+        continue
+      }
+
+      const module = raw.module || "stock"
+      await processCommand(redis, commandId, module)
+    } catch (err) {
+      console.error("[AGENT] Polling error:", err.message)
+    }
+
+    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
+  }
+}
+
+async function recoverStaleCommands(redis) {
   console.log("[AGENT] Checking for stale running commands...")
-  const snapshot = await db.collection(COMMANDS_COLLECTION)
-    .where("status", "==", "running")
-    .get()
-
-  const cutoff = Date.now() - STALE_THRESHOLD_MINUTES * 60 * 1000
+  let cursor = 0
   let recovered = 0
+  const cutoff = Date.now() - STALE_THRESHOLD_MINUTES * 60 * 1000
 
-  for (const doc of snapshot.docs) {
-    const data = doc.data()
-    const startedAt = data.startedAt?.toMillis?.() ?? 0
-    if (startedAt > 0 && startedAt >= cutoff) continue
+  try {
+    do {
+      const result = await redis.scan(cursor, { match: "sync-3c:command:*" })
+      const nextCursor = result[0]
+      const keys = result[1]
+      cursor = parseInt(nextCursor, 10)
 
-    await doc.ref.update({
-      status: "pending",
-      startedAt: null,
-      agent: null,
-    })
-    recovered++
-    console.log(`[AGENT] Recovered stale command ${doc.id}`)
+      for (const key of keys) {
+        const data = await redis.hgetall(key)
+        if (data?.status !== "running") continue
+
+        const startedAt = parseInt(data.startedAt ?? "0", 10)
+        if (startedAt > 0 && startedAt >= cutoff) continue
+
+        const id = key.replace("sync-3c:command:", "")
+        await redis.hset(key, { status: "pending", startedAt: "", agent: "" })
+        await redis.lpush("sync-3c:queue", id)
+        recovered++
+        console.log(`[AGENT] Recovered stale command ${id}`)
+      }
+    } while (cursor !== 0)
+  } catch (err) {
+    console.error("[AGENT] Recovery scan error:", err.message)
   }
 
   if (recovered > 0) console.log(`[AGENT] Recovered ${recovered} stale command(s)`)
   else console.log("[AGENT] No stale commands found")
 }
 
-function startHeartbeat(db) {
-  const agentRef = db.doc(AGENT_DOC_REF)
-
+function startHeartbeat(redis) {
   const beat = async () => {
     try {
-      await agentRef.set({
+      await redis.set("sync-3c:agent:production", JSON.stringify({
         status: isProcessing ? "running" : "idle",
-        lastHeartbeat: Timestamp.now(),
+        lastHeartbeat: Date.now(),
         machineName: MACHINE_NAME,
-      }, { merge: true })
+      }))
     } catch (err) {
       console.error("[AGENT] Heartbeat error:", err.message)
     }
@@ -303,30 +300,16 @@ function startHeartbeat(db) {
 
   beat()
   setInterval(beat, HEARTBEAT_INTERVAL_MS)
-  console.log("[AGENT] Heartbeat started")
-}
-
-async function pollForCommands(db) {
-  console.log("[AGENT] Command polling started (every 5s)")
-  while (true) {
-    try {
-      await processNextPending(db)
-    } catch (err) {
-      console.error("[AGENT] Polling error:", err.message)
-    }
-    await new Promise((r) => setTimeout(r, 30000))
-  }
+  console.log("[AGENT] Heartbeat started (Redis)")
 }
 
 async function main() {
   console.log(`[AGENT] Starting — Machine: ${MACHINE_NAME}`)
-  const db = getDb()
+  const redis = getRedis()
 
-  await recoverStaleCommands(db)
-
-  startHeartbeat(db)
-
-  void pollForCommands(db)
+  await recoverStaleCommands(redis)
+  startHeartbeat(redis)
+  void pollQueue(redis)
 
   console.log("[AGENT] Initial sweep complete, waiting for commands...")
 }

@@ -1,24 +1,15 @@
+import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
+import { randomUUID } from "crypto"
 
 export const runtime = "nodejs"
 export const maxDuration = 120
 
-function getFirebaseAdmin() {
-  const admin = require("firebase-admin")
-  if (admin.getApps().length > 0) return admin
-
-  const saJson =
-    process.env.FIREBASE_SERVICE_ACCOUNT || null
-
-  if (!saJson) {
-    throw new Error("FIREBASE_SERVICE_ACCOUNT no configurada en Vercel")
-  }
-
-  admin.initializeApp({
-    credential: admin.cert(JSON.parse(saJson)),
+function getRedis() {
+  return new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL!,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN!,
   })
-
-  return admin
 }
 
 export async function POST(request: Request) {
@@ -33,24 +24,24 @@ export async function POST(request: Request) {
       )
     }
 
-    const admin = getFirebaseAdmin()
-    const { getFirestore, FieldValue } = require("firebase-admin/firestore")
-    const db = getFirestore()
-    const colRef = db.collection("sync-3c-commands")
-    const docRef = colRef.doc()
+    const redis = getRedis()
+    const commandId = randomUUID()
+    const now = Date.now()
 
-    await docRef.set({
+    await redis.hset(`sync-3c:command:${commandId}`, {
       module,
       status: "pending",
-      createdAt: FieldValue.serverTimestamp(),
-      startedAt: null,
-      completedAt: null,
-      agent: null,
-      result: null,
-      error: null,
+      createdAt: now,
+      startedAt: "",
+      completedAt: "",
+      agent: "",
+      result: "",
+      error: "",
     })
 
-    return NextResponse.json({ commandId: docRef.id })
+    await redis.lpush("sync-3c:queue", commandId)
+
+    return NextResponse.json({ commandId })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error desconocido"
     return NextResponse.json(

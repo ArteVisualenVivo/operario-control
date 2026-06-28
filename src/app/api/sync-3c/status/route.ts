@@ -1,18 +1,13 @@
+import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 
 export const runtime = "nodejs"
 
-function getFirebaseAdmin() {
-  const admin = require("firebase-admin")
-  if (admin.getApps().length > 0) return admin
-
-  const saJson = process.env.FIREBASE_SERVICE_ACCOUNT || null
-  if (!saJson) throw new Error("FIREBASE_SERVICE_ACCOUNT no configurada")
-
-  admin.initializeApp({
-    credential: admin.cert(JSON.parse(saJson)),
+function getRedis() {
+  return new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL!,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN!,
   })
-  return admin
 }
 
 export async function GET(request: Request) {
@@ -27,19 +22,26 @@ export async function GET(request: Request) {
       )
     }
 
-    const admin = getFirebaseAdmin()
-    const { getFirestore } = require("firebase-admin/firestore")
-    const db = getFirestore()
-    const doc = await db.collection("sync-3c-commands").doc(commandId).get()
+    const redis = getRedis()
+    const raw = await redis.hgetall(`sync-3c:command:${commandId}`)
 
-    if (!doc.exists) {
+    if (!raw || Object.keys(raw).length === 0) {
       return NextResponse.json(
         { error: "Comando no encontrado", status: "not_found" },
         { status: 404 },
       )
     }
 
-    return NextResponse.json(doc.data())
+    const parsed = { ...raw }
+    if (typeof parsed.result === "string" && parsed.result) {
+      try {
+        parsed.result = JSON.parse(parsed.result)
+      } catch {
+        // keep as string
+      }
+    }
+
+    return NextResponse.json(parsed)
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error desconocido"
     return NextResponse.json(
