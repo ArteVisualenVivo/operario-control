@@ -249,6 +249,13 @@ Log("=== INICIO ===")
 ; Pausa inicial para que el usuario suelte el mouse/teclado
 Sleep(initDelay)
 
+; === FOCUS FIX ===
+; Minimizar navegadores para evitar interferencia de la web
+if WinExist("ahk_exe chrome.exe")
+    WinMinimize("ahk_exe chrome.exe")
+if WinExist("ahk_exe msedge.exe")
+    WinMinimize("ahk_exe msedge.exe")
+
 Check3CRunning()
 
 try {
