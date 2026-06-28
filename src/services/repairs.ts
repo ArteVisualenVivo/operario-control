@@ -88,6 +88,7 @@ function calculateAutoDates(
 }
 
 function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRecords>>[number]): MachineRepair {
+  const hasExitDate = Boolean(record.returnDate || record.repairDate)
   return {
     id: `maintenance:${record.id}`,
     machineId: record.orderNumber,
@@ -113,7 +114,7 @@ function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRec
     partsUsed: [],
     source: "3c",
     externalId: record.orderNumber,
-    status: record.status === "FINALIZADO" ? "done" : "EN_TALLER",
+    status: hasExitDate ? "FINALIZADO" : "EN_TALLER",
     issue: record.machineName,
     estimatedReturn: record.returnDate ?? null,
     createdAt: record.createdAt,

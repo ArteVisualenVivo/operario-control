@@ -109,6 +109,13 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
   const snapshot = await getDocs(q)
   return snapshot.docs.map((d) => {
     const data = d.data()
+    const originalData = (data.originalData as Record<string, unknown> | undefined) ?? undefined
+    const originalReturn = originalData
+      ? (originalData.entrega ?? originalData.fecha_entrega ?? originalData.return_date ?? originalData.fecha_retiro)
+      : undefined
+    const originalRepair = originalData
+      ? (originalData.reparacion ?? originalData.fecha_reparacion)
+      : undefined
     return {
       id: d.id,
       orderNumber: data.orderNumber as string,
@@ -133,8 +140,8 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
       netPrice: typeof data.netPrice === "number" ? data.netPrice : null,
       originalData: (data.originalData as Record<string, unknown> | undefined) ?? undefined,
       sourceRow: typeof data.sourceRow === "number" ? data.sourceRow : undefined,
-      repairDate: data.repairDate ? toDate(data.repairDate) : undefined,
-      returnDate: data.returnDate ? toDate(data.returnDate) : undefined,
+      repairDate: data.repairDate ? toDate(data.repairDate) : (originalRepair ? toDate(originalRepair) : undefined),
+      returnDate: data.returnDate ? toDate(data.returnDate) : (originalReturn ? toDate(originalReturn) : undefined),
       warranty: data.warranty ? toDate(data.warranty) : undefined,
       history: data.history as string | undefined,
       shopTime: data.shopTime as number | undefined,

@@ -46,7 +46,11 @@ export default function RepairsPage() {
       const entry = new Date(r.entryDate)
       const matchesFrom = !dateFrom || entry >= new Date(dateFrom)
       const matchesTo = !dateTo || entry <= new Date(dateTo + "T23:59:59")
-      const matchesStatus = statusFilter === "all" || r.status === statusFilter
+      const normalizedStatus = r.status.toUpperCase()
+      const matchesStatus =
+        statusFilter === "all" ||
+        (statusFilter === "EN_TALLER" && ["EN_TALLER", "PENDING", "REPAIRING"].includes(normalizedStatus)) ||
+        (statusFilter === "FINALIZADO" && ["FINALIZADO", "DONE"].includes(normalizedStatus))
 
       return matchesSearch && matchesFrom && matchesTo && matchesStatus
     })
