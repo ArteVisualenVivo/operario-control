@@ -123,8 +123,20 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
       const originalStatus = findDateLikeValue(originalData, ["estado", "situacion", "situaciÃ³n"])
 
       const entryDateCandidate = toDate(data.entryDate)
-      const returnDateCandidate = toDate(data.returnDate)
-      const repairDateCandidate = toDate(data.repairDate)
+      const returnDateCandidate = toDate(
+        data.returnDate ??
+        originalReturn ??
+        originalData?.entrega ??
+        originalData?.fecha_entrega ??
+        originalData?.egreso ??
+        originalData?.salida
+      )
+      const repairDateCandidate = toDate(
+        data.repairDate ??
+        originalRepair ??
+        originalData?.fecha_reparacion ??
+        originalData?.reparacion
+      )
       const fallbackEntry = isValidDate(toDate(originalEntry)) ? toDate(originalEntry) : toDate(data.createdAt)
 
       return {

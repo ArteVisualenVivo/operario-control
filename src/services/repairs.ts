@@ -24,6 +24,15 @@ function addDays(date: Date, days: number): Date {
   return result
 }
 
+function findDateLikeValue(data: Record<string, unknown> | undefined, patterns: string[]): unknown {
+  if (!data) return undefined
+  for (const [key, value] of Object.entries(data)) {
+    const normalized = key.toLowerCase()
+    if (patterns.some((pattern) => normalized.includes(pattern))) return value
+  }
+  return undefined
+}
+
 function docToRepair(docSnap: { id: string; data: () => Record<string, unknown> }): MachineRepair {
   const data = docSnap.data()
   const exitDate = data.exitDate ? toDate(data.exitDate) : toDate(data.createdAt)
@@ -88,8 +97,11 @@ function calculateAutoDates(
 }
 
 function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRecords>>[number]): MachineRepair {
+  const originalReturn = findDateLikeValue(record.originalData, ["entrega", "egreso", "salida", "retiro", "return"])
+  const originalRepair = findDateLikeValue(record.originalData, ["reparacion", "reparaciÃ³n", "taller", "repair"])
   const statusText = `${record.status} ${record.originalData ? Object.values(record.originalData).join(" ") : ""}`.toUpperCase()
-  const hasExitDate = Boolean(record.returnDate || record.repairDate || statusText.includes("ENTREG"))
+  const exitDate = record.returnDate ?? record.repairDate ?? (originalReturn instanceof Date ? originalReturn : undefined) ?? record.entryDate
+  const hasExitDate = Boolean(record.returnDate || record.repairDate || originalReturn || statusText.includes("ENTREG"))
   return {
     id: `maintenance:${record.id}`,
     machineId: record.orderNumber,
@@ -104,10 +116,10 @@ function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRec
     repairPerformed: record.status,
     technician: "",
     entryDate: record.entryDate,
-    exitDate: record.returnDate ?? record.repairDate ?? record.entryDate,
+    exitDate,
     hoursUsed: undefined,
     warrantyDays: 90,
-    warrantyUntil: addDays(record.returnDate ?? record.repairDate ?? record.entryDate, 90),
+    warrantyUntil: addDays(exitDate, 90),
     oilChangeDueDate: undefined,
     bearingChangeDueDate: undefined,
     maintenanceDueDate: undefined,
@@ -117,7 +129,7 @@ function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRec
     externalId: record.orderNumber,
     status: hasExitDate ? "FINALIZADO" : "EN_TALLER",
     issue: record.machineName,
-    estimatedReturn: record.returnDate ?? null,
+    estimatedReturn: record.returnDate ?? (originalReturn instanceof Date ? originalReturn : null),
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   }
