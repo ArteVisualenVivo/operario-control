@@ -221,7 +221,14 @@ async function processCommand(redis, commandId, module) {
         try {
           result = await syncItems(items)
         } catch (err) {
-          console.error("[AGENT] Firebase sync failed (temporary quota block):", err.message)
+          console.error("========== FIREBASE ERROR ==========")
+          console.error(err)
+          console.error("message:", err?.message)
+          console.error("code:", err?.code)
+          console.error("details:", err?.details)
+          console.error("stack:", err?.stack)
+          console.error("metadata:", err?.metadata)
+          console.error("===================================")
 
           result = {
             success: true,

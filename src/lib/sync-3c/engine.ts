@@ -146,6 +146,8 @@ export async function syncRepairsToMaintenance(
   const BATCH_LIMIT = 400
   let counter = 0
   let batch = db.batch()
+  let pendingCreated = 0
+  let pendingUpdated = 0
 
   const result = {
     success: true,
@@ -165,39 +167,239 @@ export async function syncRepairsToMaintenance(
   const collection = db.collection("maintenance")
 
   // Columnas del Excel de Reparaciones (0-indexed)
-  // Ajustar segun el formato real exportado por 3C
-  const COL_ORDER = 0
-  const COL_ENTRY_DATE = 1
-  const COL_CLIENT = 2
-  const COL_MACHINE = 3
-  const COL_BRAND = 4
-  const COL_MODEL = 5
-  const COL_SERIAL = 6
-  const COL_STATUS = 7
-  const COL_TECHNICIAN = 8
-  const COL_OBSERVATIONS = 9
+  const COL_TYPE = 0
+  const COL_ORDER = 1
+  const COL_ENTRY_DATE = 2
+  const COL_CLIENT = 4
+  const COL_MACHINE = 8
+
+  const HEADER_BLACKLIST = [
+    "tipo",
+    "numero",
+    "fecha",
+    "cliente",
+    "razon_social",
+    "estado",
+    "doc_id",
+    "item_id",
+    "articu_id",
+    "texto",
+  ]
+
+  const normalizeToken = (value: unknown): string =>
+    String(value ?? "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+
+  const logSkippedRow = (rowNumber: number, reason: string, details: Record<string, unknown>) => {
+    result.skipped++
+    result.warnings.push(`Fila ${rowNumber} omitida: ${reason}`)
+    console.warn(`[MAINTENANCE ROW] skip row ${rowNumber}: ${reason}`, details)
+  }
+
+  const isValidDateObject = (date: Date): boolean =>
+    date instanceof Date && Number.isFinite(date.getTime())
+
+  const buildCheckedDate = (
+    year: number,
+    month: number,
+    day: number,
+    hours = 0,
+    minutes = 0,
+    seconds = 0,
+  ): Date | null => {
+    if (
+      !Number.isInteger(year) ||
+      !Number.isInteger(month) ||
+      !Number.isInteger(day) ||
+      year < 1900 ||
+      year > 2100 ||
+      month < 1 ||
+      month > 12 ||
+      day < 1 ||
+      day > 31 ||
+      hours < 0 ||
+      hours > 23 ||
+      minutes < 0 ||
+      minutes > 59 ||
+      seconds < 0 ||
+      seconds > 59
+    ) {
+      return null
+    }
+
+    const date = new Date(year, month - 1, day, hours, minutes, seconds)
+    if (
+      !isValidDateObject(date) ||
+      date.getFullYear() !== year ||
+      date.getMonth() !== month - 1 ||
+      date.getDate() !== day
+    ) {
+      return null
+    }
+
+    return date
+  }
+
+  const isValidOrderNumber = (value: string): boolean => {
+    if (!value || value.length < 3) return false
+    const normalized = normalizeToken(value)
+    if (HEADER_BLACKLIST.some((token) => normalized.includes(token))) return false
+    return /\d/.test(value)
+  }
+
+  const cleanOptionalText = (value: unknown): string | null => {
+    const text = String(value ?? "").trim()
+    if (!text) return null
+    if (HEADER_BLACKLIST.includes(normalizeToken(text))) return null
+    return text
+  }
+
+  const isHeaderRow = (row: unknown[], orderNumber: string, entryDateRaw: unknown): boolean => {
+    const normalizedOrder = normalizeToken(orderNumber)
+    if (HEADER_BLACKLIST.some((token) => normalizedOrder.includes(token))) {
+      return true
+    }
+
+    const normalizedDate = normalizeToken(entryDateRaw)
+    if (HEADER_BLACKLIST.some((token) => normalizedDate.includes(token))) {
+      return true
+    }
+
+    return row.some((cell) => HEADER_BLACKLIST.some((token) => normalizeToken(cell) === token))
+  }
+
+  const parseEntryDate = (value: unknown): Date | null => {
+    if (value instanceof Date) {
+      if (!isValidDateObject(value)) return null
+      return buildCheckedDate(
+        value.getFullYear(),
+        value.getMonth() + 1,
+        value.getDate(),
+        value.getHours(),
+        value.getMinutes(),
+        value.getSeconds(),
+      )
+    }
+
+    if (typeof value === "number" && XLSX.SSF && typeof XLSX.SSF.parse_date_code === "function") {
+      const parsed = XLSX.SSF.parse_date_code(value)
+      if (parsed && parsed.y) {
+        return buildCheckedDate(
+          parsed.y,
+          parsed.m ?? 1,
+          parsed.d ?? 1,
+          parsed.H ?? 0,
+          parsed.M ?? 0,
+          parsed.S ?? 0,
+        )
+      }
+      return null
+    }
+
+    const normalized = String(value ?? "").trim()
+    if (!normalized || HEADER_BLACKLIST.some((token) => normalizeToken(normalized).includes(token))) {
+      return null
+    }
+
+    const ddmmyyyy = normalized.match(/^([0-3]?\d)[\/\-]([0-1]?\d)[\/\-](\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/)
+    if (ddmmyyyy) {
+      const day = Number(ddmmyyyy[1])
+      const month = Number(ddmmyyyy[2])
+      let year = Number(ddmmyyyy[3])
+      if (year < 100) year += 2000
+      return buildCheckedDate(
+        year,
+        month,
+        day,
+        Number(ddmmyyyy[4] ?? 0),
+        Number(ddmmyyyy[5] ?? 0),
+        Number(ddmmyyyy[6] ?? 0),
+      )
+    }
+
+    const iso = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?)?/)
+    if (iso) {
+      return buildCheckedDate(
+        Number(iso[1]),
+        Number(iso[2]),
+        Number(iso[3]),
+        Number(iso[4] ?? 0),
+        Number(iso[5] ?? 0),
+        Number(iso[6] ?? 0),
+      )
+    }
+
+    return null
+  }
+
+  const commitBatch = async (lastBatchPayload: Record<string, unknown> | null) => {
+    if (counter === 0) return
+
+    console.log("[MAINTENANCE BATCH] commit size:", counter)
+    try {
+      await batch.commit()
+      result.created += pendingCreated
+      result.updated += pendingUpdated
+      pendingCreated = 0
+      pendingUpdated = 0
+      batch = db.batch()
+      counter = 0
+      console.log("Batch OK", { lastPayload: lastBatchPayload })
+    } catch (commitErr) {
+      console.error("Batch FAILED", { lastPayload: lastBatchPayload })
+      console.error(commitErr)
+      throw commitErr
+    }
+  }
+
+  let lastBatchPayload: Record<string, unknown> | null = null
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i]
     if (!row || !Array.isArray(row)) continue
 
+    const rowNumber = i + 1
     const orderNumber = String(row[COL_ORDER] ?? "").trim()
-    if (!orderNumber) {
+    const entryDateRaw = row[COL_ENTRY_DATE]
+    const entryDate = parseEntryDate(entryDateRaw)
+
+    if (isHeaderRow(row, orderNumber, entryDateRaw)) {
       result.skipped++
+      result.warnings.push(
+        `Fila ${i + 1} omitida: orderNumber inválido o fila de encabezado (${String(orderNumber)})`,
+      )
+      console.warn(
+        `[MAINTENANCE ROW] skip row ${i + 1}: invalid orderNumber or header`,
+        { orderNumber, entryDateRaw },
+      )
       continue
     }
 
-    const entryDateRaw = row[COL_ENTRY_DATE]
-    const entryDate = entryDateRaw ? new Date(String(entryDateRaw)) : new Date()
+    if (!isValidOrderNumber(orderNumber)) {
+      logSkippedRow(rowNumber, "orderNumber invalido", { orderNumber, entryDateRaw })
+      continue
+    }
 
-    const clientName = String(row[COL_CLIENT] ?? "").trim()
-    const machineName = String(row[COL_MACHINE] ?? "").trim()
-    const brand = String(row[COL_BRAND] ?? "").trim() || undefined
-    const model = String(row[COL_MODEL] ?? "").trim() || undefined
-    const serial = String(row[COL_SERIAL] ?? "").trim() || undefined
+    if (!entryDate) {
+      result.skipped++
+      result.warnings.push(
+        `Fila ${i + 1} omitida: entryDate inválido (${String(entryDateRaw)})`,
+      )
+      console.warn(
+        `[MAINTENANCE ROW] skip row ${i + 1}: invalid entryDate`,
+        { orderNumber, entryDateRaw },
+      )
+      continue
+    }
+
+    const clientName = cleanOptionalText(row[COL_CLIENT]) ?? ""
+    const machineName = cleanOptionalText(row[COL_MACHINE]) ?? ""
+    const now = new Date()
+    const COL_STATUS = COL_TYPE
     const status = String(row[COL_STATUS] ?? "").trim() || "Recepción"
-    const technician = String(row[COL_TECHNICIAN] ?? "").trim() || undefined
-    const observations = String(row[COL_OBSERVATIONS] ?? "").trim() || undefined
 
     const ref = collection.doc(orderNumber)
     const before = await ref.get()
@@ -206,49 +408,59 @@ export async function syncRepairsToMaintenance(
       entryDate,
       clientName,
       machineName,
-      brand: brand ?? null,
-      model: model ?? null,
-      serial: serial ?? null,
+      brand: null,
+      model: null,
+      serial: null,
       status,
-      technician: technician ?? null,
-      observations: observations ?? null,
+      technician: null,
+      observations: null,
       repairDate: null,
       returnDate: null,
       warranty: null,
       history: null,
       shopTime: null,
-      updatedAt: new Date(),
+      updatedAt: now,
     }
 
     if (!before.exists) {
-      payload.createdAt = new Date()
-      result.created++
-    } else {
-      result.updated++
+      payload.createdAt = now
     }
 
-    batch.set(ref, payload, { merge: true })
+    try {
+      batch.set(ref, payload, { merge: true })
+      if (!before.exists) {
+        pendingCreated++
+      } else {
+        pendingUpdated++
+      }
+      lastBatchPayload = { ...payload, orderNumber, row: i + 1 }
+    } catch (setErr) {
+      console.error("ROW FAILED")
+      console.error("Número de fila:", i + 1)
+      console.error("orderNumber:", orderNumber)
+      console.error("Payload completo:", payload)
+      console.error("Error completo:", setErr)
+      console.error(
+        "Stack completo:",
+        setErr instanceof Error ? setErr.stack : undefined,
+      )
+      result.skipped++
+      result.warnings.push(`Fila ${i + 1} omitida: error al armar payload`)
+      continue
+    }
+
     counter++
 
     if (counter >= BATCH_LIMIT) {
-      console.log("[MAINTENANCE BATCH] commit size:", counter)
-      await batch.commit()
-      batch = db.batch()
-      counter = 0
+      await commitBatch(lastBatchPayload)
     }
 
-    await sleep(20)
   }
 
   if (counter > 0) {
-    console.log("[MAINTENANCE BATCH] commit size:", counter)
-    await batch.commit()
+    await commitBatch(lastBatchPayload)
   }
 
   console.log("[MAINTENANCE BATCH] finished")
   return result
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
