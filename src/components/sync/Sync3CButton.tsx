@@ -46,8 +46,8 @@ interface Sync3CButtonProps {
   className?: string
 }
 
-const AGENT_POLL_INTERVAL = 15_000
-const STATUS_POLL_INTERVAL = 2_000
+const AGENT_POLL_INTERVAL = 60_000
+const STATUS_POLL_INTERVAL = 10_000
 const STATUS_POLL_TIMEOUT = 180_000
 
 function formatLastHeartbeat(timestamp: string | null): string {

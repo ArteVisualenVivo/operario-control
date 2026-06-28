@@ -314,7 +314,7 @@ async function pollForCommands(db) {
     } catch (err) {
       console.error("[AGENT] Polling error:", err.message)
     }
-    await new Promise((r) => setTimeout(r, 5000))
+    await new Promise((r) => setTimeout(r, 30000))
   }
 }
 
