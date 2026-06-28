@@ -38,22 +38,17 @@ NavigateReparaciones() {
     SendText("01/01/2025")
     Sleep(300)
 
-    ; 4 — Tildar Excel con ítems
-    ClickAt("ExcelItems")
-    Sleep(afterClick)
-    ValidarFoco()
-
-    ; 5 — Tildar imprimir todas
+    ; 4 — Tildar imprimir todas
     ClickAt("PrintAll")
     Sleep(afterClick)
     ValidarFoco()
 
-    ; 6 — Click imprimir
+    ; 5 — Click imprimir
     ClickAt("Imprimir")
     Sleep(afterClick)
     ValidarFoco()
 
-    ; 7 — Seleccionar formato Excel
+    ; 6 — Seleccionar formato Excel
     ClickAt("ExcelFormat")
     Sleep(afterExcel)
 

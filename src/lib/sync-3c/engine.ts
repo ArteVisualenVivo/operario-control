@@ -166,17 +166,13 @@ export async function syncRepairsToMaintenance(
   console.log("[MAINTENANCE BATCH] start")
   const collection = db.collection("maintenance")
 
-  // Columnas del Excel de Reparaciones (0-indexed)
-  const COL_TYPE = 0
-  const COL_ORDER = 1
-  const COL_ENTRY_DATE = 2
-  const COL_CLIENT = 4
-  const COL_MACHINE = 8
-
   const HEADER_BLACKLIST = [
     "tipo",
     "numero",
     "fecha",
+    "fecha_ingreso",
+    "fecha_entrega",
+    "fecha_reparacion",
     "cliente",
     "razon_social",
     "estado",
@@ -192,6 +188,43 @@ export async function syncRepairsToMaintenance(
       .toLowerCase()
       .normalize("NFD")
       .replace(/[\u0300-\u036f]/g, "")
+
+  const findHeaderRowIndex = (): number => {
+    return rows.findIndex((row) => {
+      if (!Array.isArray(row)) return false
+      const normalizedCells = row.map(normalizeToken)
+      return normalizedCells.includes("numero") && normalizedCells.some((cell) => cell.startsWith("fecha"))
+    })
+  }
+
+  const headerRowIndex = findHeaderRowIndex()
+  const headerRow = headerRowIndex >= 0 ? rows[headerRowIndex] : []
+  const headerIndexes = new Map<string, number>()
+
+  headerRow.forEach((cell, index) => {
+    const normalized = normalizeToken(cell).replace(/\s+/g, "_")
+    if (normalized) headerIndexes.set(normalized, index)
+  })
+
+  const col = (aliases: string[], fallback: number): number => {
+    for (const alias of aliases) {
+      const index = headerIndexes.get(normalizeToken(alias).replace(/\s+/g, "_"))
+      if (typeof index === "number") return index
+    }
+    return fallback
+  }
+
+  // Formato sin "ExcelItems": TIPO, NUMERO, FECHA, ..., ESTADO, ...
+  // Formato con "ExcelItems": comparte TIPO/NUMERO/FECHA y agrega columnas de items.
+  const COL_TYPE = col(["tipo"], 0)
+  const COL_ORDER = col(["numero", "nro", "nro_orden"], 1)
+  const COL_ENTRY_DATE = col(["fecha", "fecha_ingreso", "ingreso"], 2)
+  const COL_RETURN_DATE = col(["fecha_entrega", "entrega", "fecha_retiro", "retiro"], -1)
+  const COL_REPAIR_DATE = col(["fecha_reparacion", "reparacion"], -1)
+  const COL_CLIENT = col(["razon_social", "cliente_nombre", "nombre_cliente"], 4)
+  const COL_CLIENT_CODE = col(["cliente", "cod_cliente", "cliente_id"], 3)
+  const COL_MACHINE = col(["texto", "maquina", "equipo", "articulo", "descripcion"], 8)
+  const COL_STATUS = col(["estado", "situacion"], -1)
 
   const logSkippedRow = (rowNumber: number, reason: string, details: Record<string, unknown>) => {
     result.skipped++
@@ -255,6 +288,11 @@ export async function syncRepairsToMaintenance(
     if (!text) return null
     if (HEADER_BLACKLIST.includes(normalizeToken(text))) return null
     return text
+  }
+
+  const cell = (row: unknown[], index: number): unknown => {
+    if (index < 0) return undefined
+    return row[index]
   }
 
   const isHeaderRow = (row: unknown[], orderNumber: string, entryDateRaw: unknown): boolean => {
@@ -357,14 +395,20 @@ export async function syncRepairsToMaintenance(
 
   let lastBatchPayload: Record<string, unknown> | null = null
 
-  for (let i = 1; i < rows.length; i++) {
+  const startRowIndex = headerRowIndex >= 0 ? headerRowIndex + 1 : 1
+
+  for (let i = startRowIndex; i < rows.length; i++) {
     const row = rows[i]
     if (!row || !Array.isArray(row)) continue
 
     const rowNumber = i + 1
-    const orderNumber = String(row[COL_ORDER] ?? "").trim()
-    const entryDateRaw = row[COL_ENTRY_DATE]
+    const orderNumber = String(cell(row, COL_ORDER) ?? "").trim()
+    const entryDateRaw = cell(row, COL_ENTRY_DATE)
     const entryDate = parseEntryDate(entryDateRaw)
+    const returnDateRaw = cell(row, COL_RETURN_DATE)
+    const repairDateRaw = cell(row, COL_REPAIR_DATE)
+    const returnDate = returnDateRaw ? parseEntryDate(returnDateRaw) : null
+    const repairDate = repairDateRaw ? parseEntryDate(repairDateRaw) : null
 
     if (isHeaderRow(row, orderNumber, entryDateRaw)) {
       result.skipped++
@@ -395,10 +439,10 @@ export async function syncRepairsToMaintenance(
       continue
     }
 
-    const clientName = cleanOptionalText(row[COL_CLIENT]) ?? ""
-    const machineName = cleanOptionalText(row[COL_MACHINE]) ?? ""
+    const clientName = cleanOptionalText(cell(row, COL_CLIENT)) ?? ""
+    const clientCode = cleanOptionalText(cell(row, COL_CLIENT_CODE))
+    const machineName = cleanOptionalText(cell(row, COL_MACHINE)) ?? ""
     const now = new Date()
-    const COL_STATUS = COL_TYPE
     const status = String(row[COL_STATUS] ?? "").trim() || "Recepción"
 
     const ref = collection.doc(orderNumber)
