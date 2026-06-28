@@ -1,7 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
-import { useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useMachines } from "@/hooks/useMachines"
 import { useInventoryStock } from "@/hooks/useInventoryStock"
@@ -29,10 +28,15 @@ interface MachineGroup {
 }
 
 export default function DashboardPage() {
-  const { machines, loading } = useMachines()
-  const { items: stockItems, loading: stockLoading } = useInventoryStock()
-  const { intelligence: stockIntelligence, loading: siLoading } = useStockIntelligence()
+  const { machines, loading, reload: reloadMachines } = useMachines()
+  const { items: stockItems, loading: stockLoading, reload: reloadStock } = useInventoryStock()
+  const { intelligence: stockIntelligence, loading: siLoading, refresh: refreshIntelligence } = useStockIntelligence()
   const router = useRouter()
+  const refreshAll = useCallback(() => {
+    reloadMachines()
+    reloadStock()
+    refreshIntelligence()
+  }, [reloadMachines, reloadStock, refreshIntelligence])
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<MachineStatus | "all">("all")
   const [showMachines, setShowMachines] = useState(false)
@@ -119,8 +123,8 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start gap-3">
-        <SeedInventory onComplete={() => window.location.reload()} />
-        <Sync3CButton onComplete={() => window.location.reload()} variant="outline" />
+        <SeedInventory onComplete={refreshAll} />
+        <Sync3CButton onComplete={refreshAll} variant="outline" />
       </div>
 
       {alerts.length > 0 && (

@@ -8,6 +8,8 @@ import { syncItems } from "@/lib/sync-3c/engine"
 export const runtime = "nodejs"
 export const maxDuration = 120
 
+let isSyncing = false
+
 const AHK_DIR = path.resolve(process.cwd(), "automation")
 const AHK_SCRIPT = path.join(AHK_DIR, "sync_3c.ahk")
 const EXPORTS_DIR = path.resolve(process.cwd(), "automation-watcher", "3c_exports")
@@ -99,7 +101,7 @@ function findLatestExport(): ExportFile | null {
   return files[0] ?? null
 }
 
-async function waitForExport(retries = 5, delayMs = 1000): Promise<ExportFile> {
+async function waitForExport(retries = 10, delayMs = 1000): Promise<ExportFile> {
   for (let attempt = 0; attempt < retries; attempt++) {
     const latest = findLatestExport()
     if (latest) return latest
@@ -133,26 +135,41 @@ export async function POST(request: Request) {
       )
     }
 
-    await runAhk()
-
-    const latest = await waitForExport()
-
-    const buffer = fs.readFileSync(latest.fullPath).buffer
-    const { items } = parseExcel(buffer)
-
-    if (items.length === 0) {
-      return NextResponse.json({
-        success: true,
-        created: 0,
-        updated: 0,
-        skipped: 0,
-        warnings: ["El archivo exportado no contiene datos válidos en el formato esperado de 3C"],
-      })
+    if (isSyncing) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "Ya hay una sincronización en curso. Esperá a que termine.",
+        },
+        { status: 429 },
+      )
     }
 
-    const result = await syncItems(items)
+    isSyncing = true
+    try {
+      await runAhk()
 
-    return NextResponse.json(result)
+      const latest = await waitForExport()
+
+      const buffer = fs.readFileSync(latest.fullPath).buffer
+      const { items } = parseExcel(buffer)
+
+      if (items.length === 0) {
+        return NextResponse.json({
+          success: true,
+          created: 0,
+          updated: 0,
+          skipped: 0,
+          warnings: ["El archivo exportado no contiene datos válidos en el formato esperado de 3C"],
+        })
+      }
+
+      const result = await syncItems(items)
+
+      return NextResponse.json(result)
+    } finally {
+      isSyncing = false
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error desconocido"
     return NextResponse.json(

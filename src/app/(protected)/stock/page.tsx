@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { useMachines } from "@/hooks/useMachines"
 import { useInventoryStock } from "@/hooks/useInventoryStock"
@@ -91,9 +91,13 @@ function groupMachines(machines: Machine[], categoryFilter: string): StockRow[] 
 
 export default function StockPage() {
   const router = useRouter()
-  const { machines, loading: loadingMachines } = useMachines()
-  const { items: materials, loading: loadingMaterials } = useInventoryStock()
+  const { machines, loading: loadingMachines, reload: reloadMachines } = useMachines()
+  const { items: materials, loading: loadingMaterials, reload: reloadMaterials } = useInventoryStock()
   const { parts: spareParts, loading: loadingParts } = useSparePartsCache()
+  const refreshAll = useCallback(() => {
+    reloadMachines()
+    reloadMaterials()
+  }, [reloadMachines, reloadMaterials])
   const [search, setSearch] = useState("")
   const [typeFilter, setTypeFilter] = useState("all")
   const [statusFilter, setStatusFilter] = useState("all")
@@ -210,7 +214,7 @@ export default function StockPage() {
       </div>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-        <Sync3CButton onComplete={() => window.location.reload()} variant="outline" size="sm" />
+        <Sync3CButton onComplete={refreshAll} variant="outline" size="sm" />
         <Input
           placeholder="Buscar por nombre..."
           value={search}
