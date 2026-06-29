@@ -13,9 +13,9 @@ function getRedis() {
 export async function GET() {
   try {
     const redis = getRedis()
-    const raw = await redis.get<string>("sync-3c:agent:production")
+    const raw = await redis.get<Record<string, unknown>>("sync-3c:agent:production")
 
-    if (!raw || typeof raw !== "string") {
+    if (!raw || typeof raw !== "object") {
       return NextResponse.json({
         online: false,
         status: "unknown",
@@ -24,8 +24,8 @@ export async function GET() {
       })
     }
 
-    const data = JSON.parse(raw)
-    const heartbeat = data.lastHeartbeat ?? 0
+    const data = raw
+    const heartbeat = (data.lastHeartbeat as number) ?? 0
     const online = heartbeat > 0 && (Date.now() - heartbeat) < 90_000
 
     return NextResponse.json({

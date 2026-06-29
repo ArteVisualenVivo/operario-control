@@ -1,6 +1,10 @@
 #!/usr/bin/env node
 
-import "dotenv/config"
+import dotenv from "dotenv"
+
+dotenv.config({
+  path: fileURLToPath(new URL("../.env.local", import.meta.url)),
+})
 import { Redis } from "@upstash/redis"
 import { spawn, execSync } from "child_process"
 import fs from "fs"

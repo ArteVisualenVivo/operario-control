@@ -13,28 +13,21 @@ function getFirebaseAdmin() {
 
   if (admin.getApps().length > 0) return admin
 
-  const serviceAccountJson =
-    process.env.FIREBASE_SERVICE_ACCOUNT ||
-    (() => {
-      try {
-        const fs = require("fs")
-        const path = require("path")
-        const p = path.resolve(process.cwd(), "service-account.json")
-        return fs.existsSync(p) ? fs.readFileSync(p, "utf-8") : null
-      } catch {
-        return null
-      }
-    })()
+  const fs = require("fs")
+  const path = require("path")
+  const serviceAccountPath = path.resolve(process.cwd(), "sync-agent/service-account.json")
 
-  if (!serviceAccountJson) {
+  if (!fs.existsSync(serviceAccountPath)) {
     throw new Error(
-      "FIREBASE_SERVICE_ACCOUNT no configurada. " +
-      "En local, colocar service-account.json en la raíz. " +
-      "En Vercel, agregar la variable de entorno con el JSON del service account."
+      "[FIREBASE] Missing sync-agent/service-account.json. " +
+      "Colocar el archivo en sync-agent/ del proyecto."
     )
   }
 
+  const serviceAccountJson = fs.readFileSync(serviceAccountPath, "utf-8")
   const serviceAccount = JSON.parse(serviceAccountJson)
+
+  console.log("[FIREBASE] Using service account: sync-agent/service-account.json")
 
   admin.initializeApp({
     credential: admin.cert(serviceAccount),

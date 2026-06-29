@@ -16,27 +16,36 @@ NavigateReparaciones() {
     SendInput("^Home")
     Sleep(resyncDelay)
 
-    ; 1 — Click Reparaciones
-    ClickAt("Reparaciones")
+    ; 1 — Click Ventas (acceso al submenú de reparaciones)
+    ClickAt("Ventas")
     Sleep(afterClick)
     ValidarFoco()
 
-    ; 2 — Tildar Excel con ítems
+    ; 2 — DEBUG: verificar posición del mouse antes de click
+    MouseMove 448, 346
+    Sleep(2000)
+
+    ; 2 — Click Reparaciones
+    ClickAt("Reparaciones")
+    Sleep(afterSubmenu)
+    ValidarFoco()
+
+    ; 3 — Tildar Excel con ítems
     ClickAt("ExcelItems")
     Sleep(afterClick)
     ValidarFoco()
 
-    ; 3 — Tildar imprimir todas
+    ; 4 — Tildar imprimir todas
     ClickAt("PrintAll")
     Sleep(afterClick)
     ValidarFoco()
 
-    ; 4 — Click imprimir
+    ; 5 — Click imprimir
     ClickAt("Imprimir")
     Sleep(afterClick)
     ValidarFoco()
 
-    ; 5 — Seleccionar formato Excel
+    ; 6 — Seleccionar formato Excel
     ClickAt("ExcelFormat")
     Sleep(afterExcel)
 
