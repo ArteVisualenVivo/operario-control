@@ -30,22 +30,30 @@ NavigateReparaciones() {
     Sleep(afterSubmenu)
     ValidarFoco()
 
-    ; 3 — Tildar Excel con ítems
+    ; 3 — Establecer fecha inicial
+    Click(959, 395)
+    Sleep(300)
+    SendInput("^a")
+    Sleep(100)
+    SendText("01/01/2025")
+    Sleep(300)
+
+    ; 4 — Tildar Excel con ítems
     ClickAt("ExcelItems")
     Sleep(afterClick)
     ValidarFoco()
 
-    ; 4 — Tildar imprimir todas
+    ; 5 — Tildar imprimir todas
     ClickAt("PrintAll")
     Sleep(afterClick)
     ValidarFoco()
 
-    ; 5 — Click imprimir
+    ; 6 — Click imprimir
     ClickAt("Imprimir")
     Sleep(afterClick)
     ValidarFoco()
 
-    ; 6 — Seleccionar formato Excel
+    ; 7 — Seleccionar formato Excel
     ClickAt("ExcelFormat")
     Sleep(afterExcel)
 

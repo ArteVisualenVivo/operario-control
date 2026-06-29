@@ -17,9 +17,9 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}))
     const module = body.module || "stock"
 
-    if (!["stock", "reparaciones"].includes(module)) {
+    if (!["stock", "reparaciones", "articulos"].includes(module)) {
       return NextResponse.json(
-        { success: false, error: "Módulo inválido. Usar: stock, reparaciones" },
+        { success: false, error: "Módulo inválido. Usar: stock, reparaciones, articulos" },
         { status: 400 },
       )
     }

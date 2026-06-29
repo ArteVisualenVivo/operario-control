@@ -20,7 +20,8 @@ windowTitle := IniRead(configFile, "Window", "Title", "3C")
 coords := Map()
 for key in ["Almacenes","Informes","Existencias","Depositos",
             "SeleccionarTodos","Consulta","Aceptar","Excel","Salir",
-            "Reparaciones","ExcelItems","PrintAll","Imprimir","ExcelFormat","SalirRep"] {
+            "Ventas","Reparaciones","ExcelItems","PrintAll","Imprimir","ExcelFormat","SalirRep",
+            "ServiciosArt","ArticulosMenu","ArticulosLista","ImprimirArt","Generar","ExcelArt","SalirArt","SalirArt2"] {
     val := IniRead(configFile, "Coords", key, "")
     parts := StrSplit(val, ",")
     coords[key] := [Integer(parts[1]), Integer(parts[2])]

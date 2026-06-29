@@ -1,0 +1,42 @@
+[2026-06-29 04:10:23] === INICIO REPARACIONES ===
+[2026-06-29 04:10:24] Ventana '3C' detectada y activada
+[2026-06-29 04:10:24] Resync: enviando Ctrl+Home
+[2026-06-29 04:10:25] Click en Ventas (413,188)
+[2026-06-29 04:10:27] Click en Reparaciones (448,346)
+[2026-06-29 04:10:28] Click en ExcelItems (1451,866)
+[2026-06-29 04:10:28] Click en PrintAll (1450,829)
+[2026-06-29 04:10:29] Click en Imprimir (896,254)
+[2026-06-29 04:10:29] Click en ExcelFormat (936,577)
+[2026-06-29 04:10:34] Exportación de reparaciones completada. Esperando Excel...
+[2026-06-29 04:10:34] Esperando Excel (timeout: 30s)...
+[2026-06-29 04:10:34] Excel detectado correctamente
+[2026-06-29 04:10:34] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-06-29 04:10:35] [WATCHER] ARCHIVO DETECTADO:
+[2026-06-29 04:10:35] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc3746962561671342713.xls
+[2026-06-29 04:10:35] [WATCHER] Fecha: 20260629041033
+[2026-06-29 04:10:35] [WATCHER] Tamaño: 876 KB
+[2026-06-29 04:10:35] [OK] Archivo copiado a exports
+[2026-06-29 04:10:37] Click en SalirRep (942,254)
+[2026-06-29 04:10:38] [NAV] Main menu restored (Reparaciones)
+[2026-06-29 04:10:38] === FIN REPARACIONES ===
+[2026-06-29 04:30:34] === INICIO REPARACIONES ===
+[2026-06-29 04:30:36] Ventana '3C' detectada y activada
+[2026-06-29 04:30:36] Resync: enviando Ctrl+Home
+[2026-06-29 04:30:36] Click en Ventas (413,188)
+[2026-06-29 04:30:38] Click en Reparaciones (448,346)
+[2026-06-29 04:30:40] Click en ExcelItems (1451,866)
+[2026-06-29 04:30:40] Click en PrintAll (1450,829)
+[2026-06-29 04:30:41] Click en Imprimir (896,254)
+[2026-06-29 04:30:41] Click en ExcelFormat (936,577)
+[2026-06-29 04:30:46] Exportación de reparaciones completada. Esperando Excel...
+[2026-06-29 04:30:46] Esperando Excel (timeout: 30s)...
+[2026-06-29 04:30:46] Excel detectado correctamente
+[2026-06-29 04:30:46] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-06-29 04:30:47] [WATCHER] ARCHIVO DETECTADO:
+[2026-06-29 04:30:47] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc3746962561671342713.xls
+[2026-06-29 04:30:47] [WATCHER] Fecha: 20260629041031
+[2026-06-29 04:30:47] [WATCHER] Tamaño: 876 KB
+[2026-06-29 04:30:47] [OK] Archivo copiado a exports
+[2026-06-29 04:30:48] Click en SalirRep (942,254)
+[2026-06-29 04:30:49] [NAV] Main menu restored (Reparaciones)
+[2026-06-29 04:30:49] === FIN REPARACIONES ===

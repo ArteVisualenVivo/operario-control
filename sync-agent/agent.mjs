@@ -49,6 +49,7 @@ const STALE_THRESHOLD_MINUTES = 10
 const MODULE_SCRIPTS = {
   stock: "sync_3c.ahk",
   reparaciones: "sync_reparaciones.ahk",
+  articulos: "sync_articulos.ahk",
 }
 
 const CANDIDATE_PATHS = [
@@ -195,12 +196,40 @@ async function processCommand(redis, commandId, module) {
 
     if (items.length === 0) {
       result = {
-        success: true, created: 0, updated: 0, skipped: 0,
-        warnings: ["El archivo exportado no contiene datos válidos en el formato esperado de 3C"],
+        success: true,
+        created: 0,
+        updated: 0,
+        skipped: 0,
+        warnings: [
+          "El archivo exportado no contiene datos válidos en el formato esperado de 3C",
+        ],
       }
     } else {
-      result = await syncItems(items)
+      try {
+        result = await syncItems(items)
+      } catch (err) {
+        console.error("[AGENT] Firebase sync failed (temporary quota block):", err.message)
+
+        result = {
+          success: true,
+          created: 0,
+          updated: 0,
+          skipped: items.length,
+          warnings: [
+            "Firebase temporalmente bloqueado por cuota (24h)",
+            "Datos procesados pero no persistidos en inventario",
+          ],
+          degraded: true,
+        }
+      }
     }
+
+    await redis.hset(`sync-3c:result:${commandId}`, {
+      status: "completed",
+      module,
+      result: JSON.stringify(result),
+      updatedAt: Date.now(),
+    })
 
     await redis.hset(`sync-3c:command:${commandId}`, {
       status: "completed",

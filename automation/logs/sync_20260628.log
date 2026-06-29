@@ -213,3 +213,85 @@ D0 CF 11 E0 A1 B1 1A E1 00 00 00 00 00 00 00 00
 [2026-06-28 17:15:04] Resync: enviando Ctrl+Home
 [2026-06-28 17:15:05] [ERROR] Item has no value.
 [2026-06-28 17:15:05] === FIN REPARACIONES ===
+[2026-06-28 17:20:18] === INICIO REPARACIONES ===
+[2026-06-28 17:20:19] Ventana '3C' detectada y activada
+[2026-06-28 17:20:19] Resync: enviando Ctrl+Home
+[2026-06-28 17:20:20] [ERROR] Item has no value.
+[2026-06-28 17:20:20] === FIN REPARACIONES ===
+[2026-06-28 18:22:20] === INICIO REPARACIONES ===
+[2026-06-28 18:22:22] Ventana '3C' detectada y activada
+[2026-06-28 18:22:22] Resync: enviando Ctrl+Home
+[2026-06-28 18:22:22] [ERROR] Item has no value.
+[2026-06-28 18:22:22] === FIN REPARACIONES ===
+[2026-06-28 19:05:54] === INICIO STOCK ===
+[2026-06-28 19:05:55] Ventana '3C' detectada y activada
+[2026-06-28 19:05:55] Resync: enviando Ctrl+Home
+[2026-06-28 19:05:55] Click en Almacenes (888,189)
+[2026-06-28 19:05:56] Click en Informes (921,370)
+[2026-06-28 19:05:56] Click en Existencias (1105,401)
+[2026-06-28 19:05:57] Click en Depositos (704,476)
+[2026-06-28 19:05:57] Click en SeleccionarTodos (962,858)
+[2026-06-28 19:05:58] Click en Consulta (440,341)
+[2026-06-28 19:05:58] Click en Aceptar (1196,902)
+[2026-06-28 19:06:00] Click en Excel (940,575)
+[2026-06-28 19:06:05] Exportación completada. Esperando Excel...
+[2026-06-28 19:06:05] Esperando Excel (timeout: 30s)...
+[2026-06-28 19:06:07] Excel detectado correctamente
+[2026-06-28 19:06:07] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-06-28 19:06:08] [WATCHER] ARCHIVO DETECTADO:
+[2026-06-28 19:06:08] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc7508597941340959558.xls
+[2026-06-28 19:06:08] [WATCHER] Fecha: 20260628190607
+[2026-06-28 19:06:08] [WATCHER] Tamaño: 905 KB
+[2026-06-28 19:06:09] [OK] Archivo copiado a exports
+[2026-06-28 19:06:10] Click en Salir (946,250)
+[2026-06-28 19:06:11] [NAV] Main menu restored
+[2026-06-28 19:06:11] === FIN STOCK ===
+[2026-06-28 19:38:33] === INICIO STOCK ===
+[2026-06-28 19:38:34] Ventana '3C' detectada y activada
+[2026-06-28 19:38:34] Resync: enviando Ctrl+Home
+[2026-06-28 19:38:34] Click en Almacenes (888,189)
+[2026-06-28 19:38:35] Click en Informes (921,370)
+[2026-06-28 19:38:35] Click en Existencias (1105,401)
+[2026-06-28 19:38:36] Click en Depositos (704,476)
+[2026-06-28 19:38:36] Click en SeleccionarTodos (962,858)
+[2026-06-28 19:38:37] Click en Consulta (440,341)
+[2026-06-28 19:38:37] Click en Aceptar (1196,902)
+[2026-06-28 19:38:39] Click en Excel (940,575)
+[2026-06-28 19:38:44] Exportación completada. Esperando Excel...
+[2026-06-28 19:38:44] Esperando Excel (timeout: 30s)...
+[2026-06-28 19:38:47] Excel detectado correctamente
+[2026-06-28 19:38:47] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-06-28 19:38:48] [WATCHER] ARCHIVO DETECTADO:
+[2026-06-28 19:38:48] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc7508597941340959558.xls
+[2026-06-28 19:38:48] [WATCHER] Fecha: 20260628190605
+[2026-06-28 19:38:48] [WATCHER] Tamaño: 905 KB
+[2026-06-28 19:38:48] [OK] Archivo copiado a exports
+[2026-06-28 19:38:50] Click en Salir (946,250)
+[2026-06-28 19:38:51] [NAV] Main menu restored
+[2026-06-28 19:38:51] === FIN STOCK ===
+[2026-06-28 19:40:44] === INICIO REPARACIONES ===
+[2026-06-28 19:40:46] Ventana '3C' detectada y activada
+[2026-06-28 19:40:46] Resync: enviando Ctrl+Home
+[2026-06-28 19:40:46] [ERROR] Item has no value.
+[2026-06-28 19:40:46] === FIN REPARACIONES ===
+[2026-06-28 19:49:49] === INICIO REPARACIONES ===
+[2026-06-28 19:49:50] Ventana '3C' detectada y activada
+[2026-06-28 19:49:50] Resync: enviando Ctrl+Home
+[2026-06-28 19:49:51] Click en Ventas (413,188)
+[2026-06-28 19:49:53] Click en Reparaciones (448,346)
+[2026-06-28 19:49:54] Click en ExcelItems (1451,866)
+[2026-06-28 19:49:54] Click en PrintAll (1450,829)
+[2026-06-28 19:49:55] Click en Imprimir (896,254)
+[2026-06-28 19:49:55] Click en ExcelFormat (936,577)
+[2026-06-28 19:50:00] Exportación de reparaciones completada. Esperando Excel...
+[2026-06-28 19:50:00] Esperando Excel (timeout: 30s)...
+[2026-06-28 19:50:00] Excel detectado correctamente
+[2026-06-28 19:50:00] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-06-28 19:50:01] [WATCHER] ARCHIVO DETECTADO:
+[2026-06-28 19:50:01] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc4844099473586271591.xls
+[2026-06-28 19:50:01] [WATCHER] Fecha: 20260628194958
+[2026-06-28 19:50:01] [WATCHER] Tamaño: 876 KB
+[2026-06-28 19:50:01] [OK] Archivo copiado a exports
+[2026-06-28 19:50:03] Click en SalirRep (942,254)
+[2026-06-28 19:50:04] [NAV] Main menu restored (Reparaciones)
+[2026-06-28 19:50:04] === FIN REPARACIONES ===
