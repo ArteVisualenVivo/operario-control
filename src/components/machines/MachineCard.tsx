@@ -48,9 +48,9 @@ export default function MachineCard({ machine, onRepair, onDelete }: MachineCard
                 {machine.location?.project?.address && (
                   <p><span className="text-muted-foreground">Dir. obra:</span> {machine.location.project.address}</p>
                 )}
-                <p><span className="text-muted-foreground">Inicio:</span> {formatDate(machine.rental.startDate)}</p>
+                <p><span className="text-muted-foreground">Desde:</span> {formatDate(machine.rental.startDate)}</p>
                 {!machine.rental.isOpenEnded && machine.rental.expectedEndDate && (
-                  <p><span className="text-muted-foreground">Fin estimado:</span> {formatDate(machine.rental.expectedEndDate)}</p>
+                  <p><span className="text-muted-foreground">Hasta:</span> {formatDate(machine.rental.expectedEndDate)}</p>
                 )}
                 {machine.rental.isOpenEnded && (
                   <p><span className="text-xs text-blue-600">Plazo abierto</span></p>

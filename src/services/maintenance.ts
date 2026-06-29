@@ -9,6 +9,7 @@ import {
   serverTimestamp,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
+import { LOCAL_MODE } from "@/lib/runtimeMode"
 import { createAuditLog } from "./audit"
 
 export interface MaintenanceRecord {
@@ -87,13 +88,28 @@ const COLLECTION = "maintenance"
 const AUDIT_ENTITY: "maintenance" = "maintenance"
 const ORDER_PATTERN = /^X\s?\d{4}-\d{8}$/i
 
+function parseDmyDate(value: string): Date | undefined {
+  const match = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/)
+  if (!match) return undefined
+  let day = Number(match[1])
+  let month = Number(match[2])
+  let year = Number(match[3])
+  if (year < 100) year += 2000
+  const parsed = new Date(year, month - 1, day)
+  return isValidDate(parsed) ? parsed : undefined
+}
+
 function toDate(val: unknown): Date {
   if (val instanceof Date) return val
   if (val && typeof val === "object" && "toDate" in val && typeof (val as { toDate?: () => Date }).toDate === "function") {
     const date = (val as { toDate: () => Date }).toDate()
     if (date instanceof Date && !Number.isNaN(date.getTime())) return date
   }
-  if (typeof val === "string") return new Date(val)
+  if (typeof val === "string") {
+    const parsedDmy = parseDmyDate(val)
+    if (parsedDmy) return parsedDmy
+    return new Date(val)
+  }
   return new Date("")
 }
 
@@ -119,6 +135,25 @@ function firstDateCandidate(...values: unknown[]): Date | undefined {
 }
 
 export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
+  try {
+    const res = await fetch("/api/local/maintenance", { cache: "no-store" })
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data)) return data.map((item) => ({
+        ...item,
+        entryDate: new Date(item.entryDate),
+        returnDate: item.returnDate ? new Date(item.returnDate) : undefined,
+        repairDate: item.repairDate ? new Date(item.repairDate) : undefined,
+        createdAt: new Date(item.createdAt),
+        updatedAt: new Date(item.updatedAt),
+      })) as MaintenanceRecord[]
+    }
+  } catch {
+    // fallback below
+  }
+
+  if (LOCAL_MODE) return []
+
   const q = query(collection(db, COLLECTION), orderBy("entryDate", "desc"))
   const snapshot = await getDocs(q)
   return snapshot.docs

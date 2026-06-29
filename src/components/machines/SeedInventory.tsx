@@ -11,7 +11,7 @@ import { toast } from "sonner"
 interface SeedItem {
   name: string
   model: string
-  category: "machine" | "scaffold" | "tool"
+  category: "machine" | "tool"
 }
 
 interface SeedStockItem {
@@ -22,20 +22,6 @@ interface SeedStockItem {
 }
 
 const INVENTORY: SeedItem[] = [
-  { name: "Andamio tubular", model: "estándar obra", category: "scaffold" },
-  { name: "Andamio tubular", model: "reforzado pesado", category: "scaffold" },
-  { name: "Andamio modular", model: "marco europeo", category: "scaffold" },
-  { name: "Andamio modular", model: "heavy duty", category: "scaffold" },
-  { name: "Andamio pasillero", model: "pasarela 1m", category: "scaffold" },
-  { name: "Andamio pasillero", model: "pasarela 1.5m", category: "scaffold" },
-  { name: "Andamio reforzado", model: "industrial 3T", category: "scaffold" },
-  { name: "Caballetes", model: "metálico plegable", category: "scaffold" },
-  { name: "Caballetes", model: "reforzado madera", category: "scaffold" },
-  { name: "Tablón para andamios", model: "madera 3m", category: "scaffold" },
-  { name: "Tablón para andamios", model: "metálico antideslizante", category: "scaffold" },
-  { name: "Puntales telescópicos", model: "1.5–3m", category: "scaffold" },
-  { name: "Puntales telescópicos", model: "2–4m", category: "scaffold" },
-  { name: "Puntales telescópicos", model: "heavy duty", category: "scaffold" },
   { name: "Pisón canguro", model: "Honda GX160", category: "machine" },
   { name: "Pisón canguro", model: "Wacker BS50-2i", category: "machine" },
   { name: "Pisón canguro", model: "Bomag BT65", category: "machine" },

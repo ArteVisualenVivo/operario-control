@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx"
 import type { Sync3CItem } from "./types"
+import { classifyScaffoldStock } from "@/lib/scaffoldMatcher"
 
 const COLUMNS = {
   codigo: 2,
@@ -47,6 +48,7 @@ export function parseExcel(buffer: ArrayBuffer | Buffer): ParseResult {
     const deposito = parseInt(String(row[COLUMNS.deposito] ?? 0)) || 0
     const unidadRaw = (row[COLUMNS.unidadRaw] ?? "").toString().trim()
     const unit = mapUnit(unidadRaw)
+    const scaffold = classifyScaffoldStock(nameRaw)
 
     items.push({
       codigo,
@@ -57,6 +59,9 @@ export function parseExcel(buffer: ArrayBuffer | Buffer): ParseResult {
       deposito,
       source: "3c",
       stockWarning: stockTotal < 0,
+      category: scaffold.category,
+      subtype: scaffold.subtype,
+      scaffoldKind: scaffold.kind,
     })
   }
 
@@ -88,6 +93,9 @@ export function parseExcel(buffer: ArrayBuffer | Buffer): ParseResult {
       deposito: item.depositos[0] ?? 0,
       source: "3c",
       stockWarning: item.stockWarning,
+      category: item.category,
+      subtype: item.subtype,
+      scaffoldKind: item.scaffoldKind,
     })
   }
 

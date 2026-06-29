@@ -7,7 +7,6 @@ import { useInventoryStock } from "@/hooks/useInventoryStock"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import SeedInventory from "@/components/machines/SeedInventory"
 import Sync3CButton from "@/components/sync/Sync3CButton"
 import WorkshopSummary from "@/components/dashboard/WorkshopSummary"
 import SmartAlertsPanel from "@/components/dashboard/SmartAlertsPanel"
@@ -123,7 +122,6 @@ export default function DashboardPage() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start gap-3">
-        <SeedInventory onComplete={refreshAll} />
         <Sync3CButton onComplete={refreshAll} variant="outline" />
       </div>
 

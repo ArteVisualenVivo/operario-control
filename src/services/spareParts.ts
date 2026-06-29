@@ -3,6 +3,8 @@ import {
   query, where, orderBy, serverTimestamp, Timestamp,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
+import { LOCAL_MODE } from "@/lib/runtimeMode"
+import { LOCAL_SPARE_PART_SEED } from "@/lib/local-seeds"
 import { createAuditLog } from "./audit"
 import { createMovement } from "./stockMovements"
 import type { SparePart, CreateSparePartInput, SparePartCategory, SparePartSource } from "@/types"
@@ -37,9 +39,20 @@ function docToSparePart(docSnap: { id: string; data: () => Record<string, unknow
 }
 
 export async function getAllSpareParts(): Promise<SparePart[]> {
-  const q = query(collection(db, COLLECTION), orderBy("partName"))
-  const snapshot = await getDocs(q)
-  return snapshot.docs.map(docToSparePart)
+  try {
+    const q = query(collection(db, COLLECTION), orderBy("partName"))
+    const snapshot = await getDocs(q)
+    const data = snapshot.docs.map(docToSparePart)
+    if (LOCAL_MODE && data.length === 0) {
+      return LOCAL_SPARE_PART_SEED
+    }
+    return data
+  } catch {
+    if (LOCAL_MODE) {
+      return LOCAL_SPARE_PART_SEED
+    }
+    throw new Error("No se pudieron cargar los repuestos")
+  }
 }
 
 export async function getSparePartsByMachine(machineId: string): Promise<SparePart[]> {

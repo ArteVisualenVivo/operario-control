@@ -165,13 +165,24 @@ WatchAndCopy() {
             Log("[WATCHER] Fecha: " A_LoopFileTimeModified)
             Log("[WATCHER] Tamaño: " A_LoopFileSizeKB " KB")
 
-            FileCopy(A_LoopFileFullPath, exportsDir "\" A_LoopFileName, 1)
-            Log("[OK] Archivo copiado a exports")
+            targetFile := exportsDir "\" A_LoopFileName
+            if FileCopy(A_LoopFileFullPath, targetFile, 1) {
+                Log("[OK] Archivo copiado a exports: " targetFile)
+                try {
+                    FileDelete(A_LoopFileFullPath)
+                    Log("[OK] Archivo original eliminado: " A_LoopFileFullPath)
+                } catch {
+                    Log("[WARN] No se pudo eliminar el original: " A_LoopFileFullPath)
+                }
+            } else {
+                Log("[ERROR] No se pudo copiar el archivo a exports")
+            }
 
             return A_LoopFileName
         }
     }
 
-    Log("[WATCHER] TIMEOUT — no se detectaron archivos tresc*.xls en Temp\tresc")
+    Log("[WATCHER] TIMEOUT � no se detectaron archivos tresc*.xls en Temp	resc")
     return ""
 }
+

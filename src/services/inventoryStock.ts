@@ -11,6 +11,8 @@ import {
   query, orderBy, serverTimestamp, Timestamp,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
+import { LOCAL_MODE } from "@/lib/runtimeMode"
+import { LOCAL_STOCK_SEED } from "@/lib/local-seeds"
 import { createAuditLog } from "./audit"
 import { createInventoryMovement } from "./inventoryMovements"
 import type { InventoryStock, CreateStockInput, StockSubtype, StockSize } from "@/types"
@@ -43,9 +45,20 @@ function docToStock(docSnap: { id: string; data: () => Record<string, unknown> }
 }
 
 export async function getStockItems(): Promise<InventoryStock[]> {
-  const q = query(collection(db, COLLECTION), orderBy("name"))
-  const snapshot = await getDocs(q)
-  return snapshot.docs.map(docToStock)
+  try {
+    const q = query(collection(db, COLLECTION), orderBy("name"))
+    const snapshot = await getDocs(q)
+    const data = snapshot.docs.map(docToStock)
+    if (LOCAL_MODE && data.length === 0) {
+      return LOCAL_STOCK_SEED
+    }
+    return data
+  } catch {
+    if (LOCAL_MODE) {
+      return LOCAL_STOCK_SEED
+    }
+    throw new Error("No se pudieron cargar los materiales")
+  }
 }
 
 export async function getStockItem(id: string): Promise<InventoryStock | null> {

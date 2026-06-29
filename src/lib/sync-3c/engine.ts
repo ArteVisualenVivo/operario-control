@@ -1,5 +1,6 @@
 import * as XLSX from "xlsx"
 import type { Sync3CItem, Sync3CResult, Sync3CConfig } from "./types"
+import { classifyScaffoldStock } from "@/lib/scaffoldMatcher"
 
 const DEFAULTS: Sync3CConfig = {
   unit: "unidad",
@@ -87,6 +88,7 @@ export async function syncItems(
   }
 
   for (const item of items) {
+    const scaffold = classifyScaffoldStock(item.name)
     let match = item.codigo ? (codeMap.get(item.codigo) ?? null) : null
     if (!match) {
       match = stockMap.get(item.normalizedName) ?? null
@@ -103,6 +105,8 @@ export async function syncItems(
       stockWarning: item.stockWarning || false,
       lastSync: new Date(),
       updatedAt: new Date(),
+      category: item.category ?? scaffold.category ?? config.category,
+      subtype: item.subtype ?? scaffold.subtype ?? null,
     }
 
     if (item.stockWarning) {
@@ -118,9 +122,9 @@ export async function syncItems(
       await collection.add({
         ...payload,
         name: item.name,
-        category: config.category,
+        category: item.category ?? scaffold.category ?? config.category,
         locationType: config.locationType,
-        subtype: null,
+        subtype: item.subtype ?? scaffold.subtype ?? null,
         size: null,
         createdAt: new Date(),
       })

@@ -3,6 +3,7 @@ import {
   query, where, orderBy, serverTimestamp, Timestamp,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
+import { LOCAL_MODE } from "@/lib/runtimeMode"
 import { createAuditLog } from "./audit"
 import { getMaintenanceRecords } from "./maintenance"
 import { getMaintenanceSettings } from "./maintenanceSettings"
@@ -43,6 +44,20 @@ function asDate(value: unknown): Date | undefined {
   return undefined
 }
 
+function normalizeRepairStatus(value: unknown): "EN_TALLER" | "FINALIZADO" {
+  const text = String(value ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+  if (
+    text.includes("entreg") ||
+    text.includes("retir") ||
+    text.includes("reparad") ||
+    text.includes("no reparad") ||
+    text.includes("finaliz")
+  ) {
+    return "FINALIZADO"
+  }
+  return "EN_TALLER"
+}
+
 function docToRepair(docSnap: { id: string; data: () => Record<string, unknown> }): MachineRepair {
   const data = docSnap.data()
   const exitDate = data.exitDate ? toDate(data.exitDate) : toDate(data.createdAt)
@@ -73,7 +88,7 @@ function docToRepair(docSnap: { id: string; data: () => Record<string, unknown> 
     partsUsed: (data.partsUsed as MachineRepair["partsUsed"]) ?? [],
     source: data.source as MachineRepair["source"] | undefined,
     externalId: data.externalId as string | undefined,
-    status: (data.status as MachineRepair["status"]) ?? "done",
+    status: normalizeRepairStatus(data.status),
     issue: (data.issue as string) ?? "",
     estimatedReturn: data.estimatedReturn ? toDate(data.estimatedReturn) : null,
     createdAt: toDate(data.createdAt),
@@ -111,7 +126,7 @@ function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRec
   const originalRepair = asDate(findDateLikeValue(record.originalData, ["reparacion", "reparaciÃ³n", "taller", "repair"]))
   const statusText = `${record.status} ${record.originalData ? Object.values(record.originalData).join(" ") : ""}`.toUpperCase()
   const exitDate = record.returnDate ?? record.repairDate ?? (originalReturn instanceof Date ? originalReturn : undefined) ?? record.entryDate
-  const hasExitDate = Boolean(record.returnDate || record.repairDate || originalReturn || statusText.includes("ENTREG"))
+  const hasExitDate = Boolean(record.returnDate || record.repairDate || originalReturn || normalizeRepairStatus(record.status) === "FINALIZADO" || statusText.includes("ENTREG"))
   return {
     id: `maintenance:${record.id}`,
     machineId: record.orderNumber,
@@ -146,6 +161,28 @@ function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRec
 }
 
 export async function getRepairs(): Promise<MachineRepair[]> {
+  try {
+    const res = await fetch("/api/local/repairs", { cache: "no-store" })
+    if (res.ok) {
+      const data = await res.json()
+      if (Array.isArray(data)) {
+        return data.map((item) => ({
+          ...item,
+          entryDate: new Date(item.entryDate),
+          exitDate: new Date(item.exitDate),
+          warrantyUntil: new Date(item.warrantyUntil),
+          createdAt: new Date(item.createdAt),
+          updatedAt: new Date(item.updatedAt),
+          estimatedReturn: item.estimatedReturn ? new Date(item.estimatedReturn) : null,
+        })) as MachineRepair[]
+      }
+    }
+  } catch {
+    // fallback below
+  }
+
+  if (LOCAL_MODE) return []
+
   const q = query(collection(db, COLLECTION), orderBy("entryDate", "desc"))
   const snapshot = await getDocs(q)
   const repairs = snapshot.docs.map(docToRepair)

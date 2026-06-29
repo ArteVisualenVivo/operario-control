@@ -3,6 +3,8 @@ import {
   query, orderBy, serverTimestamp, Timestamp, writeBatch,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
+import { LOCAL_MODE } from "@/lib/runtimeMode"
+import { LOCAL_MACHINE_SEED } from "@/lib/local-seeds"
 import { createAuditLog } from "./audit"
 import { rentScaffoldComponents, returnScaffoldComponents } from "./scaffoldRental"
 import type { Machine, MachineRental, LocationInfo, CreateMachineInput, UpdateMachineInput } from "@/types"
@@ -194,7 +196,18 @@ export async function deleteAllMachines(): Promise<number> {
 }
 
 export async function getMachines(): Promise<Machine[]> {
-  const q = query(collection(db, COLLECTION), orderBy("name"))
-  const snapshot = await getDocs(q)
-  return snapshot.docs.map(docToMachine)
+  try {
+    const q = query(collection(db, COLLECTION), orderBy("name"))
+    const snapshot = await getDocs(q)
+    const data = snapshot.docs.map(docToMachine)
+    if (LOCAL_MODE && data.length === 0) {
+      return LOCAL_MACHINE_SEED
+    }
+    return data
+  } catch {
+    if (LOCAL_MODE) {
+      return LOCAL_MACHINE_SEED
+    }
+    throw new Error("No se pudieron cargar las máquinas")
+  }
 }

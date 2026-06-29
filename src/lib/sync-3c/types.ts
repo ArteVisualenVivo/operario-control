@@ -7,6 +7,9 @@ export interface Sync3CItem {
   unit?: string
   deposito?: number
   source?: string
+  category?: string
+  subtype?: string | null
+  scaffoldKind?: "structure" | "piece" | "accessory" | null
 }
 
 export interface Sync3CConfig {

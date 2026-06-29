@@ -17,6 +17,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PROJECT_ROOT = path.resolve(__dirname, "..")
 const AHK_DIR = path.join(PROJECT_ROOT, "automation")
 const EXPORTS_DIR = path.resolve(PROJECT_ROOT, "automation-watcher", "3c_exports")
+const CACHE_DIR = path.resolve(PROJECT_ROOT, "automation-watcher", "cache")
+const STOCK_CACHE_FILE = path.join(CACHE_DIR, "stock-cache.json")
+const MACHINES_CACHE_FILE = path.join(CACHE_DIR, "machines-cache.json")
+const SPARE_PARTS_CACHE_FILE = path.join(CACHE_DIR, "spare-parts-cache.json")
 
 const LOG_FILE = path.join(__dirname, "agent.log")
 const logStream = fs.createWriteStream(LOG_FILE, { flags: "a" })
@@ -159,6 +163,76 @@ function findLatestExport() {
   return files[0] ?? null
 }
 
+function ensureCacheDir() {
+  if (!fs.existsSync(CACHE_DIR)) {
+    fs.mkdirSync(CACHE_DIR, { recursive: true })
+  }
+}
+
+function safeWriteJson(filePath, data) {
+  try {
+    ensureCacheDir()
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
+  } catch (err) {
+    console.warn(`[AGENT] No se pudo escribir cache ${path.basename(filePath)}:`, err?.message)
+  }
+}
+
+function buildMachineSeedFromStock(items) {
+  const scaffoldNames = new Set([
+    "andamio tubular",
+    "andamio modular",
+    "andamio pasillero",
+    "andamio reforzado",
+    "caballetes",
+    "tablón para andamios",
+    "tablones",
+    "puntales telescópicos",
+    "puntales",
+    "riendas",
+  ])
+
+  return items
+    .filter((item) => scaffoldNames.has(String(item.name ?? "").toLowerCase().trim()))
+    .map((item, index) => ({
+      id: `local-${item.codigo || item.normalizedName || index}`,
+      name: item.name,
+      model: item.codigo || item.normalizedName || "3C",
+      category: "scaffold",
+      status: "available",
+      locationType: "deposito",
+      location: null,
+      rental: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }))
+}
+
+function buildSparePartsSeedFromStock(items) {
+  return items
+    .filter((item) => {
+      const name = String(item.name ?? "").toLowerCase().trim()
+      return name.includes("andamio") || name.includes("tabl") || name.includes("rienda") || name.includes("puntal")
+    })
+    .slice(0, 50)
+    .map((item, index) => ({
+      id: `local-part-${item.codigo || index}`,
+      machineId: `local-${item.codigo || index}`,
+      machineName: item.name,
+      machineModel: item.codigo || "3C",
+      partName: item.name,
+      partCode: item.codigo || `AUTO-${index + 1}`,
+      category: "estructural",
+      unit: item.unit || "unidad",
+      stockTotal: item.stockTotal || 0,
+      stockAvailable: item.stockTotal || 0,
+      stockUsed: 0,
+      source: "manual",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }))
+}
+
 async function processCommand(redis, commandId, module) {
   isProcessing = true
 
@@ -270,6 +344,13 @@ async function processCommand(redis, commandId, module) {
           maintenanceError: maintErr instanceof Error ? maintErr.message : String(maintErr),
         }
       }
+    }
+
+    if (module === "stock") {
+      safeWriteJson(STOCK_CACHE_FILE, items)
+      safeWriteJson(MACHINES_CACHE_FILE, buildMachineSeedFromStock(items))
+      safeWriteJson(SPARE_PARTS_CACHE_FILE, buildSparePartsSeedFromStock(items))
+      console.log("[AGENT] Local stock cache actualizado")
     }
 
     await redis.hset(`sync-3c:result:${commandId}`, {

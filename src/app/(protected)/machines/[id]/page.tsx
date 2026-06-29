@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { getMachine } from "@/services/machines"
 import { useSpareParts } from "@/hooks/useSpareParts"
@@ -19,6 +19,11 @@ import { toast } from "sonner"
 import type { Machine, MachineCategory, MachineLocation, MachineRental, LocationInfo } from "@/types"
 import { CATEGORY_LABELS } from "@/lib/categories"
 import { statusColors, statusLabels, locationLabels, formatDate } from "@/lib/ui"
+
+const REPAIR_STATUS_LABELS: Record<string, string> = {
+  EN_TALLER: "En taller",
+  FINALIZADO: "Finalizado",
+}
 
 export default function MachineDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -50,6 +55,24 @@ export default function MachineDetailPage() {
   const { spareParts, loading: spLoading, error: spError } = useSpareParts(id)
   const { blueprints, loading: bpLoading, error: bpError } = useMachineBlueprints(id)
   const [machineRepairs, setMachineRepairs] = useState<MachineRepair[]>([])
+
+  const controlSummary = useMemo(() => {
+    const totalParts = spareParts.reduce((sum, part) => sum + part.stockTotal, 0)
+    const availableParts = spareParts.reduce((sum, part) => sum + part.stockAvailable, 0)
+    const usedParts = spareParts.reduce((sum, part) => sum + part.stockUsed, 0)
+    const inWorkshop = machineRepairs.filter((r) => r.status === "EN_TALLER").length
+    const finished = machineRepairs.filter((r) => r.status === "FINALIZADO").length
+    const lastRepair = machineRepairs[0] ?? null
+
+    return {
+      totalParts,
+      availableParts,
+      usedParts,
+      inWorkshop,
+      finished,
+      lastRepair,
+    }
+  }, [machineRepairs, spareParts])
 
   useEffect(() => {
     getMachine(id).then((m) => { setMachine(m); setLoading(false) })
@@ -235,6 +258,49 @@ export default function MachineDetailPage() {
               )}
             </div>
           )}
+
+          <div className="border-t pt-3 mt-3 space-y-3">
+            <p className="text-sm font-medium">Control rápido</p>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Card className="shadow-none">
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Repuestos</p>
+                  <p className="text-xl font-bold">{controlSummary.totalParts}</p>
+                </CardContent>
+              </Card>
+              <Card className="shadow-none">
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Disponibles</p>
+                  <p className="text-xl font-bold text-green-600">{controlSummary.availableParts}</p>
+                </CardContent>
+              </Card>
+              <Card className="shadow-none">
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Uso</p>
+                  <p className="text-xl font-bold text-blue-600">{controlSummary.usedParts}</p>
+                </CardContent>
+              </Card>
+              <Card className="shadow-none">
+                <CardContent className="p-3">
+                  <p className="text-xs text-muted-foreground">Reparaciones</p>
+                  <p className="text-xl font-bold">{controlSummary.inWorkshop}/{controlSummary.finished}</p>
+                </CardContent>
+              </Card>
+            </div>
+            <div className="rounded-lg border bg-muted/20 p-3 text-sm space-y-1">
+              <p className="font-medium">Último movimiento técnico</p>
+              {controlSummary.lastRepair ? (
+                <>
+                  <p><span className="text-muted-foreground">Estado:</span> {REPAIR_STATUS_LABELS[controlSummary.lastRepair.status] ?? controlSummary.lastRepair.status}</p>
+                  <p><span className="text-muted-foreground">Ingreso:</span> {formatDate(controlSummary.lastRepair.entryDate)}</p>
+                  <p><span className="text-muted-foreground">Salida:</span> {formatDate(controlSummary.lastRepair.exitDate)}</p>
+                  <p><span className="text-muted-foreground">Cliente:</span> {controlSummary.lastRepair.clientName || "—"}</p>
+                </>
+              ) : (
+                <p className="text-muted-foreground">Todavía no hay reparaciones registradas.</p>
+              )}
+            </div>
+          </div>
 
           {machine.rental && (
             <div className="rounded-lg border bg-blue-50 p-3 text-sm space-y-1">

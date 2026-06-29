@@ -150,7 +150,7 @@ export default function Sync3CButton({
 
           const message = parts.length > 0
             ? `Sync 3C completado: ${parts.join(", ")}`
-            : "Sync 3C completado (sin cambios)"
+            : "Sync 3C completado"
 
           toast.success(message)
 
