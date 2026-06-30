@@ -1,58 +1,65 @@
 #Include sync_common.ahk
 
 ; ============================================================================
-; sync_articulos.ahk — Módulo ARTÍCULOS
-; Solo contiene la navegación específica de Artículos.
+; sync_articulos.ahk - Modulo ARTICULOS
+; Solo contiene la navegacion especifica de Articulos.
 ; El motor compartido vive en sync_common.ahk.
 ; ============================================================================
 
 ; ============================================================================
-; NAVEGACIÓN ARTÍCULOS
+; NAVEGACION ARTICULOS
 ; ============================================================================
 
 NavigateArticulos() {
-    ; Resync — intentar volver a estado base
+    ; - Timings locales especificos para Articulos -
+    ; (no afectan a globales afterClick/afterSubmenu/afterExcel)
+    local_afterServiciosArt  := 1000
+    local_afterArticulosMenu := 1000
+    local_afterArticulosLista := 600
+    local_afterImprimirArt   := 2000
+
+    ; Resync - intentar volver a estado base
     Log("Resync: enviando Ctrl+Home")
     SendInput("^Home")
     Sleep(resyncDelay)
 
-    ; 1 — Click Servicios
+    ; 1 - Servicios
     ClickAt("ServiciosArt")
-    Sleep(afterClick)
+    Sleep(local_afterServiciosArt)
     ValidarFoco()
 
-    ; 2 — Click Artículos (menú)
+    ; 2 - Articulos (menu)
     ClickAt("ArticulosMenu")
-    Sleep(afterSubmenu)
+    Sleep(local_afterArticulosMenu)
     ValidarFoco()
 
-    ; 3 — Click Artículos (lista)
+    ; 3 - Articulos (segunda opcion)
     ClickAt("ArticulosLista")
-    Sleep(afterClick)
+    Sleep(local_afterArticulosLista)
     ValidarFoco()
 
-    ; 4 — Click Imprimir
+    ; 4 - Imprimir
     ClickAt("ImprimirArt")
-    Sleep(afterClick)
+    Sleep(local_afterImprimirArt)
     ValidarFoco()
 
-    ; 5 — Click Generar
+    ; 5 - Generar
     ClickAt("Generar")
     Sleep(afterClick)
     ValidarFoco()
 
-    ; 6 — Click Formato Excel
+    ; 6 - Formato Excel
     ClickAt("ExcelArt")
     Sleep(afterExcel)
 
-    Log("Exportación de artículos completada. Esperando Excel...")
+    Log("Exportacion de articulos completada. Esperando Excel...")
 }
 
 ; ============================================================================
 ; MAIN
 ; ============================================================================
 startTime := A_TickCount
-Log("=== INICIO ARTÍCULOS ===")
+Log("=== INICIO ARTICULOS ===")
 Sleep(initDelay)
 
 try {
@@ -62,20 +69,22 @@ try {
     WaitForExcel()
     WatchAndCopy()
 
-    ; Cerrar Excel y volver al menú principal
+    ; Cerrar Excel y volver al menu principal
     if WinExist("ahk_class XLMAIN")
         WinClose("ahk_class XLMAIN")
     Sleep(500)
     WinActivate(windowTitle)
     Sleep(500)
-    ClickAt("SalirArt")
-    Sleep(300)
+    ; 7 - Salir de la pantalla de impresion
     ClickAt("SalirArt2")
+    Sleep(300)
+    ; 8 - Salir de Articulos
+    ClickAt("SalirArt")
     Sleep(1000)
-    Log("[NAV] Main menu restored (Artículos)")
+    Log("[NAV] Main menu restored (Articulos)")
 } catch as err {
     Log("[ERROR] " err.Message)
 }
 
-Log("=== FIN ARTÍCULOS ===")
+Log("=== FIN ARTICULOS ===")
 ExitApp

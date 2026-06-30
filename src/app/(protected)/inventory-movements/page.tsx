@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { Input } from "@/components/ui/input"
+import { Input } from "@/components/ui/input
+import { SearchInput } from "@/components/ui/SearchInput"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -15,7 +16,7 @@ import type { InventoryMovement, InventoryStock } from "@/types"
 
 const TYPE_CONFIG: Record<string, { label: string; color: string }> = {
   ALQUILER: { label: "Alquiler", color: "bg-blue-200 text-blue-800" },
-  DEVOLUCION: { label: "Devolución", color: "bg-green-200 text-green-800" },
+  DEVOLUCION: { label: "DevoluciÃ³n", color: "bg-green-200 text-green-800" },
   AJUSTE: { label: "Ajuste", color: "bg-amber-200 text-amber-800" },
 }
 
@@ -150,7 +151,7 @@ export default function InventoryMovementsPage() {
                 <TableHead>Cliente</TableHead>
                 <TableHead>Obra</TableHead>
                 <TableHead>Referencia</TableHead>
-                <TableHead className="w-20">Acción</TableHead>
+                <TableHead className="w-20">AcciÃ³n</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -177,8 +178,8 @@ export default function InventoryMovementsPage() {
                       )}
                     </TableCell>
                     <TableCell className="text-right font-mono">{m.quantity}</TableCell>
-                    <TableCell>{m.clientName ?? "—"}</TableCell>
-                    <TableCell>{m.projectName ?? "—"}</TableCell>
+                    <TableCell>{m.clientName ?? "â€”"}</TableCell>
+                    <TableCell>{m.projectName ?? "â€”"}</TableCell>
                     <TableCell>
                       {m.reference ? (
                         <span
@@ -187,7 +188,7 @@ export default function InventoryMovementsPage() {
                         >
                           {m.reference.slice(0, 8)}...
                         </span>
-                      ) : "—"}
+                      ) : "â€”"}
                     </TableCell>
                     <TableCell>
                       {mat && (

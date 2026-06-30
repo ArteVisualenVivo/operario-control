@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useMachines } from "@/hooks/useMachines"
-import { Input } from "@/components/ui/input"
+import { SearchInput } from "@/components/ui/SearchInput"
 import { Button } from "@/components/ui/button"
 import ImportInventory from "@/components/machines/ImportInventory"
 import MachineCard from "@/components/machines/MachineCard"
@@ -38,24 +38,24 @@ export default function MachinesPage() {
   const [deleting, setDeleting] = useState(false)
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("¿Eliminar esta máquina? Esta acción no se puede deshacer.")) return
+    if (!window.confirm("Â¿Eliminar esta mÃ¡quina? Esta acciÃ³n no se puede deshacer.")) return
     try {
       await remove(id)
-      toast.success("Máquina eliminada")
+      toast.success("MÃ¡quina eliminada")
     } catch {
-      toast.error("Error al eliminar máquina")
+      toast.error("Error al eliminar mÃ¡quina")
     }
   }
 
   const handleDeleteAll = async () => {
-    const confirm = window.prompt("Esto eliminará TODAS las máquinas. Escribe ELIMINAR para confirmar:")
+    const confirm = window.prompt("Esto eliminarÃ¡ TODAS las mÃ¡quinas. Escribe ELIMINAR para confirmar:")
     if (confirm !== "ELIMINAR") return
     setDeleting(true)
     try {
       const count = await deleteAll()
-      toast.success(`${count} máquina${count !== 1 ? "s" : ""} eliminada${count !== 1 ? "s" : ""}`)
+      toast.success(`${count} mÃ¡quina${count !== 1 ? "s" : ""} eliminada${count !== 1 ? "s" : ""}`)
     } catch {
-      toast.error("Error al eliminar máquinas")
+      toast.error("Error al eliminar mÃ¡quinas")
     } finally {
       setDeleting(false)
     }
@@ -81,10 +81,10 @@ export default function MachinesPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-2xl font-bold">Máquinas</h1>
+        <h1 className="text-2xl font-bold">MÃ¡quinas</h1>
         <div className="flex gap-2">
           <ImportInventory />
-          <Button onClick={() => router.push("/machines/new")}>Nueva máquina</Button>
+          <Button onClick={() => router.push("/machines/new")}>Nueva mÃ¡quina</Button>
           <Button variant="destructive" size="sm" onClick={handleDeleteAll} disabled={deleting || machines.length === 0}>
             {deleting ? "Eliminando..." : "Eliminar todas"}
           </Button>
@@ -113,7 +113,7 @@ export default function MachinesPage() {
         ))}
       </div>
 
-      {filteredMachines.length === 0 && <p className="text-center text-muted-foreground">No se encontraron máquinas</p>}
+      {filteredMachines.length === 0 && <p className="text-center text-muted-foreground">No se encontraron mÃ¡quinas</p>}
     </div>
   )
 }

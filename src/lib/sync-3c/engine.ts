@@ -1,3 +1,4 @@
+import * as XLSX from "xlsx"
 import type { Sync3CItem, Sync3CResult, Sync3CConfig } from "./types"
 
 const DEFAULTS: Sync3CConfig = {
@@ -95,7 +96,7 @@ export async function syncItems(
 
     if (item.stockWarning) {
       result.warnings.push(
-        `Stock negativo para "${item.name}" (cÃ³digo: ${item.codigo}): ${item.stockTotal}`
+        `Stock negativo para "${item.name}" (código: ${item.codigo}): ${item.stockTotal}`
       )
     }
 
@@ -116,9 +117,107 @@ export async function syncItems(
     } else {
       result.skipped++
       result.warnings.push(
-        `Material no encontrado en Firestore: "${item.name}" â€” omitido (strictMode)`
+        `Material no encontrado en Firestore: "${item.name}" — omitido (strictMode)`
       )
     }
+  }
+
+  return result
+}
+
+export async function syncRepairsToMaintenance(
+  buffer: ArrayBuffer | Buffer,
+): Promise<{ success: boolean; created: number; updated: number; skipped: number; warnings: string[] }> {
+  const admin = getFirebaseAdmin()
+  const { getFirestore } = require("firebase-admin/firestore")
+  const db = getFirestore()
+
+  const result = {
+    success: true,
+    created: 0,
+    updated: 0,
+    skipped: 0,
+    warnings: [] as string[],
+  }
+
+  try {
+    const workbook = XLSX.read(buffer, { type: "buffer" })
+    const sheetName = workbook.SheetNames[0]
+    const worksheet = workbook.Sheets[sheetName]
+    const rows: unknown[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+
+    const collection = db.collection("maintenance")
+
+    // Columnas del Excel de Reparaciones (0-indexed)
+    // Ajustar segun el formato real exportado por 3C
+    const COL_ORDER = 0
+    const COL_ENTRY_DATE = 1
+    const COL_CLIENT = 2
+    const COL_MACHINE = 3
+    const COL_BRAND = 4
+    const COL_MODEL = 5
+    const COL_SERIAL = 6
+    const COL_STATUS = 7
+    const COL_TECHNICIAN = 8
+    const COL_OBSERVATIONS = 9
+
+    for (let i = 1; i < rows.length; i++) {
+      const row = rows[i]
+      if (!row || !Array.isArray(row)) continue
+
+      const orderNumber = String(row[COL_ORDER] ?? "").trim()
+      if (!orderNumber) {
+        result.skipped++
+        continue
+      }
+
+      const entryDateRaw = row[COL_ENTRY_DATE]
+      const entryDate = entryDateRaw ? new Date(entryDateRaw) : new Date()
+
+      const clientName = String(row[COL_CLIENT] ?? "").trim()
+      const machineName = String(row[COL_MACHINE] ?? "").trim()
+      const brand = String(row[COL_BRAND] ?? "").trim() || undefined
+      const model = String(row[COL_MODEL] ?? "").trim() || undefined
+      const serial = String(row[COL_SERIAL] ?? "").trim() || undefined
+      const status = String(row[COL_STATUS] ?? "").trim() || "Recepción"
+      const technician = String(row[COL_TECHNICIAN] ?? "").trim() || undefined
+      const observations = String(row[COL_OBSERVATIONS] ?? "").trim() || undefined
+
+      const ref = collection.doc(orderNumber)
+      const before = await getDoc(ref)
+      const payload: Record<string, unknown> = {
+        orderNumber,
+        entryDate,
+        clientName,
+        machineName,
+        brand: brand ?? null,
+        model: model ?? null,
+        serial: serial ?? null,
+        status,
+        technician: technician ?? null,
+        observations: observations ?? null,
+        repairDate: null,
+        returnDate: null,
+        warranty: null,
+        history: null,
+        shopTime: null,
+        updatedAt: new Date(),
+      }
+
+      if (!before.exists) {
+        await setDoc(ref, {
+          ...payload,
+          createdAt: new Date(),
+        })
+        result.created++
+      } else {
+        await setDoc(ref, payload, { merge: true })
+        result.updated++
+      }
+    }
+  } catch (err) {
+    result.success = false
+    result.warnings.push(err instanceof Error ? err.message : String(err))
   }
 
   return result
