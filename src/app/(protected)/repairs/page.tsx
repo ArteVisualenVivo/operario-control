@@ -42,19 +42,21 @@ export default function RepairsPage() {
         (r.machineModel ?? "").toLowerCase().includes(q) ||
         (r.internalNumber ?? "").toLowerCase().includes(q) ||
         (r.clientNumber ?? "").toLowerCase().includes(q)
+
       const entry = new Date(r.entryDate)
       const matchesFrom = !dateFrom || entry >= new Date(dateFrom)
       const matchesTo = !dateTo || entry <= new Date(dateTo + "T23:59:59")
       const matchesStatus = statusFilter === "all" || r.status === statusFilter
+
       return matchesSearch && matchesFrom && matchesTo && matchesStatus
     })
   }, [repairs, search, dateFrom, dateTo, statusFilter])
 
   const handleDelete = async (id: string, machineName: string) => {
-    if (!window.confirm(`¿Eliminar la reparación de ${machineName}?`)) return
+    if (!window.confirm(`Eliminar la reparaciÃ³n de ${machineName}?`)) return
     try {
       await remove(id)
-      toast.success("Reparación eliminada")
+      toast.success("ReparaciÃ³n eliminada")
     } catch {
       toast.error("Error al eliminar")
     }
@@ -66,131 +68,81 @@ export default function RepairsPage() {
     <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold">Reparaciones</h1>
+
         <div className="flex gap-2">
-          <Button onClick={() => router.push("/repairs/new")}>Nueva reparación</Button>
-          <Button variant="outline" onClick={() => router.push("/maintenance")}>Panel de mantenimiento</Button>
+          <Button onClick={() => router.push("/repairs/new")}>Nueva reparaciÃ³n</Button>
+          <Button variant="outline" onClick={() => router.push("/maintenance")}>
+            Mantenimiento
+          </Button>
         </div>
       </div>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
         <SearchInput
-          placeholder="Buscar por orden, cliente o máquina"
+          placeholder="Buscar por orden, cliente o mÃ¡quina"
           value={search}
           onChange={setSearch}
           className="max-w-sm"
         />
+
         <div className="flex gap-2 items-center">
-          <label className="text-xs text-muted-foreground">Desde:</label>
-          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-40" />
-          <label className="text-xs text-muted-foreground">Hasta:</label>
-          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-40" />
+          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
         </div>
-        <div className="flex gap-1">
-          {(["all", "EN_TALLER", "FINALIZADO"] as const).map((s) => (
+
+        <div className="flex gap-2">
+          {["all", "EN_TALLER", "FINALIZADO"].map((s) => (
             <Button
               key={s}
               variant={statusFilter === s ? "default" : "outline"}
-              size="sm"
               onClick={() => setStatusFilter(s)}
             >
-              {s === "all" ? "Todos" : s === "EN_TALLER" ? "En taller" : "Finalizados"}
+              {s}
             </Button>
           ))}
         </div>
       </div>
 
-      {filtered.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No se encontraron reparaciones.</p>
-      ) : (
-        <div className="rounded-md border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Máquina</TableHead>
-                <TableHead>Modelo</TableHead>
-                <TableHead>Ingreso</TableHead>
-                <TableHead>Egreso</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Repuestos</TableHead>
-                <TableHead>Garantía</TableHead>
-                <TableHead>Aceite</TableHead>
-                <TableHead>Rodamientos</TableHead>
-                <TableHead>Mantenimiento</TableHead>
-                <TableHead className="w-20">Acción</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((r) => {
-                const days = daysUntil(r.warrantyUntil)
-                return (
-                  <TableRow
-                    key={r.id}
-                    className="cursor-pointer"
-                    onClick={() => router.push(`/repairs/${r.id}`)}
-                  >
-                    <TableCell className="font-medium">{r.clientName}</TableCell>
-                    <TableCell>{r.machineName} {r.internalNumber ? `(${r.internalNumber})` : ""}</TableCell>
-                    <TableCell>{r.machineModel ?? "—"}</TableCell>
-                    <TableCell>{formatDate(r.entryDate)}</TableCell>
-                    <TableCell>{formatDate(r.exitDate)}</TableCell>
-                    <TableCell>
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${
-                        r.status === "EN_TALLER" ? "bg-blue-200 text-blue-800" : "bg-green-200 text-green-800"
-                      }`}>
-                        {r.status === "EN_TALLER" ? "En taller" : "Finalizado"}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {r.partsUsed?.length ? `${r.partsUsed.length} repuesto${r.partsUsed.length > 1 ? "s" : ""}` : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${statusBadge("Garantía", days)}`}>
-                        {days !== null
-                          ? days <= 0
-                            ? "Vencida"
-                            : `${days}d`
-                          : "—"}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      {r.oilChangeDueDate ? (
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${statusBadge("Aceite", daysUntil(r.oilChangeDueDate))}`}>
-                          {daysUntil(r.oilChangeDueDate)! <= 0 ? "Vencido" : `${daysUntil(r.oilChangeDueDate)}d`}
-                        </span>
-                      ) : "—"}
-                    </TableCell>
-                    <TableCell>
-                      {r.bearingChangeDueDate ? (
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${statusBadge("Rodamientos", daysUntil(r.bearingChangeDueDate))}`}>
-                          {daysUntil(r.bearingChangeDueDate)! <= 0 ? "Vencido" : `${daysUntil(r.bearingChangeDueDate)}d`}
-                        </span>
-                      ) : "—"}
-                    </TableCell>
-                    <TableCell>
-                      {r.maintenanceDueDate ? (
-                        <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold ${statusBadge("Mantenimiento", daysUntil(r.maintenanceDueDate))}`}>
-                          {daysUntil(r.maintenanceDueDate)! <= 0 ? "Vencido" : `${daysUntil(r.maintenanceDueDate)}d`}
-                        </span>
-                      ) : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        className="h-7 text-xs"
-                        onClick={(e) => { e.stopPropagation(); handleDelete(r.id, r.machineName) }}
-                      >
-                        Eliminar
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Cliente</TableHead>
+            <TableHead>MÃ¡quina</TableHead>
+            <TableHead>Modelo</TableHead>
+            <TableHead>Ingreso</TableHead>
+            <TableHead>Egreso</TableHead>
+            <TableHead>Estado</TableHead>
+            <TableHead>Mantenimiento</TableHead>
+            <TableHead>AcciÃ³n</TableHead>
+          </TableRow>
+        </TableHeader>
+
+        <TableBody>
+          {filtered.map((r) => (
+            <TableRow key={r.id} onClick={() => router.push(`/repairs/${r.id}`)}>
+              <TableCell>{r.clientName}</TableCell>
+              <TableCell>{r.machineName}</TableCell>
+              <TableCell>{r.machineModel}</TableCell>
+              <TableCell>{formatDate(r.entryDate)}</TableCell>
+              <TableCell>{formatDate(r.exitDate)}</TableCell>
+              <TableCell>{r.status}</TableCell>
+              <TableCell>{formatDate(r.maintenanceDueDate)}</TableCell>
+
+              <TableCell>
+                <Button
+                  variant="destructive"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDelete(r.id, r.machineName)
+                  }}
+                >
+                  Eliminar
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   )
 }

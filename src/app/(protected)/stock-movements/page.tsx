@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { Input } from "@/components/ui/input
+import { Input } from "@/components/ui/input"
 import { SearchInput } from "@/components/ui/SearchInput"
 import { Button } from "@/components/ui/button"
 import {
@@ -19,8 +19,8 @@ const TYPE_CONFIG = {
 } as const
 
 const SOURCE_LABELS: Record<string, string> = {
-  REPARACION: "ReparaciÃ³n",
-  REPOSICION: "ReposiciÃ³n",
+  REPARACION: "Reparación",
+  REPOSICION: "Reposición",
 }
 
 export default function StockMovementsPage() {
@@ -131,7 +131,7 @@ export default function StockMovementsPage() {
                           className="cursor-pointer hover:underline"
                           onClick={() => router.push(`/machines/${part.machineId}/parts`)}
                         >
-                          {part.partCode} â€” {part.partName}
+                          {part.partCode} — {part.partName}
                         </span>
                       ) : (
                         <span className="text-muted-foreground">Repuesto eliminado</span>
@@ -143,7 +143,7 @@ export default function StockMovementsPage() {
                         <span className={part.stockAvailable === 0 ? "text-red-600 font-semibold" : ""}>
                           {part.stockAvailable} uds.
                         </span>
-                      ) : "â€”"}
+                      ) : "—"}
                     </TableCell>
                     <TableCell>
                       {m.source === "REPARACION" ? (
@@ -151,7 +151,7 @@ export default function StockMovementsPage() {
                           className="cursor-pointer hover:underline text-blue-600"
                           onClick={() => router.push(`/repairs/${m.referenceId}`)}
                         >
-                          Ver reparaciÃ³n
+                          Ver reparación
                         </span>
                       ) : (
                         <span className="text-muted-foreground">{m.referenceId}</span>

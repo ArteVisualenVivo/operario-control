@@ -14,7 +14,20 @@ import { formatDate } from "@/lib/ui"
 export default function RentalsPage() {
   const { machines, loading } = useMachines()
   const router = useRouter()
-const [search, setSearch] = useState("")`n  const rentedMachines = useMemo(() => {`n    return machines.filter((m) => {`n      if (!m.rental) return false`n      const q = search.toLowerCase()`n      if (!q) return true`n      return (`n        m.name.toLowerCase().includes(q) ||`n        m.model.toLowerCase().includes(q) ||`n        (m.rental.clientName ?? "").toLowerCase().includes(q) ||`n        (m.rental.projectName ?? "").toLowerCase().includes(q)`n      )`n    })`n  }, [machines, search])
+  const [search, setSearch] = useState("")
+  const rentedMachines = useMemo(() => {
+    return machines.filter((m) => {
+      if (!m.rental) return false
+      const q = search.toLowerCase()
+      if (!q) return true
+      return (
+        m.name.toLowerCase().includes(q) ||
+        m.model.toLowerCase().includes(q) ||
+        (m.rental.clientName ?? "").toLowerCase().includes(q) ||
+        (m.rental.projectName ?? "").toLowerCase().includes(q)
+      )
+    })
+  }, [machines, search])
 
   if (loading) return <p className="text-muted-foreground">Cargando...</p>
 
@@ -22,13 +35,18 @@ const [search, setSearch] = useState("")`n  const rentedMachines = useMemo(() =>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Alquileres activos</h1>
-        <Button onClick={() => router.push("/machines")}>Ver mÃƒÂ¡quinas</Button>
+        <Button onClick={() => router.push("/machines")}>Ver máquinas</Button>
       </div>
 
-      <SearchInput`n          value={search}`n          onChange={setSearch}`n          className="max-w-sm mb-4"`n        />`n      <Table>
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        className="max-w-sm mb-4"
+      />
+      <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>MÃƒÂ¡quina</TableHead>
+            <TableHead>Máquina</TableHead>
             <TableHead>Cliente</TableHead>
             <TableHead>Obra</TableHead>
             <TableHead>Inicio</TableHead>
@@ -45,7 +63,7 @@ const [search, setSearch] = useState("")`n  const rentedMachines = useMemo(() =>
               <TableCell>{m.rental!.projectName}</TableCell>
               <TableCell>{formatDate(m.rental!.startDate)}</TableCell>
               <TableCell>
-                {m.rental!.isOpenEnded ? "Ã¢â‚¬â€" : formatDate(m.rental!.expectedEndDate)}
+                {m.rental!.isOpenEnded ? "—" : formatDate(m.rental!.expectedEndDate)}
               </TableCell>
               <TableCell>
                 {m.rental!.isOpenEnded && (

@@ -6,7 +6,7 @@ import { useMachines } from "@/hooks/useMachines"
 import { useInventoryStock } from "@/hooks/useInventoryStock"
 import { useSparePartsCache } from "@/hooks/useSparePartsCache"
 import Sync3CButton from "@/components/sync/Sync3CButton"
-import { Input } from "@/components/ui/input
+import { Input } from "@/components/ui/input"
 import { SearchInput } from "@/components/ui/SearchInput"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/table"
 import type { Machine } from "@/types"
 
-type StockRowType = "M�quina" | "Andamio" | "Material" | "Repuesto"
+type StockRowType = "Máquina" | "Andamio" | "Material" | "Repuesto"
 
 interface StockRow {
   type: StockRowType
@@ -35,7 +35,7 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   parcial: { color: "bg-amber-200 text-amber-800", label: "Parcial" },
   mantenimiento: { color: "bg-blue-200 text-blue-800", label: "En mto." },
   sin_stock: { color: "bg-red-200 text-red-800", label: "Sin stock" },
-  vacio: { color: "bg-muted text-muted-foreground", label: "VacÃ­o" },
+  vacio: { color: "bg-muted text-muted-foreground", label: "Vacío" },
 
 }
 
@@ -49,7 +49,7 @@ function groupMachines(machines: Machine[], categoryFilter: string): StockRow[] 
 
   const groups = new Map<string, { machines: Machine[]; type: StockRowType }>()
   for (const m of filtered) {
-    const type: StockRowType = M�quina"
+    const type: StockRowType = m.category === "scaffold" ? "Andamio" : "Máquina"
     const key = `${type}||${m.name}||${m.model}`
     if (!groups.has(key)) groups.set(key, { machines: [], type })
     groups.get(key)!.machines.push(m)
@@ -76,7 +76,7 @@ function groupMachines(machines: Machine[], categoryFilter: string): StockRow[] 
     rows.push({
       type,
       id: ms[0].id,
-      name: `${ms[0].name} â€” ${ms[0].model}`,
+      name: `${ms[0].name} — ${ms[0].model}`,
       category: type,
       total,
       available,
@@ -108,9 +108,9 @@ export default function StockPage() {
   const allRows = useMemo(() => {
     const rows: StockRow[] = []
 
-    const M�quina" || typeFilter === "Andamio"
+    const machineType = typeFilter === "all" || typeFilter === "Máquina" || typeFilter === "Andamio"
     if (machineType) {
-      const categoryForM�quina" ? "machine" : typeFilter === "Andamio" ? "scaffold" : "all"
+      const categoryForMachines = typeFilter === "Máquina" ? "machine" : typeFilter === "Andamio" ? "scaffold" : "all"
       rows.push(...groupMachines(machines, categoryForMachines))
     }
 
@@ -140,7 +140,7 @@ export default function StockPage() {
         rows.push({
           type: "Repuesto",
           id: p.id,
-          name: `${p.partCode} â€” ${p.partName}`,
+          name: `${p.partCode} — ${p.partName}`,
           category: p.category,
           total: p.stockTotal,
           available: p.stockAvailable,
@@ -182,7 +182,7 @@ export default function StockPage() {
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle classNaM�quinas</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Máquinas</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold">{summary.machineCount}</p>
@@ -223,7 +223,7 @@ export default function StockPage() {
           className="max-w-sm"
         />
         <div className="flex gap-1 flex-wrap">
-          {(["all", "M�quina", "Andamio", "Material", "Repuesto"] as const).map((t) => (
+          {(["all", "Máquina", "Andamio", "Material", "Repuesto"] as const).map((t) => (
             <Button
               key={t}
               variant={typeFilter === t ? "default" : "outline"}
@@ -257,12 +257,12 @@ export default function StockPage() {
               <TableRow>
                 <TableHead className="w-24">Tipo</TableHead>
                 <TableHead>Nombre</TableHead>
-                <TableHead>CategorÃ­a</TableHead>
+                <TableHead>Categoría</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead className="text-right">Disponible</TableHead>
                 <TableHead className="text-right">En uso</TableHead>
                 <TableHead>Estado</TableHead>
-                <TableHead className="w-20">AcciÃ³n</TableHead>
+                <TableHead className="w-20">Acción</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
