@@ -11,9 +11,6 @@ const DEFAULTS: Sync3CConfig = {
 function getFirebaseAdmin() {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const admin = require("firebase-admin")
-
-  if (admin.getApps().length > 0) return admin
-
   const fs = require("fs")
   const path = require("path")
   const serviceAccountPath = path.resolve(process.cwd(), "sync-agent/service-account.json")
@@ -29,6 +26,20 @@ function getFirebaseAdmin() {
   const serviceAccount = JSON.parse(serviceAccountJson)
 
   console.log("[FIREBASE] Using service account: sync-agent/service-account.json")
+
+  const apps = admin.getApps()
+  if (apps.length > 0) {
+    for (const app of apps) {
+      try {
+        app.delete()
+      } catch (deleteError) {
+        console.warn(
+          "[FIREBASE] Failed to delete existing Firebase app:",
+          deleteError instanceof Error ? deleteError.message : deleteError,
+        )
+      }
+    }
+  }
 
   admin.initializeApp({
     credential: admin.cert(serviceAccount),
@@ -140,85 +151,82 @@ export async function syncRepairsToMaintenance(
     warnings: [] as string[],
   }
 
-  try {
-    const workbook = XLSX.read(buffer, { type: "buffer" })
-    const sheetName = workbook.SheetNames[0]
-    const worksheet = workbook.Sheets[sheetName]
-    const rows: unknown[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+  const workbook = XLSX.read(buffer, { type: "buffer" })
+  const sheetName = workbook.SheetNames[0]
+  const worksheet = workbook.Sheets[sheetName]
+  const rows: unknown[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
 
-    console.log("[ENGINE] syncRepairsToMaintenance iniciando")
-    const collection = db.collection("maintenance")
+  console.log("[ENGINE] syncRepairsToMaintenance iniciando")
+  const collection = db.collection("maintenance")
 
-    // Columnas del Excel de Reparaciones (0-indexed)
-    // Ajustar segun el formato real exportado por 3C
-    const COL_ORDER = 0
-    const COL_ENTRY_DATE = 1
-    const COL_CLIENT = 2
-    const COL_MACHINE = 3
-    const COL_BRAND = 4
-    const COL_MODEL = 5
-    const COL_SERIAL = 6
-    const COL_STATUS = 7
-    const COL_TECHNICIAN = 8
-    const COL_OBSERVATIONS = 9
+  // Columnas del Excel de Reparaciones (0-indexed)
+  // Ajustar segun el formato real exportado por 3C
+  const COL_ORDER = 0
+  const COL_ENTRY_DATE = 1
+  const COL_CLIENT = 2
+  const COL_MACHINE = 3
+  const COL_BRAND = 4
+  const COL_MODEL = 5
+  const COL_SERIAL = 6
+  const COL_STATUS = 7
+  const COL_TECHNICIAN = 8
+  const COL_OBSERVATIONS = 9
 
-    for (let i = 1; i < rows.length; i++) {
-      const row = rows[i]
-      if (!row || !Array.isArray(row)) continue
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i]
+    if (!row || !Array.isArray(row)) continue
 
-      const orderNumber = String(row[COL_ORDER] ?? "").trim()
-      if (!orderNumber) {
-        result.skipped++
-        continue
-      }
-
-      const entryDateRaw = row[COL_ENTRY_DATE]
-      const entryDate = entryDateRaw ? new Date(String(entryDateRaw)) : new Date()
-
-      const clientName = String(row[COL_CLIENT] ?? "").trim()
-      const machineName = String(row[COL_MACHINE] ?? "").trim()
-      const brand = String(row[COL_BRAND] ?? "").trim() || undefined
-      const model = String(row[COL_MODEL] ?? "").trim() || undefined
-      const serial = String(row[COL_SERIAL] ?? "").trim() || undefined
-      const status = String(row[COL_STATUS] ?? "").trim() || "Recepción"
-      const technician = String(row[COL_TECHNICIAN] ?? "").trim() || undefined
-      const observations = String(row[COL_OBSERVATIONS] ?? "").trim() || undefined
-
-      const ref = collection.doc(orderNumber)
-      const before = await ref.get()
-      const payload: Record<string, unknown> = {
-        orderNumber,
-        entryDate,
-        clientName,
-        machineName,
-        brand: brand ?? null,
-        model: model ?? null,
-        serial: serial ?? null,
-        status,
-        technician: technician ?? null,
-        observations: observations ?? null,
-        repairDate: null,
-        returnDate: null,
-        warranty: null,
-        history: null,
-        shopTime: null,
-        updatedAt: new Date(),
-      }
-
-      if (!before.exists) {
-        await ref.set({
-          ...payload,
-          createdAt: new Date(),
-        })
-        result.created++
-      } else {
-        await ref.set(payload, { merge: true })
-        result.updated++
-      }
+    const orderNumber = String(row[COL_ORDER] ?? "").trim()
+    if (!orderNumber) {
+      result.skipped++
+      continue
     }
-  } catch (err) {
-    result.success = false
-    result.warnings.push(err instanceof Error ? err.message : String(err))
+
+    const entryDateRaw = row[COL_ENTRY_DATE]
+    const entryDate = entryDateRaw ? new Date(String(entryDateRaw)) : new Date()
+
+    const clientName = String(row[COL_CLIENT] ?? "").trim()
+    const machineName = String(row[COL_MACHINE] ?? "").trim()
+    const brand = String(row[COL_BRAND] ?? "").trim() || undefined
+    const model = String(row[COL_MODEL] ?? "").trim() || undefined
+    const serial = String(row[COL_SERIAL] ?? "").trim() || undefined
+    const status = String(row[COL_STATUS] ?? "").trim() || "Recepción"
+    const technician = String(row[COL_TECHNICIAN] ?? "").trim() || undefined
+    const observations = String(row[COL_OBSERVATIONS] ?? "").trim() || undefined
+
+    const ref = collection.doc(orderNumber)
+    const before = await ref.get()
+    const payload: Record<string, unknown> = {
+      orderNumber,
+      entryDate,
+      clientName,
+      machineName,
+      brand: brand ?? null,
+      model: model ?? null,
+      serial: serial ?? null,
+      status,
+      technician: technician ?? null,
+      observations: observations ?? null,
+      repairDate: null,
+      returnDate: null,
+      warranty: null,
+      history: null,
+      shopTime: null,
+      updatedAt: new Date(),
+    }
+
+    console.log("[MAINTENANCE] WRITE DOC", orderNumber)
+    if (!before.exists) {
+      await ref.set({
+        ...payload,
+        createdAt: new Date(),
+      })
+      result.created++
+    } else {
+      await ref.set(payload, { merge: true })
+      result.updated++
+    }
+    console.log("[MAINTENANCE] WRITE OK", orderNumber)
   }
 
   return result

@@ -240,8 +240,10 @@ async function processCommand(redis, commandId, module) {
 
     if (module === "reparaciones") {
       try {
+        console.log("[AGENT] MAINTENANCE SYNC START")
         console.log("[AGENT] Ejecutando syncRepairsToMaintenance")
         const maintenanceResult = await syncRepairsToMaintenance(buffer)
+        console.log("[AGENT] MAINTENANCE SYNC RESULT", maintenanceResult)
         console.log(`[AGENT] Resultado mantenimiento: created=${maintenanceResult.created}, updated=${maintenanceResult.updated}, skipped=${maintenanceResult.skipped}`)
         console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped`)
         if (maintenanceResult.warnings.length > 0) {
