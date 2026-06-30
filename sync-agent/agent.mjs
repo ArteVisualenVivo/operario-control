@@ -176,6 +176,9 @@ async function processCommand(redis, commandId, module) {
     }), { ex: 120 })
 
     console.log(`[AGENT] Processing command ${commandId} [module: ${module}]`)
+    if (module === "reparaciones") {
+      console.log("[AGENT] Reparaciones module recibido")
+    }
 
     const scriptName = MODULE_SCRIPTS[module]
     if (!scriptName) {
@@ -190,43 +193,56 @@ async function processCommand(redis, commandId, module) {
     console.log(`[AGENT] Export found: ${latest.name}`)
 
     const buffer = fs.readFileSync(latest.fullPath).buffer
-    const { items } = parseExcel(buffer)
 
     let result
 
-    if (items.length === 0) {
+    if (module === "reparaciones") {
       result = {
         success: true,
         created: 0,
         updated: 0,
         skipped: 0,
-        warnings: [
-          "El archivo exportado no contiene datos válidos en el formato esperado de 3C",
-        ],
+        warnings: [],
       }
     } else {
-      try {
-        result = await syncItems(items)
-      } catch (err) {
-        console.error("[AGENT] Firebase sync failed (temporary quota block):", err.message)
+      const { items } = parseExcel(buffer)
 
+      if (items.length === 0) {
         result = {
           success: true,
           created: 0,
           updated: 0,
-          skipped: items.length,
+          skipped: 0,
           warnings: [
-            "Firebase temporalmente bloqueado por cuota (24h)",
-            "Datos procesados pero no persistidos en inventario",
+            "El archivo exportado no contiene datos válidos en el formato esperado de 3C",
           ],
-          degraded: true,
+        }
+      } else {
+        try {
+          result = await syncItems(items)
+        } catch (err) {
+          console.error("[AGENT] Firebase sync failed (temporary quota block):", err.message)
+
+          result = {
+            success: true,
+            created: 0,
+            updated: 0,
+            skipped: items.length,
+            warnings: [
+              "Firebase temporalmente bloqueado por cuota (24h)",
+              "Datos procesados pero no persistidos en inventario",
+            ],
+            degraded: true,
+          }
         }
       }
     }
 
-    if (module === "reparaciones" && items.length > 0) {
+    if (module === "reparaciones") {
       try {
+        console.log("[AGENT] Ejecutando syncRepairsToMaintenance")
         const maintenanceResult = await syncRepairsToMaintenance(buffer)
+        console.log(`[AGENT] Resultado mantenimiento: created=${maintenanceResult.created}, updated=${maintenanceResult.updated}, skipped=${maintenanceResult.skipped}`)
         console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped`)
         if (maintenanceResult.warnings.length > 0) {
           console.warn(`[AGENT] Maintenance warnings:`, maintenanceResult.warnings)

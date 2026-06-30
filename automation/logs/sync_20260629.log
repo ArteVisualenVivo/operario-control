@@ -201,3 +201,68 @@
 [2026-06-29 20:51:42] Click en SalirArt (944,253)
 [2026-06-29 20:51:43] [NAV] Main menu restored (Articulos)
 [2026-06-29 20:51:43] === FIN ARTICULOS ===
+[2026-06-29 22:15:55] === INICIO ARTICULOS ===
+[2026-06-29 22:15:56] Ventana '3C' detectada y activada
+[2026-06-29 22:15:56] Resync: enviando Ctrl+Home
+[2026-06-29 22:15:56] Click en ServiciosArt (1145,186)
+[2026-06-29 22:15:57] Click en ArticulosMenu (1181,219)
+[2026-06-29 22:15:58] Click en ArticulosLista (1288,220)
+[2026-06-29 22:15:59] Click en ImprimirArt (898,253)
+[2026-06-29 22:16:01] Click en Generar (948,761)
+[2026-06-29 22:16:02] Click en ExcelArt (951,574)
+[2026-06-29 22:16:07] Exportacion de articulos completada. Esperando Excel...
+[2026-06-29 22:16:07] Esperando Excel (timeout: 30s)...
+[2026-06-29 22:16:08] Excel detectado correctamente
+[2026-06-29 22:16:08] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-06-29 22:16:09] [WATCHER] ARCHIVO DETECTADO:
+[2026-06-29 22:16:09] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc5993028860817493188.xls
+[2026-06-29 22:16:09] [WATCHER] Fecha: 20260629221606
+[2026-06-29 22:16:09] [WATCHER] Tamaño: 1672 KB
+[2026-06-29 22:16:09] [OK] Archivo copiado a exports
+[2026-06-29 22:16:10] Click en SalirArt2 (949,762)
+[2026-06-29 22:16:10] Click en SalirArt (944,253)
+[2026-06-29 22:16:11] [NAV] Main menu restored (Articulos)
+[2026-06-29 22:16:11] === FIN ARTICULOS ===
+[2026-06-29 22:41:17] === INICIO ARTICULOS ===
+[2026-06-29 22:41:18] Ventana '3C' detectada y activada
+[2026-06-29 22:41:18] Resync: enviando Ctrl+Home
+[2026-06-29 22:41:18] Click en ServiciosArt (1145,186)
+[2026-06-29 22:41:19] Click en ArticulosMenu (1181,219)
+[2026-06-29 22:41:20] Click en ArticulosLista (1288,220)
+[2026-06-29 22:41:21] Click en ImprimirArt (898,253)
+[2026-06-29 22:41:23] Click en Generar (948,761)
+[2026-06-29 22:41:24] Click en ExcelArt (951,574)
+[2026-06-29 22:41:29] Exportacion de articulos completada. Esperando Excel...
+[2026-06-29 22:41:29] Esperando Excel (timeout: 30s)...
+[2026-06-29 22:41:29] Excel detectado correctamente
+[2026-06-29 22:41:29] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-06-29 22:41:30] [WATCHER] ARCHIVO DETECTADO:
+[2026-06-29 22:41:30] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc5993028860817493188.xls
+[2026-06-29 22:41:30] [WATCHER] Fecha: 20260629221605
+[2026-06-29 22:41:30] [WATCHER] Tamaño: 1672 KB
+[2026-06-29 22:41:30] [OK] Archivo copiado a exports
+[2026-06-29 22:41:31] Click en SalirArt2 (949,762)
+[2026-06-29 22:41:31] Click en SalirArt (944,253)
+[2026-06-29 22:41:32] [NAV] Main menu restored (Articulos)
+[2026-06-29 22:41:32] === FIN ARTICULOS ===
+[2026-06-29 22:45:53] === INICIO REPARACIONES ===
+[2026-06-29 22:45:55] Ventana '3C' detectada y activada
+[2026-06-29 22:45:55] Resync: enviando Ctrl+Home
+[2026-06-29 22:45:55] Click en Ventas (413,188)
+[2026-06-29 22:45:58] Click en Reparaciones (448,346)
+[2026-06-29 22:45:59] Click en ExcelItems (1451,866)
+[2026-06-29 22:45:59] Click en PrintAll (1450,829)
+[2026-06-29 22:46:00] Click en Imprimir (896,254)
+[2026-06-29 22:46:00] Click en ExcelFormat (936,577)
+[2026-06-29 22:46:05] Exportación de reparaciones completada. Esperando Excel...
+[2026-06-29 22:46:05] Esperando Excel (timeout: 30s)...
+[2026-06-29 22:46:05] Excel detectado correctamente
+[2026-06-29 22:46:05] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-06-29 22:46:06] [WATCHER] ARCHIVO DETECTADO:
+[2026-06-29 22:46:06] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc5198754488684266441.xls
+[2026-06-29 22:46:06] [WATCHER] Fecha: 20260629224603
+[2026-06-29 22:46:06] [WATCHER] Tamaño: 878 KB
+[2026-06-29 22:46:06] [OK] Archivo copiado a exports
+[2026-06-29 22:46:08] Click en SalirRep (942,254)
+[2026-06-29 22:46:09] [NAV] Main menu restored (Reparaciones)
+[2026-06-29 22:46:09] === FIN REPARACIONES ===

@@ -21,8 +21,12 @@ export default function MaintenancePage() {
 
   useEffect(() => { load() }, [])
 
-  const receptionOrders = useMemo(() => {
-    return orders.filter(o => o.status === "Recepción")
+  const visibleOrders = useMemo(() => {
+    return [...orders].sort((a, b) => {
+      const aTime = a.entryDate ? new Date(a.entryDate).getTime() : 0
+      const bTime = b.entryDate ? new Date(b.entryDate).getTime() : 0
+      return bTime - aTime
+    })
   }, [orders])
 
   if (loading) return <p className="text-muted-foreground">Cargando...</p>
@@ -36,11 +40,11 @@ export default function MaintenancePage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Órdenes en Recepción</CardTitle>
+          <CardTitle>Órdenes de mantenimiento</CardTitle>
         </CardHeader>
         <CardContent>
-          {receptionOrders.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No hay órdenes en recepción.</p>
+          {visibleOrders.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No hay órdenes de mantenimiento disponibles.</p>
           ) : (
             <div className="rounded-md border">
               <table className="w-full text-sm">
@@ -55,7 +59,7 @@ export default function MaintenancePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {receptionOrders.map((order) => (
+                  {visibleOrders.map((order) => (
                     <tr key={order.id} className="border-b hover:bg-muted/50">
                       <td className="p-2 font-mono">{order.orderNumber}</td>
                       <td className="p-2">{order.clientName}</td>

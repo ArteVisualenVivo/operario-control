@@ -146,6 +146,7 @@ export async function syncRepairsToMaintenance(
     const worksheet = workbook.Sheets[sheetName]
     const rows: unknown[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
 
+    console.log("[ENGINE] syncRepairsToMaintenance iniciando")
     const collection = db.collection("maintenance")
 
     // Columnas del Excel de Reparaciones (0-indexed)
