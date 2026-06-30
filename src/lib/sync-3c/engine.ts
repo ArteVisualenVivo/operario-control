@@ -143,6 +143,10 @@ export async function syncRepairsToMaintenance(
   const { getFirestore } = require("firebase-admin/firestore")
   const db = getFirestore()
 
+  const BATCH_LIMIT = 400
+  let counter = 0
+  let batch = db.batch()
+
   const result = {
     success: true,
     created: 0,
@@ -157,6 +161,7 @@ export async function syncRepairsToMaintenance(
   const rows: unknown[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
 
   console.log("[ENGINE] syncRepairsToMaintenance iniciando")
+  console.log("[MAINTENANCE BATCH] start")
   const collection = db.collection("maintenance")
 
   // Columnas del Excel de Reparaciones (0-indexed)
@@ -215,19 +220,35 @@ export async function syncRepairsToMaintenance(
       updatedAt: new Date(),
     }
 
-    console.log("[MAINTENANCE] WRITE DOC", orderNumber)
     if (!before.exists) {
-      await ref.set({
-        ...payload,
-        createdAt: new Date(),
-      })
+      payload.createdAt = new Date()
       result.created++
     } else {
-      await ref.set(payload, { merge: true })
       result.updated++
     }
-    console.log("[MAINTENANCE] WRITE OK", orderNumber)
+
+    batch.set(ref, payload, { merge: true })
+    counter++
+
+    if (counter >= BATCH_LIMIT) {
+      console.log("[MAINTENANCE BATCH] commit size:", counter)
+      await batch.commit()
+      batch = db.batch()
+      counter = 0
+    }
+
+    await sleep(20)
   }
 
+  if (counter > 0) {
+    console.log("[MAINTENANCE BATCH] commit size:", counter)
+    await batch.commit()
+  }
+
+  console.log("[MAINTENANCE BATCH] finished")
   return result
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
