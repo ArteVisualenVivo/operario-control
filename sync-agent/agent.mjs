@@ -149,9 +149,9 @@ function findLatestExport() {
       const fullPath = path.join(EXPORTS_DIR, f)
       try {
         return { name: f, mtime: fs.statSync(fullPath).mtimeMs, fullPath }
-      }`n`n    if (module === "reparaciones" && items.length > 0) {`n      try {`n        const maintenanceResult = await syncRepairsToMaintenance(buffer)`n        console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped`)`n        if (maintenanceResult.warnings.length > 0) {`n          console.warn(`[AGENT] Maintenance warnings:`, maintenanceResult.warnings)`n        }`n        result = {`n          ...result,`n          maintenanceCreated: maintenanceResult.created,`n          maintenanceUpdated: maintenanceResult.updated,`n          maintenanceSkipped: maintenanceResult.skipped,`n          maintenanceWarnings: maintenanceResult.warnings,`n        }`n      } catch (maintErr) {`n        console.error(`[AGENT] Maintenance sync failed:`, maintErr instanceof Error ? maintErr.message : String(maintErr))`n        result = {`n          ...result,`n          maintenanceError: maintErr instanceof Error ? maintErr.message : String(maintErr),`n        }`n      }`n    } catch {
+      } catch {
         return null
-      }`n`n    if (module === "reparaciones" && items.length > 0) {`n      try {`n        const maintenanceResult = await syncRepairsToMaintenance(buffer)`n        console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped`)`n        if (maintenanceResult.warnings.length > 0) {`n          console.warn(`[AGENT] Maintenance warnings:`, maintenanceResult.warnings)`n        }`n        result = {`n          ...result,`n          maintenanceCreated: maintenanceResult.created,`n          maintenanceUpdated: maintenanceResult.updated,`n          maintenanceSkipped: maintenanceResult.skipped,`n          maintenanceWarnings: maintenanceResult.warnings,`n        }`n      } catch (maintErr) {`n        console.error(`[AGENT] Maintenance sync failed:`, maintErr instanceof Error ? maintErr.message : String(maintErr))`n        result = {`n          ...result,`n          maintenanceError: maintErr instanceof Error ? maintErr.message : String(maintErr),`n        }`n      }`n    }
+      }
     })
     .filter((f) => f !== null)
     .sort((a, b) => b.mtime - a.mtime)
@@ -203,11 +203,11 @@ async function processCommand(redis, commandId, module) {
         warnings: [
           "El archivo exportado no contiene datos válidos en el formato esperado de 3C",
         ],
-      }`n`n    if (module === "reparaciones" && items.length > 0) {`n      try {`n        const maintenanceResult = await syncRepairsToMaintenance(buffer)`n        console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped`)`n        if (maintenanceResult.warnings.length > 0) {`n          console.warn(`[AGENT] Maintenance warnings:`, maintenanceResult.warnings)`n        }`n        result = {`n          ...result,`n          maintenanceCreated: maintenanceResult.created,`n          maintenanceUpdated: maintenanceResult.updated,`n          maintenanceSkipped: maintenanceResult.skipped,`n          maintenanceWarnings: maintenanceResult.warnings,`n        }`n      } catch (maintErr) {`n        console.error(`[AGENT] Maintenance sync failed:`, maintErr instanceof Error ? maintErr.message : String(maintErr))`n        result = {`n          ...result,`n          maintenanceError: maintErr instanceof Error ? maintErr.message : String(maintErr),`n        }`n      }`n    }
+      }
     } else {
       try {
         result = await syncItems(items)
-      }`n`n    if (module === "reparaciones" && items.length > 0) {`n      try {`n        const maintenanceResult = await syncRepairsToMaintenance(buffer)`n        console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped`)`n        if (maintenanceResult.warnings.length > 0) {`n          console.warn(`[AGENT] Maintenance warnings:`, maintenanceResult.warnings)`n        }`n        result = {`n          ...result,`n          maintenanceCreated: maintenanceResult.created,`n          maintenanceUpdated: maintenanceResult.updated,`n          maintenanceSkipped: maintenanceResult.skipped,`n          maintenanceWarnings: maintenanceResult.warnings,`n        }`n      } catch (maintErr) {`n        console.error(`[AGENT] Maintenance sync failed:`, maintErr instanceof Error ? maintErr.message : String(maintErr))`n        result = {`n          ...result,`n          maintenanceError: maintErr instanceof Error ? maintErr.message : String(maintErr),`n        }`n      }`n    } catch (err) {
+      } catch (err) {
         console.error("[AGENT] Firebase sync failed (temporary quota block):", err.message)
 
         result = {
@@ -220,8 +220,31 @@ async function processCommand(redis, commandId, module) {
             "Datos procesados pero no persistidos en inventario",
           ],
           degraded: true,
-        }`n`n    if (module === "reparaciones" && items.length > 0) {`n      try {`n        const maintenanceResult = await syncRepairsToMaintenance(buffer)`n        console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped`)`n        if (maintenanceResult.warnings.length > 0) {`n          console.warn(`[AGENT] Maintenance warnings:`, maintenanceResult.warnings)`n        }`n        result = {`n          ...result,`n          maintenanceCreated: maintenanceResult.created,`n          maintenanceUpdated: maintenanceResult.updated,`n          maintenanceSkipped: maintenanceResult.skipped,`n          maintenanceWarnings: maintenanceResult.warnings,`n        }`n      } catch (maintErr) {`n        console.error(`[AGENT] Maintenance sync failed:`, maintErr instanceof Error ? maintErr.message : String(maintErr))`n        result = {`n          ...result,`n          maintenanceError: maintErr instanceof Error ? maintErr.message : String(maintErr),`n        }`n      }`n    }
-      }`n`n    if (module === "reparaciones" && items.length > 0) {`n      try {`n        const maintenanceResult = await syncRepairsToMaintenance(buffer)`n        console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped`)`n        if (maintenanceResult.warnings.length > 0) {`n          console.warn(`[AGENT] Maintenance warnings:`, maintenanceResult.warnings)`n        }`n        result = {`n          ...result,`n          maintenanceCreated: maintenanceResult.created,`n          maintenanceUpdated: maintenanceResult.updated,`n          maintenanceSkipped: maintenanceResult.skipped,`n          maintenanceWarnings: maintenanceResult.warnings,`n        }`n      } catch (maintErr) {`n        console.error(`[AGENT] Maintenance sync failed:`, maintErr instanceof Error ? maintErr.message : String(maintErr))`n        result = {`n          ...result,`n          maintenanceError: maintErr instanceof Error ? maintErr.message : String(maintErr),`n        }`n      }`n    }
+        }
+      }
+    }
+
+    if (module === "reparaciones" && items.length > 0) {
+      try {
+        const maintenanceResult = await syncRepairsToMaintenance(buffer)
+        console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped`)
+        if (maintenanceResult.warnings.length > 0) {
+          console.warn(`[AGENT] Maintenance warnings:`, maintenanceResult.warnings)
+        }
+        result = {
+          ...result,
+          maintenanceCreated: maintenanceResult.created,
+          maintenanceUpdated: maintenanceResult.updated,
+          maintenanceSkipped: maintenanceResult.skipped,
+          maintenanceWarnings: maintenanceResult.warnings,
+        }
+      } catch (maintErr) {
+        console.error(`[AGENT] Maintenance sync failed:`, maintErr instanceof Error ? maintErr.message : String(maintErr))
+        result = {
+          ...result,
+          maintenanceError: maintErr instanceof Error ? maintErr.message : String(maintErr),
+        }
+      }
     }
 
     await redis.hset(`sync-3c:result:${commandId}`, {
@@ -260,19 +283,19 @@ async function pollQueue(redis) {
       if (isProcessing) {
         await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
         continue
-      }`n`n    if (module === "reparaciones" && items.length > 0) {`n      try {`n        const maintenanceResult = await syncRepairsToMaintenance(buffer)`n        console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped`)`n        if (maintenanceResult.warnings.length > 0) {`n          console.warn(`[AGENT] Maintenance warnings:`, maintenanceResult.warnings)`n        }`n        result = {`n          ...result,`n          maintenanceCreated: maintenanceResult.created,`n          maintenanceUpdated: maintenanceResult.updated,`n          maintenanceSkipped: maintenanceResult.skipped,`n          maintenanceWarnings: maintenanceResult.warnings,`n        }`n      } catch (maintErr) {`n        console.error(`[AGENT] Maintenance sync failed:`, maintErr instanceof Error ? maintErr.message : String(maintErr))`n        result = {`n          ...result,`n          maintenanceError: maintErr instanceof Error ? maintErr.message : String(maintErr),`n        }`n      }`n    }
+      }
 
       const commandId = await redis.rpop("sync-3c:queue")
       if (!commandId) {
         await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
         continue
-      }`n`n    if (module === "reparaciones" && items.length > 0) {`n      try {`n        const maintenanceResult = await syncRepairsToMaintenance(buffer)`n        console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped`)`n        if (maintenanceResult.warnings.length > 0) {`n          console.warn(`[AGENT] Maintenance warnings:`, maintenanceResult.warnings)`n        }`n        result = {`n          ...result,`n          maintenanceCreated: maintenanceResult.created,`n          maintenanceUpdated: maintenanceResult.updated,`n          maintenanceSkipped: maintenanceResult.skipped,`n          maintenanceWarnings: maintenanceResult.warnings,`n        }`n      } catch (maintErr) {`n        console.error(`[AGENT] Maintenance sync failed:`, maintErr instanceof Error ? maintErr.message : String(maintErr))`n        result = {`n          ...result,`n          maintenanceError: maintErr instanceof Error ? maintErr.message : String(maintErr),`n        }`n      }`n    }
+      }
 
       const raw = await redis.hgetall(`sync-3c:command:${commandId}`)
       if (!raw || raw.status !== "pending") {
         console.log(`[AGENT] Command ${commandId} skipped (not pending)`)
         continue
-      }`n`n    if (module === "reparaciones" && items.length > 0) {`n      try {`n        const maintenanceResult = await syncRepairsToMaintenance(buffer)`n        console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped`)`n        if (maintenanceResult.warnings.length > 0) {`n          console.warn(`[AGENT] Maintenance warnings:`, maintenanceResult.warnings)`n        }`n        result = {`n          ...result,`n          maintenanceCreated: maintenanceResult.created,`n          maintenanceUpdated: maintenanceResult.updated,`n          maintenanceSkipped: maintenanceResult.skipped,`n          maintenanceWarnings: maintenanceResult.warnings,`n        }`n      } catch (maintErr) {`n        console.error(`[AGENT] Maintenance sync failed:`, maintErr instanceof Error ? maintErr.message : String(maintErr))`n        result = {`n          ...result,`n          maintenanceError: maintErr instanceof Error ? maintErr.message : String(maintErr),`n        }`n      }`n    }
+      }
 
       const module = raw.module || "stock"
       await processCommand(redis, commandId, module)
@@ -309,7 +332,7 @@ async function recoverStaleCommands(redis) {
         await redis.lpush("sync-3c:queue", id)
         recovered++
         console.log(`[AGENT] Recovered stale command ${id}`)
-      }`n`n    if (module === "reparaciones" && items.length > 0) {`n      try {`n        const maintenanceResult = await syncRepairsToMaintenance(buffer)`n        console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped`)`n        if (maintenanceResult.warnings.length > 0) {`n          console.warn(`[AGENT] Maintenance warnings:`, maintenanceResult.warnings)`n        }`n        result = {`n          ...result,`n          maintenanceCreated: maintenanceResult.created,`n          maintenanceUpdated: maintenanceResult.updated,`n          maintenanceSkipped: maintenanceResult.skipped,`n          maintenanceWarnings: maintenanceResult.warnings,`n        }`n      } catch (maintErr) {`n        console.error(`[AGENT] Maintenance sync failed:`, maintErr instanceof Error ? maintErr.message : String(maintErr))`n        result = {`n          ...result,`n          maintenanceError: maintErr instanceof Error ? maintErr.message : String(maintErr),`n        }`n      }`n    }
+      }
     } while (cursor !== 0)
   } catch (err) {
     console.error("[AGENT] Recovery scan error:", err.message)
@@ -326,7 +349,7 @@ function startHeartbeat(redis) {
         status: isProcessing ? "running" : "idle",
         lastHeartbeat: Date.now(),
         machineName: MACHINE_NAME,
-      }`n`n    if (module === "reparaciones" && items.length > 0) {`n      try {`n        const maintenanceResult = await syncRepairsToMaintenance(buffer)`n        console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped`)`n        if (maintenanceResult.warnings.length > 0) {`n          console.warn(`[AGENT] Maintenance warnings:`, maintenanceResult.warnings)`n        }`n        result = {`n          ...result,`n          maintenanceCreated: maintenanceResult.created,`n          maintenanceUpdated: maintenanceResult.updated,`n          maintenanceSkipped: maintenanceResult.skipped,`n          maintenanceWarnings: maintenanceResult.warnings,`n        }`n      } catch (maintErr) {`n        console.error(`[AGENT] Maintenance sync failed:`, maintErr instanceof Error ? maintErr.message : String(maintErr))`n        result = {`n          ...result,`n          maintenanceError: maintErr instanceof Error ? maintErr.message : String(maintErr),`n        }`n      }`n    }))
+      }))
     } catch (err) {
       console.error("[AGENT] Heartbeat error:", err.message)
     }

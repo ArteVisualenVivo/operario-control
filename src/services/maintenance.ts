@@ -63,7 +63,8 @@ function toDate(val: unknown): Date {
 }
 
 export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
-  const snapshot = await getDocs(query(collection(db, COLLECTION), orderBy("entryDate", "desc")))
+  const q = query(collection(db, COLLECTION), orderBy("entryDate", "desc"))
+  const snapshot = await getDocs(q)
   return snapshot.docs.map((d) => {
     const data = d.data()
     return {
@@ -91,7 +92,7 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
 
 export async function createOrUpdateMaintenance(input: MaintenanceInput): Promise<void> {
   const ref = doc(db, COLLECTION, input.orderNumber)
-  const before = (await getDoc(ref)).data()
+  const before = await getDoc(ref)
 
   const payload: Record<string, unknown> = {
     orderNumber: input.orderNumber,
@@ -112,7 +113,7 @@ export async function createOrUpdateMaintenance(input: MaintenanceInput): Promis
     updatedAt: serverTimestamp(),
   }
 
-  if (!before) {
+  if (!before.exists) {
     await setDoc(ref, {
       ...payload,
       createdAt: serverTimestamp(),
@@ -120,6 +121,6 @@ export async function createOrUpdateMaintenance(input: MaintenanceInput): Promis
     await createAuditLog("create", COLLECTION, ref.id, null, payload)
   } else {
     await setDoc(ref, payload, { merge: true })
-    await createAuditLog("update", COLLECTION, ref.id, before, payload)
+    await createAuditLog("update", COLLECTION, ref.id, (before.data() as Record<string, unknown>) ?? null, payload)
   }
 }
