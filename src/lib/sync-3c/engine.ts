@@ -96,7 +96,7 @@ export async function syncItems(
 
     if (item.stockWarning) {
       result.warnings.push(
-        `Stock negativo para "${item.name}" (código: ${item.codigo}): ${item.stockTotal}`
+        `Stock negativo para "${item.name}" (cÃ³digo: ${item.codigo}): ${item.stockTotal}`
       )
     }
 
@@ -117,7 +117,7 @@ export async function syncItems(
     } else {
       result.skipped++
       result.warnings.push(
-        `Material no encontrado en Firestore: "${item.name}" — omitido (strictMode)`
+        `Material no encontrado en Firestore: "${item.name}" omitido (strictMode)`
       )
     }
   }
@@ -172,19 +172,19 @@ export async function syncRepairsToMaintenance(
       }
 
       const entryDateRaw = row[COL_ENTRY_DATE]
-      const entryDate = entryDateRaw ? new Date(entryDateRaw) : new Date()
+      const entryDate = entryDateRaw ? new Date(String(entryDateRaw)) : new Date()
 
       const clientName = String(row[COL_CLIENT] ?? "").trim()
       const machineName = String(row[COL_MACHINE] ?? "").trim()
       const brand = String(row[COL_BRAND] ?? "").trim() || undefined
       const model = String(row[COL_MODEL] ?? "").trim() || undefined
       const serial = String(row[COL_SERIAL] ?? "").trim() || undefined
-      const status = String(row[COL_STATUS] ?? "").trim() || "Recepción"
+      const status = String(row[COL_STATUS] ?? "").trim() || "RecepciÃ³n"
       const technician = String(row[COL_TECHNICIAN] ?? "").trim() || undefined
       const observations = String(row[COL_OBSERVATIONS] ?? "").trim() || undefined
 
       const ref = collection.doc(orderNumber)
-      const before = await getDoc(ref)
+      const before = await ref.get()
       const payload: Record<string, unknown> = {
         orderNumber,
         entryDate,
@@ -205,13 +205,13 @@ export async function syncRepairsToMaintenance(
       }
 
       if (!before.exists) {
-        await setDoc(ref, {
+        await ref.set({
           ...payload,
           createdAt: new Date(),
         })
         result.created++
       } else {
-        await setDoc(ref, payload, { merge: true })
+        await ref.set(payload, { merge: true })
         result.updated++
       }
     }

@@ -4,7 +4,7 @@ import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useMachines } from "@/hooks/useMachines"
 import { useInventoryStock } from "@/hooks/useInventoryStock"
-import { SearchInput } from "@/components/ui/SearchInput"
+import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import MachineCard from "@/components/machines/MachineCard"
@@ -42,12 +42,12 @@ export default function AndamiosPage() {
   }, [stockItems])
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Â¿Eliminar esta mÃ¡quina? Esta acciÃ³n no se puede deshacer.")) return
+    if (!window.confirm("¿Eliminar esta máquina? Esta acción no se puede deshacer.")) return
     try {
       await remove(id)
-      toast.success("MÃ¡quina eliminada")
+      toast.success("Máquina eliminada")
     } catch {
-      toast.error("Error al eliminar mÃ¡quina")
+      toast.error("Error al eliminar máquina")
     }
   }
 
@@ -59,7 +59,7 @@ export default function AndamiosPage() {
         <h1 className="text-2xl font-bold">Andamios</h1>
         <div className="flex gap-2">
           <Button onClick={() => router.push("/inventory/new")}>Nuevo material</Button>
-          <Button onClick={() => router.push("/machines/new")}>Nueva mÃ¡quina de andamio</Button>
+          <Button onClick={() => router.push("/machines/new")}>Nueva máquina de andamio</Button>
         </div>
       </div>
 
@@ -80,7 +80,7 @@ export default function AndamiosPage() {
       </div>
 
       <div>
-        <h2 className="text-xl font-semibold mb-4">MÃ¡quinas de andamio</h2>
+        <h2 className="text-xl font-semibold mb-4">Máquinas de andamio</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredMachines.map((machine) => (
             <MachineCard key={machine.id} machine={machine} onDelete={handleDelete} />

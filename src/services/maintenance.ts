@@ -55,6 +55,7 @@ export interface MaintenanceInput {
 }
 
 const COLLECTION = "maintenance"
+const AUDIT_ENTITY: "maintenance" = "maintenance"
 
 function toDate(val: unknown): Date {
   if (val instanceof Date) return val
@@ -118,9 +119,9 @@ export async function createOrUpdateMaintenance(input: MaintenanceInput): Promis
       ...payload,
       createdAt: serverTimestamp(),
     })
-    await createAuditLog("create", COLLECTION, ref.id, null, payload)
+    await createAuditLog("create", AUDIT_ENTITY, ref.id, null, payload)
   } else {
     await setDoc(ref, payload, { merge: true })
-    await createAuditLog("update", COLLECTION, ref.id, (before.data() as Record<string, unknown>) ?? null, payload)
+    await createAuditLog("update", AUDIT_ENTITY, ref.id, (before.data() as Record<string, unknown>) ?? null, payload)
   }
 }

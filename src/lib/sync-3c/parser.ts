@@ -67,12 +67,12 @@ export function parseExcel(buffer: ArrayBuffer | Buffer): ParseResult {
     const existing = aggregated.get(key)
     if (existing) {
       existing.stockTotal += item.stockTotal
-      existing.depositos.push(item.deposito)
+      existing.depositos.push(item.deposito ?? 0)
       if (item.stockWarning) existing.stockWarning = true
     } else {
       aggregated.set(key, {
         ...item,
-        depositos: [item.deposito],
+        depositos: [item.deposito ?? 0],
       })
     }
   }

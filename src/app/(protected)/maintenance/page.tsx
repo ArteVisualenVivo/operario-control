@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { formatDate } from "@/lib/ui"
 import { getMaintenanceRecords } from "@/services/maintenance"
-import type { MaintenanceRecord } from "@/types"
+import type { MaintenanceRecord } from "@/services/maintenance"
 
 export default function MaintenancePage() {
   const [orders, setOrders] = useState<MaintenanceRecord[]>([])

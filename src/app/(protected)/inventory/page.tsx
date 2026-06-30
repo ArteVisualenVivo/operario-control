@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useInventoryStock } from "@/hooks/useInventoryStock"
-import { SearchInput } from "@/components/ui/SearchInput"
+import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -50,7 +50,7 @@ export default function InventoryPage() {
   }, [items])
 
   const handleDelete = async (id: string, name: string) => {
-    if (!window.confirm(`Â¿Eliminar "${name}"? Esta acciÃ³n no se puede deshacer.`)) return
+    if (!window.confirm(`¿Eliminar "${name}"? Esta acción no se puede deshacer.`)) return
     try {
       await remove(id)
       toast.success("Material eliminado")
@@ -95,7 +95,7 @@ export default function InventoryPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">CategorÃ­as</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Categorías</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-3xl font-bold">{summary.categories}</p>
@@ -132,7 +132,7 @@ export default function InventoryPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Nombre</TableHead>
-                <TableHead>CategorÃ­a</TableHead>
+                <TableHead>Categoría</TableHead>
                 <TableHead>Subtipo</TableHead>
                 <TableHead>Medida</TableHead>
                 <TableHead>Unidad</TableHead>
@@ -147,8 +147,8 @@ export default function InventoryPage() {
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">{item.name}</TableCell>
                   <TableCell>{CATEGORY_LABELS[item.category] ?? item.category}</TableCell>
-                  <TableCell>{item.subtype ?? "â€”"}</TableCell>
-                  <TableCell>{item.size ?? "â€”"}</TableCell>
+                  <TableCell>{item.subtype ?? "—"}</TableCell>
+                  <TableCell>{item.size ?? "—"}</TableCell>
                   <TableCell>{item.unit}</TableCell>
                   <TableCell className="text-right">{item.stockTotal}</TableCell>
                   <TableCell className="text-right">

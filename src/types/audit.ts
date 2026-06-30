@@ -1,5 +1,5 @@
 export type AuditAction = "create" | "update" | "delete"
-export type AuditEntity = "machine" | "inventory_stock" | "machine_spare_part" | "blueprint" | "machine_repair" | "maintenance_settings"
+export type AuditEntity = "machine" | "inventory_stock" | "machine_spare_part" | "blueprint" | "machine_repair" | "maintenance_settings" | "maintenance"
 
 export interface AuditLog {
   id: string
