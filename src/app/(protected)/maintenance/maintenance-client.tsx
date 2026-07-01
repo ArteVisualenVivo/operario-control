@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useState, useMemo } from "react"
 import type { MaintenanceRecord } from "@/services/maintenance"
 import type { MachineRepair } from "@/types"
 import { SearchInput } from "@/components/ui/SearchInput"
@@ -14,7 +14,9 @@ async function fetchRepairs(): Promise<MachineRepair[]> {
   try {
     const res = await fetch("/api/local/repairs", { cache: "no-store" })
     if (res.ok) return await res.json()
-  } catch { /* silencioso */ }
+  } catch {
+    // silencioso
+  }
   return []
 }
 
@@ -32,8 +34,10 @@ export default function MaintenanceClient({ initialOrders }: Props) {
 
   const visibleOrders = useMemo(() => {
     const q = search.trim().toLowerCase()
+
     return initialOrders.filter((order) => {
       if (!q) return true
+
       return (
         order.orderNumber.toLowerCase().includes(q) ||
         order.clientName.toLowerCase().includes(q) ||
@@ -51,6 +55,7 @@ export default function MaintenanceClient({ initialOrders }: Props) {
       <Card>
         <CardHeader className="space-y-3">
           <CardTitle>Ordenes de mantenimiento</CardTitle>
+
           <SearchInput
             value={search}
             onChange={setSearch}
@@ -58,9 +63,12 @@ export default function MaintenanceClient({ initialOrders }: Props) {
             className="max-w-md"
           />
         </CardHeader>
+
         <CardContent>
           {visibleOrders.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No hay ordenes de mantenimiento disponibles.</p>
+            <p className="text-sm text-muted-foreground">
+              No hay ordenes de mantenimiento disponibles.
+            </p>
           ) : (
             <div className="rounded-md border overflow-x-auto">
               <table className="w-full text-sm">
@@ -79,22 +87,24 @@ export default function MaintenanceClient({ initialOrders }: Props) {
                     <th className="p-2 text-left">Reparaciones</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {visibleOrders.map((order) => {
                     const linkedRepairs = getRepairsForMaintenanceOrder(order, repairs)
+
                     return (
                       <tr key={order.id} className="border-b hover:bg-muted/50">
                         <td className="p-2 font-mono">{order.orderNumber}</td>
                         <td className="p-2">{order.clientName}</td>
                         <td className="p-2">{order.machineName}</td>
-                        <td className="p-2">{order.type ?? "—"}</td>
+                        <td className="p-2">{order.type ?? " "}</td>
                         <td className="p-2">{formatDate(order.entryDate)}</td>
                         <td className="p-2">{formatDate(order.returnDate)}</td>
                         <td className="p-2">{formatDate(order.repairDate)}</td>
                         <td className="p-2">{order.status}</td>
-                        <td className="p-2">{order.technician ?? "—"}</td>
+                        <td className="p-2">{order.technician ?? " "}</td>
                         <td className="p-2">
-                          {order.docId ?? "—"}
+                          {order.docId ?? " "}
                           {order.itemId != null ? ` / ${order.itemId}` : ""}
                         </td>
                         <td className="p-2">
@@ -112,7 +122,7 @@ export default function MaintenanceClient({ initialOrders }: Props) {
                               Ver reparaciones ({linkedRepairs.length})
                             </Button>
                           ) : (
-                            <span className="text-xs text-muted-foreground">—</span>
+                            <span className="text-xs text-muted-foreground">â€”</span>
                           )}
                         </td>
                       </tr>
