@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server"
-import { loadLocalMaintenanceRecords } from "@/lib/local-sync"
+import { getMaintenanceRecords } from "@/services/maintenance"
 
 export const runtime = "nodejs"
 
 export async function GET() {
-  return NextResponse.json(loadLocalMaintenanceRecords())
+  const records = await getMaintenanceRecords()
+  return NextResponse.json(records)
 }

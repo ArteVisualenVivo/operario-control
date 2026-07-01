@@ -9,7 +9,6 @@ import {
   serverTimestamp,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
-import { LOCAL_MODE } from "@/lib/runtimeMode"
 import { createAuditLog } from "./audit"
 
 export interface MaintenanceRecord {
@@ -135,25 +134,6 @@ function firstDateCandidate(...values: unknown[]): Date | undefined {
 }
 
 export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
-  try {
-    const res = await fetch("/api/local/maintenance", { cache: "no-store" })
-    if (res.ok) {
-      const data = await res.json()
-      if (Array.isArray(data)) return data.map((item) => ({
-        ...item,
-        entryDate: new Date(item.entryDate),
-        returnDate: item.returnDate ? new Date(item.returnDate) : undefined,
-        repairDate: item.repairDate ? new Date(item.repairDate) : undefined,
-        createdAt: new Date(item.createdAt),
-        updatedAt: new Date(item.updatedAt),
-      })) as MaintenanceRecord[]
-    }
-  } catch {
-    // fallback below
-  }
-
-  if (LOCAL_MODE) return []
-
   const q = query(collection(db, COLLECTION), orderBy("entryDate", "desc"))
   const snapshot = await getDocs(q)
   return snapshot.docs
@@ -161,9 +141,9 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
       const data = d.data()
       const originalData = (data.originalData as Record<string, unknown> | undefined) ?? undefined
       const originalReturn = findDateLikeValue(originalData, ["entrega", "egreso", "salida", "retiro", "return", "fecha2"])
-      const originalRepair = findDateLikeValue(originalData, ["reparacion", "reparaciÃ³n", "taller", "repair"])
+      const originalRepair = findDateLikeValue(originalData, ["reparacion", "reparación", "taller", "repair"])
       const originalEntry = findDateLikeValue(originalData, ["fecha_ingreso", "ingreso", "entrada", "entry", "fecha"])
-      const originalStatus = findDateLikeValue(originalData, ["estado", "situacion", "situaciÃ³n"])
+      const originalStatus = findDateLikeValue(originalData, ["estado", "situacion", "situación"])
 
       const entryDateCandidate = firstDateCandidate(data.entryDate, originalEntry, data.createdAt)
       const returnDateCandidate = firstDateCandidate(
@@ -190,22 +170,22 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
         clientName: data.clientName as string,
         clientCode: data.clientCode as string | undefined,
         machineName: data.machineName as string,
-        status: (data.status as string) || (typeof originalStatus === "string" ? originalStatus : "RecepciÃ³n"),
+        status: (data.status as string) || (typeof originalStatus === "string" ? originalStatus : "Recepción"),
         docId: data.docId as string | undefined,
         itemId: typeof data.itemId === "number" ? data.itemId : null,
         articleId: data.articleId as string | undefined,
-        quantity: typeof data.quantity === "number" ? data.quantity : null,
-        unitPrice: typeof data.unitPrice === "number" ? data.unitPrice : null,
-        totalPrice: typeof data.totalPrice === "number" ? data.totalPrice : null,
-        taxed: typeof data.taxed === "number" ? data.taxed : null,
-        notTaxed: typeof data.notTaxed === "number" ? data.notTaxed : null,
-        exempt: typeof data.exempt === "number" ? data.exempt : null,
-        capitalGood: typeof data.capitalGood === "number" ? data.capitalGood : null,
-        useGood: typeof data.useGood === "number" ? data.useGood : null,
-        equivalentCoefficient: typeof data.equivalentCoefficient === "number" ? data.equivalentCoefficient : null,
-        netPrice: typeof data.netPrice === "number" ? data.netPrice : null,
+        quantity:typeof data.quantity==="number"?data.quantity:null,
+        unitPrice:typeof data.unitPrice==="number"?data.unitPrice:null,
+        totalPrice:typeof data.totalPrice==="number"?data.totalPrice:null,
+        taxed:typeof data.taxed==="number"?data.taxed:null,
+        notTaxed:typeof data.notTaxed==="number"?data.notTaxed:null,
+        exempt:typeof data.exempt==="number"?data.exempt:null,
+        capitalGood:typeof data.capitalGood==="number"?data.capitalGood:null,
+        useGood:typeof data.useGood==="number"?data.useGood:null,
+        equivalentCoefficient:typeof data.equivalentCoefficient==="number"?data.equivalentCoefficient:null,
+        netPrice:typeof data.netPrice==="number"?data.netPrice:null,
         originalData,
-        sourceRow: typeof data.sourceRow === "number" ? data.sourceRow : undefined,
+        sourceRow:typeof data.sourceRow==="number"?data.sourceRow:undefined,
         repairDate: repairDateCandidate ?? undefined,
         returnDate: returnDateCandidate ?? undefined,
         warranty: data.warranty ? toDate(data.warranty) : undefined,
@@ -217,7 +197,6 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
     })
     .filter((record) => ORDER_PATTERN.test(record.orderNumber))
 }
-
 export async function createOrUpdateMaintenance(input: MaintenanceInput): Promise<void> {
   const ref = doc(db, COLLECTION, input.orderNumber)
   const before = await getDoc(ref)

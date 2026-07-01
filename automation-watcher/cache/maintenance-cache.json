@@ -578,32 +578,6 @@
     "updatedAt": "2026-06-05T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00011137",
-    "orderNumber": "X 0001-00011137",
-    "type": "O.R.",
-    "entryDate": "2026-06-05T03:00:00.000Z",
-    "clientName": "COCREAR (100)",
-    "machineName": "20103 - MARTILLO DEMOLEDOR N3-",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "05/06/2026",
-      "numero": "X 0001-00011137",
-      "estado": "Recepcion de Cliente",
-      "cliente": "COCREAR (100)",
-      "observ": "no funciona",
-      "descrip": "20103 - MARTILLO DEMOLEDOR N3-",
-      "expediente": "BOCSH 10KG",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 13,
-      "costo": 8264.46
-    },
-    "createdAt": "2026-06-05T03:00:00.000Z",
-    "updatedAt": "2026-06-05T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00011134",
     "orderNumber": "X 0001-00011134",
     "type": "O.R.",
@@ -626,6 +600,32 @@
       "presup": "",
       "vendedor": 18,
       "costo": 304545.455
+    },
+    "createdAt": "2026-06-05T03:00:00.000Z",
+    "updatedAt": "2026-06-05T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00011137",
+    "orderNumber": "X 0001-00011137",
+    "type": "O.R.",
+    "entryDate": "2026-06-05T03:00:00.000Z",
+    "clientName": "COCREAR (100)",
+    "machineName": "20103 - MARTILLO DEMOLEDOR N3-",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "05/06/2026",
+      "numero": "X 0001-00011137",
+      "estado": "Recepcion de Cliente",
+      "cliente": "COCREAR (100)",
+      "observ": "no funciona",
+      "descrip": "20103 - MARTILLO DEMOLEDOR N3-",
+      "expediente": "BOCSH 10KG",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 13,
+      "costo": 8264.46
     },
     "createdAt": "2026-06-05T03:00:00.000Z",
     "updatedAt": "2026-06-05T03:00:00.000Z"
@@ -1205,32 +1205,6 @@
     "updatedAt": "2026-05-20T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00011112",
-    "orderNumber": "X 0001-00011112",
-    "type": "O.R.",
-    "entryDate": "2026-05-20T03:00:00.000Z",
-    "clientName": "VALLADARES MAXIMILIANO (109666)",
-    "machineName": "PISON NIWA",
-    "status": "Entreg./Factur.",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "20/05/2026",
-      "numero": "X 0001-00011112",
-      "estado": "Entreg./Factur.",
-      "cliente": "VALLADARES MAXIMILIANO (109666)",
-      "observ": "CAMBIAR TANQUE DE NAFTA, COMPLETO, AGREGAR MANGUERA, AGREGAR TAPA DE TANQUE, AGREGAR RESORTE ACELERADOR YA QUE NO TIENE, CAMBIO DE ACEITE CAMBIO BUJIA, AGRREGLO CARBURADOR.",
-      "descrip": "PISON NIWA",
-      "expediente": "",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 21,
-      "costo": 237500
-    },
-    "createdAt": "2026-05-20T03:00:00.000Z",
-    "updatedAt": "2026-05-20T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00011113",
     "orderNumber": "X 0001-00011113",
     "type": "O.R.",
@@ -1252,6 +1226,32 @@
       "presup": "",
       "vendedor": 21,
       "costo": 73500
+    },
+    "createdAt": "2026-05-20T03:00:00.000Z",
+    "updatedAt": "2026-05-20T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00011112",
+    "orderNumber": "X 0001-00011112",
+    "type": "O.R.",
+    "entryDate": "2026-05-20T03:00:00.000Z",
+    "clientName": "VALLADARES MAXIMILIANO (109666)",
+    "machineName": "PISON NIWA",
+    "status": "Entreg./Factur.",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "20/05/2026",
+      "numero": "X 0001-00011112",
+      "estado": "Entreg./Factur.",
+      "cliente": "VALLADARES MAXIMILIANO (109666)",
+      "observ": "CAMBIAR TANQUE DE NAFTA, COMPLETO, AGREGAR MANGUERA, AGREGAR TAPA DE TANQUE, AGREGAR RESORTE ACELERADOR YA QUE NO TIENE, CAMBIO DE ACEITE CAMBIO BUJIA, AGRREGLO CARBURADOR.",
+      "descrip": "PISON NIWA",
+      "expediente": "",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 21,
+      "costo": 237500
     },
     "createdAt": "2026-05-20T03:00:00.000Z",
     "updatedAt": "2026-05-20T03:00:00.000Z"
@@ -1309,32 +1309,6 @@
     "updatedAt": "2026-05-16T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00011105",
-    "orderNumber": "X 0001-00011105",
-    "type": "O.R.",
-    "entryDate": "2026-05-15T03:00:00.000Z",
-    "clientName": "COCREAR (100)",
-    "machineName": "23001 - PLACA VIBRADORA MACROM",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "15/05/2026",
-      "numero": "X 0001-00011105",
-      "estado": "Recepcion de Cliente",
-      "cliente": "COCREAR (100)",
-      "observ": "",
-      "descrip": "23001 - PLACA VIBRADORA MACROM",
-      "expediente": "AQ NRO.1",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 13,
-      "costo": 177092.431
-    },
-    "createdAt": "2026-05-15T03:00:00.000Z",
-    "updatedAt": "2026-05-15T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00011107",
     "orderNumber": "X 0001-00011107",
     "type": "O.R.",
@@ -1356,6 +1330,32 @@
       "presup": "",
       "vendedor": 13,
       "costo": 167231.405
+    },
+    "createdAt": "2026-05-15T03:00:00.000Z",
+    "updatedAt": "2026-05-15T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00011105",
+    "orderNumber": "X 0001-00011105",
+    "type": "O.R.",
+    "entryDate": "2026-05-15T03:00:00.000Z",
+    "clientName": "COCREAR (100)",
+    "machineName": "23001 - PLACA VIBRADORA MACROM",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "15/05/2026",
+      "numero": "X 0001-00011105",
+      "estado": "Recepcion de Cliente",
+      "cliente": "COCREAR (100)",
+      "observ": "",
+      "descrip": "23001 - PLACA VIBRADORA MACROM",
+      "expediente": "AQ NRO.1",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 13,
+      "costo": 177092.431
     },
     "createdAt": "2026-05-15T03:00:00.000Z",
     "updatedAt": "2026-05-15T03:00:00.000Z"
@@ -1699,6 +1699,32 @@
     "updatedAt": "2026-05-07T03:00:00.000Z"
   },
   {
+    "id": "X 0001-00011095",
+    "orderNumber": "X 0001-00011095",
+    "type": "O.R.",
+    "entryDate": "2026-05-07T03:00:00.000Z",
+    "clientName": "COCREAR (100)",
+    "machineName": "20101 - MARTILLO DEMOLEDOR N1-",
+    "status": "Entreg./Factur.",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "07/05/2026",
+      "numero": "X 0001-00011095",
+      "estado": "Entreg./Factur.",
+      "cliente": "COCREAR (100)",
+      "observ": "FALLA REPORTADA:\nno funciona. luz roja en led\n\nREPARACIÓN REALIZADA:\nse cambiaron carbones. próximo cambio, mantenimiento completo. comprar más carbones\n",
+      "descrip": "20101 - MARTILLO DEMOLEDOR N1-",
+      "expediente": " BOCSH 10KG",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 13,
+      "costo": 39874.057
+    },
+    "createdAt": "2026-05-07T03:00:00.000Z",
+    "updatedAt": "2026-05-07T03:00:00.000Z"
+  },
+  {
     "id": "X 0001-00011092",
     "orderNumber": "X 0001-00011092",
     "type": "O.R.",
@@ -1746,32 +1772,6 @@
       "presup": "",
       "vendedor": 13,
       "costo": 34710.74
-    },
-    "createdAt": "2026-05-07T03:00:00.000Z",
-    "updatedAt": "2026-05-07T03:00:00.000Z"
-  },
-  {
-    "id": "X 0001-00011095",
-    "orderNumber": "X 0001-00011095",
-    "type": "O.R.",
-    "entryDate": "2026-05-07T03:00:00.000Z",
-    "clientName": "COCREAR (100)",
-    "machineName": "20101 - MARTILLO DEMOLEDOR N1-",
-    "status": "Entreg./Factur.",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "07/05/2026",
-      "numero": "X 0001-00011095",
-      "estado": "Entreg./Factur.",
-      "cliente": "COCREAR (100)",
-      "observ": "FALLA REPORTADA:\nno funciona. luz roja en led\n\nREPARACIÓN REALIZADA:\nse cambiaron carbones. próximo cambio, mantenimiento completo. comprar más carbones\n",
-      "descrip": "20101 - MARTILLO DEMOLEDOR N1-",
-      "expediente": " BOCSH 10KG",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 13,
-      "costo": 39874.057
     },
     "createdAt": "2026-05-07T03:00:00.000Z",
     "updatedAt": "2026-05-07T03:00:00.000Z"
@@ -3426,33 +3426,6 @@
     "updatedAt": "2026-03-26T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00011025",
-    "orderNumber": "X 0001-00011025",
-    "type": "O.R.",
-    "entryDate": "2026-03-26T03:00:00.000Z",
-    "repairDate": "0101-03-01T03:53:48.000Z",
-    "clientName": "DONADILLE SA (108485)",
-    "machineName": "Martillo Stanley demoledor 101",
-    "status": "en Taller",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "26/03/2026",
-      "numero": "X 0001-00011025",
-      "estado": "en Taller",
-      "cliente": "DONADILLE SA (108485)",
-      "observ": "ANDA PERO NO TIENE FUERZA",
-      "descrip": "Martillo Stanley demoledor 101",
-      "expediente": "0 W c/maletin",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 18,
-      "costo": 8264.463
-    },
-    "createdAt": "2026-03-26T03:00:00.000Z",
-    "updatedAt": "2026-03-26T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00011030",
     "orderNumber": "X 0001-00011030",
     "type": "O.R.",
@@ -3500,6 +3473,33 @@
       "presup": "",
       "vendedor": 13,
       "costo": 0
+    },
+    "createdAt": "2026-03-26T03:00:00.000Z",
+    "updatedAt": "2026-03-26T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00011025",
+    "orderNumber": "X 0001-00011025",
+    "type": "O.R.",
+    "entryDate": "2026-03-26T03:00:00.000Z",
+    "repairDate": "0101-03-01T03:53:48.000Z",
+    "clientName": "DONADILLE SA (108485)",
+    "machineName": "Martillo Stanley demoledor 101",
+    "status": "en Taller",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "26/03/2026",
+      "numero": "X 0001-00011025",
+      "estado": "en Taller",
+      "cliente": "DONADILLE SA (108485)",
+      "observ": "ANDA PERO NO TIENE FUERZA",
+      "descrip": "Martillo Stanley demoledor 101",
+      "expediente": "0 W c/maletin",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 18,
+      "costo": 8264.463
     },
     "createdAt": "2026-03-26T03:00:00.000Z",
     "updatedAt": "2026-03-26T03:00:00.000Z"
@@ -3713,32 +3713,6 @@
     "updatedAt": "2026-03-18T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00011016",
-    "orderNumber": "X 0001-00011016",
-    "type": "O.R.",
-    "entryDate": "2026-03-18T03:00:00.000Z",
-    "clientName": "COCREAR (100)",
-    "machineName": "22002 - PISON CANGURO MACROMAX",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "18/03/2026",
-      "numero": "X 0001-00011016",
-      "estado": "Recepcion de Cliente",
-      "cliente": "COCREAR (100)",
-      "observ": "",
-      "descrip": "22002 - PISON CANGURO MACROMAX",
-      "expediente": " NRO.2",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 13,
-      "costo": 13049.831
-    },
-    "createdAt": "2026-03-18T03:00:00.000Z",
-    "updatedAt": "2026-03-18T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00011015",
     "orderNumber": "X 0001-00011015",
     "type": "O.R.",
@@ -3760,6 +3734,32 @@
       "presup": "",
       "vendedor": 21,
       "costo": 108000
+    },
+    "createdAt": "2026-03-18T03:00:00.000Z",
+    "updatedAt": "2026-03-18T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00011016",
+    "orderNumber": "X 0001-00011016",
+    "type": "O.R.",
+    "entryDate": "2026-03-18T03:00:00.000Z",
+    "clientName": "COCREAR (100)",
+    "machineName": "22002 - PISON CANGURO MACROMAX",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "18/03/2026",
+      "numero": "X 0001-00011016",
+      "estado": "Recepcion de Cliente",
+      "cliente": "COCREAR (100)",
+      "observ": "",
+      "descrip": "22002 - PISON CANGURO MACROMAX",
+      "expediente": " NRO.2",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 13,
+      "costo": 13049.831
     },
     "createdAt": "2026-03-18T03:00:00.000Z",
     "updatedAt": "2026-03-18T03:00:00.000Z"
@@ -4524,6 +4524,32 @@
     "updatedAt": "2026-02-20T03:00:00.000Z"
   },
   {
+    "id": "X 0001-00010984",
+    "orderNumber": "X 0001-00010984",
+    "type": "O.R.",
+    "entryDate": "2026-02-20T03:00:00.000Z",
+    "clientName": "COCREAR (100)",
+    "machineName": "60001 - HORMIGONERA 130 LT NRO",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "20/02/2026",
+      "numero": "X 0001-00010984",
+      "estado": "Recepcion de Cliente",
+      "cliente": "COCREAR (100)",
+      "observ": "",
+      "descrip": "60001 - HORMIGONERA 130 LT NRO",
+      "expediente": ".1",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 21,
+      "costo": 62507
+    },
+    "createdAt": "2026-02-20T03:00:00.000Z",
+    "updatedAt": "2026-02-20T03:00:00.000Z"
+  },
+  {
     "id": "X 0001-00010983",
     "orderNumber": "X 0001-00010983",
     "type": "O.R.",
@@ -4546,32 +4572,6 @@
       "presup": "",
       "vendedor": 18,
       "costo": 47107.438
-    },
-    "createdAt": "2026-02-20T03:00:00.000Z",
-    "updatedAt": "2026-02-20T03:00:00.000Z"
-  },
-  {
-    "id": "X 0001-00010984",
-    "orderNumber": "X 0001-00010984",
-    "type": "O.R.",
-    "entryDate": "2026-02-20T03:00:00.000Z",
-    "clientName": "COCREAR (100)",
-    "machineName": "60001 - HORMIGONERA 130 LT NRO",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "20/02/2026",
-      "numero": "X 0001-00010984",
-      "estado": "Recepcion de Cliente",
-      "cliente": "COCREAR (100)",
-      "observ": "",
-      "descrip": "60001 - HORMIGONERA 130 LT NRO",
-      "expediente": ".1",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 21,
-      "costo": 62507
     },
     "createdAt": "2026-02-20T03:00:00.000Z",
     "updatedAt": "2026-02-20T03:00:00.000Z"
@@ -4867,32 +4867,6 @@
     "updatedAt": "2026-02-05T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010970",
-    "orderNumber": "X 0001-00010970",
-    "type": "O.R.",
-    "entryDate": "2026-02-04T03:00:00.000Z",
-    "clientName": "COCREAR (100)",
-    "machineName": "24101 - GRUPO ELECTROGENO 10 K",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "04/02/2026",
-      "numero": "X 0001-00010970",
-      "estado": "Recepcion de Cliente",
-      "cliente": "COCREAR (100)",
-      "observ": "",
-      "descrip": "24101 - GRUPO ELECTROGENO 10 K",
-      "expediente": "VA HONDA",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 13,
-      "costo": 214876.033
-    },
-    "createdAt": "2026-02-04T03:00:00.000Z",
-    "updatedAt": "2026-02-04T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010969",
     "orderNumber": "X 0001-00010969",
     "type": "O.R.",
@@ -4914,6 +4888,32 @@
       "presup": "",
       "vendedor": 21,
       "costo": 0
+    },
+    "createdAt": "2026-02-04T03:00:00.000Z",
+    "updatedAt": "2026-02-04T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010970",
+    "orderNumber": "X 0001-00010970",
+    "type": "O.R.",
+    "entryDate": "2026-02-04T03:00:00.000Z",
+    "clientName": "COCREAR (100)",
+    "machineName": "24101 - GRUPO ELECTROGENO 10 K",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "04/02/2026",
+      "numero": "X 0001-00010970",
+      "estado": "Recepcion de Cliente",
+      "cliente": "COCREAR (100)",
+      "observ": "",
+      "descrip": "24101 - GRUPO ELECTROGENO 10 K",
+      "expediente": "VA HONDA",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 13,
+      "costo": 214876.033
     },
     "createdAt": "2026-02-04T03:00:00.000Z",
     "updatedAt": "2026-02-04T03:00:00.000Z"
@@ -5925,32 +5925,6 @@
     "updatedAt": "2025-12-22T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010931",
-    "orderNumber": "X 0001-00010931",
-    "type": "O.R.",
-    "entryDate": "2025-12-22T03:00:00.000Z",
-    "clientName": "GRANATA FRANCO (108418)",
-    "machineName": "Martillo de 30kg Dewalt",
-    "status": "Entreg./Factur.",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "22/12/2025",
-      "numero": "X 0001-00010931",
-      "estado": "Entreg./Factur.",
-      "cliente": "GRANATA FRANCO (108418)",
-      "observ": "Funciona intermitentemente\nREPARACIÓN REALIZADA:\nmantenimiento completo. se revisa conexiones. se encuentran un cable pelado por apriete contra los plásticos. se sigue desarmando hasta llegar al inducido y se encuentran delgas rotas. Se cambiaron 2 oring del golpeador. se cambia inducido. no enciende. se cambia módulo de encendido. \n\n\n\n",
-      "descrip": "Martillo de 30kg Dewalt",
-      "expediente": "",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 13,
-      "costo": 496000
-    },
-    "createdAt": "2025-12-22T03:00:00.000Z",
-    "updatedAt": "2025-12-22T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010930",
     "orderNumber": "X 0001-00010930",
     "type": "O.R.",
@@ -5973,6 +5947,32 @@
       "presup": "",
       "vendedor": 13,
       "costo": 86776.86
+    },
+    "createdAt": "2025-12-22T03:00:00.000Z",
+    "updatedAt": "2025-12-22T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010931",
+    "orderNumber": "X 0001-00010931",
+    "type": "O.R.",
+    "entryDate": "2025-12-22T03:00:00.000Z",
+    "clientName": "GRANATA FRANCO (108418)",
+    "machineName": "Martillo de 30kg Dewalt",
+    "status": "Entreg./Factur.",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "22/12/2025",
+      "numero": "X 0001-00010931",
+      "estado": "Entreg./Factur.",
+      "cliente": "GRANATA FRANCO (108418)",
+      "observ": "Funciona intermitentemente\nREPARACIÓN REALIZADA:\nmantenimiento completo. se revisa conexiones. se encuentran un cable pelado por apriete contra los plásticos. se sigue desarmando hasta llegar al inducido y se encuentran delgas rotas. Se cambiaron 2 oring del golpeador. se cambia inducido. no enciende. se cambia módulo de encendido. \n\n\n\n",
+      "descrip": "Martillo de 30kg Dewalt",
+      "expediente": "",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 13,
+      "costo": 496000
     },
     "createdAt": "2025-12-22T03:00:00.000Z",
     "updatedAt": "2025-12-22T03:00:00.000Z"
@@ -6795,32 +6795,6 @@
     "updatedAt": "2025-12-02T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010896",
-    "orderNumber": "X 0001-00010896",
-    "type": "O.R.",
-    "entryDate": "2025-11-28T03:00:00.000Z",
-    "clientName": "OPUS NOVUM (109420)",
-    "machineName": "VIBRADOR INMERSION HONDA GP 16",
-    "status": "Entreg./Factur.",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "28/11/2025",
-      "numero": "X 0001-00010896",
-      "estado": "Entreg./Factur.",
-      "cliente": "OPUS NOVUM (109420)",
-      "observ": "HACER SERVICE GRAL COMO LIMPIEZA, CAMBIO DE ACEITE.",
-      "descrip": "VIBRADOR INMERSION HONDA GP 16",
-      "expediente": "0",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 21,
-      "costo": 77685.95
-    },
-    "createdAt": "2025-11-28T03:00:00.000Z",
-    "updatedAt": "2025-11-28T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010897",
     "orderNumber": "X 0001-00010897",
     "type": "O.R.",
@@ -6842,6 +6816,32 @@
       "presup": "",
       "vendedor": 21,
       "costo": 86776.859
+    },
+    "createdAt": "2025-11-28T03:00:00.000Z",
+    "updatedAt": "2025-11-28T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010896",
+    "orderNumber": "X 0001-00010896",
+    "type": "O.R.",
+    "entryDate": "2025-11-28T03:00:00.000Z",
+    "clientName": "OPUS NOVUM (109420)",
+    "machineName": "VIBRADOR INMERSION HONDA GP 16",
+    "status": "Entreg./Factur.",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "28/11/2025",
+      "numero": "X 0001-00010896",
+      "estado": "Entreg./Factur.",
+      "cliente": "OPUS NOVUM (109420)",
+      "observ": "HACER SERVICE GRAL COMO LIMPIEZA, CAMBIO DE ACEITE.",
+      "descrip": "VIBRADOR INMERSION HONDA GP 16",
+      "expediente": "0",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 21,
+      "costo": 77685.95
     },
     "createdAt": "2025-11-28T03:00:00.000Z",
     "updatedAt": "2025-11-28T03:00:00.000Z"
@@ -9165,6 +9165,32 @@
     "updatedAt": "2025-09-27T03:00:00.000Z"
   },
   {
+    "id": "X 0001-00010807",
+    "orderNumber": "X 0001-00010807",
+    "type": "O.R.",
+    "entryDate": "2025-09-26T03:00:00.000Z",
+    "clientName": "MARCOS PEREZ SANTANA (109174)",
+    "machineName": "Amoladora Bosch de 230mm GWS 2",
+    "status": "Entreg./Factur.",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "26/09/2025",
+      "numero": "X 0001-00010807",
+      "estado": "Entreg./Factur.",
+      "cliente": "MARCOS PEREZ SANTANA (109174)",
+      "observ": "La amoladora no enciende.\nCAMBIAR INDUCIDO\n\nREPARACION REALIZADA: CAMBIO DE CARBONES\nAVISADO QUE YA ESTA LOISTA EL DIA 18/05/2026",
+      "descrip": "Amoladora Bosch de 230mm GWS 2",
+      "expediente": "0-230",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 21,
+      "costo": 50000
+    },
+    "createdAt": "2025-09-26T03:00:00.000Z",
+    "updatedAt": "2025-09-26T03:00:00.000Z"
+  },
+  {
     "id": "X 0001-00010806",
     "orderNumber": "X 0001-00010806",
     "type": "O.R.",
@@ -9187,32 +9213,6 @@
       "presup": "",
       "vendedor": 21,
       "costo": 0
-    },
-    "createdAt": "2025-09-26T03:00:00.000Z",
-    "updatedAt": "2025-09-26T03:00:00.000Z"
-  },
-  {
-    "id": "X 0001-00010807",
-    "orderNumber": "X 0001-00010807",
-    "type": "O.R.",
-    "entryDate": "2025-09-26T03:00:00.000Z",
-    "clientName": "MARCOS PEREZ SANTANA (109174)",
-    "machineName": "Amoladora Bosch de 230mm GWS 2",
-    "status": "Entreg./Factur.",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "26/09/2025",
-      "numero": "X 0001-00010807",
-      "estado": "Entreg./Factur.",
-      "cliente": "MARCOS PEREZ SANTANA (109174)",
-      "observ": "La amoladora no enciende.\nCAMBIAR INDUCIDO\n\nREPARACION REALIZADA: CAMBIO DE CARBONES\nAVISADO QUE YA ESTA LOISTA EL DIA 18/05/2026",
-      "descrip": "Amoladora Bosch de 230mm GWS 2",
-      "expediente": "0-230",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 21,
-      "costo": 50000
     },
     "createdAt": "2025-09-26T03:00:00.000Z",
     "updatedAt": "2025-09-26T03:00:00.000Z"
@@ -9900,32 +9900,6 @@
     "updatedAt": "2025-09-12T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010777",
-    "orderNumber": "X 0001-00010777",
-    "type": "O.R.",
-    "entryDate": "2025-09-12T03:00:00.000Z",
-    "clientName": "GARCIA ORELLANA RAUL (108762)",
-    "machineName": "ALLANADORA 90CM . MOTOR HONDAG",
-    "status": "Entreg./Factur.",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "12/09/2025",
-      "numero": "X 0001-00010777",
-      "estado": "Entreg./Factur.",
-      "cliente": "GARCIA ORELLANA RAUL (108762)",
-      "observ": "",
-      "descrip": "ALLANADORA 90CM . MOTOR HONDAG",
-      "expediente": "X 160",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 18,
-      "costo": 179339
-    },
-    "createdAt": "2025-09-12T03:00:00.000Z",
-    "updatedAt": "2025-09-12T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010780",
     "orderNumber": "X 0001-00010780",
     "type": "O.R.",
@@ -9947,6 +9921,32 @@
       "presup": "",
       "vendedor": 13,
       "costo": 43140.496
+    },
+    "createdAt": "2025-09-12T03:00:00.000Z",
+    "updatedAt": "2025-09-12T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010777",
+    "orderNumber": "X 0001-00010777",
+    "type": "O.R.",
+    "entryDate": "2025-09-12T03:00:00.000Z",
+    "clientName": "GARCIA ORELLANA RAUL (108762)",
+    "machineName": "ALLANADORA 90CM . MOTOR HONDAG",
+    "status": "Entreg./Factur.",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "12/09/2025",
+      "numero": "X 0001-00010777",
+      "estado": "Entreg./Factur.",
+      "cliente": "GARCIA ORELLANA RAUL (108762)",
+      "observ": "",
+      "descrip": "ALLANADORA 90CM . MOTOR HONDAG",
+      "expediente": "X 160",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 18,
+      "costo": 179339
     },
     "createdAt": "2025-09-12T03:00:00.000Z",
     "updatedAt": "2025-09-12T03:00:00.000Z"
@@ -10342,32 +10342,6 @@
     "updatedAt": "2025-09-06T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010761",
-    "orderNumber": "X 0001-00010761",
-    "type": "O.R.",
-    "entryDate": "2025-09-05T03:00:00.000Z",
-    "clientName": "COCREAR (100)",
-    "machineName": "31601 - ASERRADORA DE HORMIGON",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "05/09/2025",
-      "numero": "X 0001-00010761",
-      "estado": "Recepcion de Cliente",
-      "cliente": "COCREAR (100)",
-      "observ": "",
-      "descrip": "31601 - ASERRADORA DE HORMIGON",
-      "expediente": "",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 99,
-      "costo": 13140.496
-    },
-    "createdAt": "2025-09-05T03:00:00.000Z",
-    "updatedAt": "2025-09-05T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010760",
     "orderNumber": "X 0001-00010760",
     "type": "O.R.",
@@ -10390,6 +10364,32 @@
       "presup": "",
       "vendedor": 18,
       "costo": 82641.322
+    },
+    "createdAt": "2025-09-05T03:00:00.000Z",
+    "updatedAt": "2025-09-05T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010761",
+    "orderNumber": "X 0001-00010761",
+    "type": "O.R.",
+    "entryDate": "2025-09-05T03:00:00.000Z",
+    "clientName": "COCREAR (100)",
+    "machineName": "31601 - ASERRADORA DE HORMIGON",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "05/09/2025",
+      "numero": "X 0001-00010761",
+      "estado": "Recepcion de Cliente",
+      "cliente": "COCREAR (100)",
+      "observ": "",
+      "descrip": "31601 - ASERRADORA DE HORMIGON",
+      "expediente": "",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 99,
+      "costo": 13140.496
     },
     "createdAt": "2025-09-05T03:00:00.000Z",
     "updatedAt": "2025-09-05T03:00:00.000Z"
@@ -10655,32 +10655,6 @@
     "updatedAt": "2025-08-29T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010748",
-    "orderNumber": "X 0001-00010748",
-    "type": "O.R.",
-    "entryDate": "2025-08-26T03:00:00.000Z",
-    "clientName": "COCREAR (100)",
-    "machineName": "22004 - PISON CANGURO MACROMAQ",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "26/08/2025",
-      "numero": "X 0001-00010748",
-      "estado": "Recepcion de Cliente",
-      "cliente": "COCREAR (100)",
-      "observ": "",
-      "descrip": "22004 - PISON CANGURO MACROMAQ",
-      "expediente": "  4",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 99,
-      "costo": 8065.6
-    },
-    "createdAt": "2025-08-26T03:00:00.000Z",
-    "updatedAt": "2025-08-26T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010749",
     "orderNumber": "X 0001-00010749",
     "type": "O.R.",
@@ -10702,6 +10676,32 @@
       "presup": "",
       "vendedor": 99,
       "costo": 186200
+    },
+    "createdAt": "2025-08-26T03:00:00.000Z",
+    "updatedAt": "2025-08-26T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010748",
+    "orderNumber": "X 0001-00010748",
+    "type": "O.R.",
+    "entryDate": "2025-08-26T03:00:00.000Z",
+    "clientName": "COCREAR (100)",
+    "machineName": "22004 - PISON CANGURO MACROMAQ",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "26/08/2025",
+      "numero": "X 0001-00010748",
+      "estado": "Recepcion de Cliente",
+      "cliente": "COCREAR (100)",
+      "observ": "",
+      "descrip": "22004 - PISON CANGURO MACROMAQ",
+      "expediente": "  4",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 99,
+      "costo": 8065.6
     },
     "createdAt": "2025-08-26T03:00:00.000Z",
     "updatedAt": "2025-08-26T03:00:00.000Z"
@@ -11307,33 +11307,6 @@
     "updatedAt": "2025-08-07T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010723",
-    "orderNumber": "X 0001-00010723",
-    "type": "O.R.",
-    "entryDate": "2025-08-06T03:00:00.000Z",
-    "repairDate": "0160-01-01T03:53:48.000Z",
-    "clientName": "COMAR (108135)",
-    "machineName": "Retractil Honda GX 160",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "06/08/2025",
-      "numero": "X 0001-00010723",
-      "estado": "Recepcion de Cliente",
-      "cliente": "COMAR (108135)",
-      "observ": "El resirte esta roto (no vuelve) \nPara Banegas",
-      "descrip": "Retractil Honda GX 160",
-      "expediente": "",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 21,
-      "costo": 0
-    },
-    "createdAt": "2025-08-06T03:00:00.000Z",
-    "updatedAt": "2025-08-06T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010724",
     "orderNumber": "X 0001-00010724",
     "type": "O.R.",
@@ -11356,6 +11329,33 @@
       "presup": "",
       "vendedor": 21,
       "costo": 134817.951
+    },
+    "createdAt": "2025-08-06T03:00:00.000Z",
+    "updatedAt": "2025-08-06T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010723",
+    "orderNumber": "X 0001-00010723",
+    "type": "O.R.",
+    "entryDate": "2025-08-06T03:00:00.000Z",
+    "repairDate": "0160-01-01T03:53:48.000Z",
+    "clientName": "COMAR (108135)",
+    "machineName": "Retractil Honda GX 160",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "06/08/2025",
+      "numero": "X 0001-00010723",
+      "estado": "Recepcion de Cliente",
+      "cliente": "COMAR (108135)",
+      "observ": "El resirte esta roto (no vuelve) \nPara Banegas",
+      "descrip": "Retractil Honda GX 160",
+      "expediente": "",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 21,
+      "costo": 0
     },
     "createdAt": "2025-08-06T03:00:00.000Z",
     "updatedAt": "2025-08-06T03:00:00.000Z"
@@ -11754,33 +11754,6 @@
     "updatedAt": "2025-07-30T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010706",
-    "orderNumber": "X 0001-00010706",
-    "type": "O.R.",
-    "entryDate": "2025-07-29T03:00:00.000Z",
-    "returnDate": "2025-09-22T03:00:00.000Z",
-    "clientName": "COMAR (108135)",
-    "machineName": "Amoladora Bosch 115 gws 17-125",
-    "status": "Entreg./Factur.",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "29/07/2025",
-      "numero": "X 0001-00010706",
-      "estado": "Entreg./Factur.",
-      "cliente": "COMAR (108135)",
-      "observ": "La Amoladora no funciona\n(Para Pintura)",
-      "descrip": "Amoladora Bosch 115 gws 17-125",
-      "expediente": " s",
-      "entrega": "22/09/2025",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 13,
-      "costo": 73821.818
-    },
-    "createdAt": "2025-07-29T03:00:00.000Z",
-    "updatedAt": "2025-07-29T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010707",
     "orderNumber": "X 0001-00010707",
     "type": "O.R.",
@@ -11803,6 +11776,33 @@
       "presup": "",
       "vendedor": 13,
       "costo": 60330.578
+    },
+    "createdAt": "2025-07-29T03:00:00.000Z",
+    "updatedAt": "2025-07-29T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010706",
+    "orderNumber": "X 0001-00010706",
+    "type": "O.R.",
+    "entryDate": "2025-07-29T03:00:00.000Z",
+    "returnDate": "2025-09-22T03:00:00.000Z",
+    "clientName": "COMAR (108135)",
+    "machineName": "Amoladora Bosch 115 gws 17-125",
+    "status": "Entreg./Factur.",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "29/07/2025",
+      "numero": "X 0001-00010706",
+      "estado": "Entreg./Factur.",
+      "cliente": "COMAR (108135)",
+      "observ": "La Amoladora no funciona\n(Para Pintura)",
+      "descrip": "Amoladora Bosch 115 gws 17-125",
+      "expediente": " s",
+      "entrega": "22/09/2025",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 13,
+      "costo": 73821.818
     },
     "createdAt": "2025-07-29T03:00:00.000Z",
     "updatedAt": "2025-07-29T03:00:00.000Z"
@@ -11938,32 +11938,6 @@
     "updatedAt": "2025-07-25T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010699",
-    "orderNumber": "X 0001-00010699",
-    "type": "O.R.",
-    "entryDate": "2025-07-25T03:00:00.000Z",
-    "clientName": "COLOMBANO PABLO (109314)",
-    "machineName": "maquina cortar pasto potenza",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "25/07/2025",
-      "numero": "X 0001-00010699",
-      "estado": "Recepcion de Cliente",
-      "cliente": "COLOMBANO PABLO (109314)",
-      "observ": "tracciona lento, no la hace le parece muy caro",
-      "descrip": "maquina cortar pasto potenza",
-      "expediente": "",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 99,
-      "costo": 0
-    },
-    "createdAt": "2025-07-25T03:00:00.000Z",
-    "updatedAt": "2025-07-25T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010701",
     "orderNumber": "X 0001-00010701",
     "type": "O.R.",
@@ -11985,6 +11959,32 @@
       "presup": "",
       "vendedor": 99,
       "costo": 86776.859
+    },
+    "createdAt": "2025-07-25T03:00:00.000Z",
+    "updatedAt": "2025-07-25T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010699",
+    "orderNumber": "X 0001-00010699",
+    "type": "O.R.",
+    "entryDate": "2025-07-25T03:00:00.000Z",
+    "clientName": "COLOMBANO PABLO (109314)",
+    "machineName": "maquina cortar pasto potenza",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "25/07/2025",
+      "numero": "X 0001-00010699",
+      "estado": "Recepcion de Cliente",
+      "cliente": "COLOMBANO PABLO (109314)",
+      "observ": "tracciona lento, no la hace le parece muy caro",
+      "descrip": "maquina cortar pasto potenza",
+      "expediente": "",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 99,
+      "costo": 0
     },
     "createdAt": "2025-07-25T03:00:00.000Z",
     "updatedAt": "2025-07-25T03:00:00.000Z"
@@ -12670,32 +12670,6 @@
     "updatedAt": "2025-07-11T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010671",
-    "orderNumber": "X 0001-00010671",
-    "type": "O.R.",
-    "entryDate": "2025-07-11T03:00:00.000Z",
-    "clientName": "COCREAR (100)",
-    "machineName": "20201 - MARTILLO DEMOLEDOR N1-",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "11/07/2025",
-      "numero": "X 0001-00010671",
-      "estado": "Recepcion de Cliente",
-      "cliente": "COCREAR (100)",
-      "observ": "",
-      "descrip": "20201 - MARTILLO DEMOLEDOR N1-",
-      "expediente": " EINHELL 15KG",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 99,
-      "costo": 39669.421
-    },
-    "createdAt": "2025-07-11T03:00:00.000Z",
-    "updatedAt": "2025-07-11T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010672",
     "orderNumber": "X 0001-00010672",
     "type": "O.R.",
@@ -12712,6 +12686,32 @@
       "observ": "",
       "descrip": "20103 - MARTILLO DEMOLEDOR N3-",
       "expediente": "BOCSH 10KG",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 99,
+      "costo": 39669.421
+    },
+    "createdAt": "2025-07-11T03:00:00.000Z",
+    "updatedAt": "2025-07-11T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010671",
+    "orderNumber": "X 0001-00010671",
+    "type": "O.R.",
+    "entryDate": "2025-07-11T03:00:00.000Z",
+    "clientName": "COCREAR (100)",
+    "machineName": "20201 - MARTILLO DEMOLEDOR N1-",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "11/07/2025",
+      "numero": "X 0001-00010671",
+      "estado": "Recepcion de Cliente",
+      "cliente": "COCREAR (100)",
+      "observ": "",
+      "descrip": "20201 - MARTILLO DEMOLEDOR N1-",
+      "expediente": " EINHELL 15KG",
       "entrega": "",
       "garant": "N",
       "presup": "",
@@ -13036,32 +13036,6 @@
     "updatedAt": "2025-07-01T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010661",
-    "orderNumber": "X 0001-00010661",
-    "type": "O.R.",
-    "entryDate": "2025-07-01T03:00:00.000Z",
-    "clientName": "KYROS INGENIERIA SEBASTIAN NICOLAS CADAR (108127)",
-    "machineName": "martillo MAGNUM 17 KG",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "01/07/2025",
-      "numero": "X 0001-00010661",
-      "estado": "Recepcion de Cliente",
-      "cliente": "KYROS INGENIERIA SEBASTIAN NICOLAS CADAR (108127)",
-      "observ": "CARBONES $25.000 + INDUCIDO $160.0.000 +  XR $10.000 + REP $40.000 + MO CES. 80.000, TOTAL $315.000",
-      "descrip": "martillo MAGNUM 17 KG",
-      "expediente": "",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 99,
-      "costo": 0
-    },
-    "createdAt": "2025-07-01T03:00:00.000Z",
-    "updatedAt": "2025-07-01T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010654",
     "orderNumber": "X 0001-00010654",
     "type": "O.R.",
@@ -13083,6 +13057,32 @@
       "presup": "",
       "vendedor": 18,
       "costo": 24793.388
+    },
+    "createdAt": "2025-07-01T03:00:00.000Z",
+    "updatedAt": "2025-07-01T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010661",
+    "orderNumber": "X 0001-00010661",
+    "type": "O.R.",
+    "entryDate": "2025-07-01T03:00:00.000Z",
+    "clientName": "KYROS INGENIERIA SEBASTIAN NICOLAS CADAR (108127)",
+    "machineName": "martillo MAGNUM 17 KG",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "01/07/2025",
+      "numero": "X 0001-00010661",
+      "estado": "Recepcion de Cliente",
+      "cliente": "KYROS INGENIERIA SEBASTIAN NICOLAS CADAR (108127)",
+      "observ": "CARBONES $25.000 + INDUCIDO $160.0.000 +  XR $10.000 + REP $40.000 + MO CES. 80.000, TOTAL $315.000",
+      "descrip": "martillo MAGNUM 17 KG",
+      "expediente": "",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 99,
+      "costo": 0
     },
     "createdAt": "2025-07-01T03:00:00.000Z",
     "updatedAt": "2025-07-01T03:00:00.000Z"
@@ -13166,32 +13166,6 @@
     "updatedAt": "2025-06-30T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010659",
-    "orderNumber": "X 0001-00010659",
-    "type": "O.R.",
-    "entryDate": "2025-06-30T03:00:00.000Z",
-    "clientName": "COCREAR (100)",
-    "machineName": "",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "30/06/2025",
-      "numero": "X 0001-00010659",
-      "estado": "Recepcion de Cliente",
-      "cliente": "COCREAR (100)",
-      "observ": "",
-      "descrip": "",
-      "expediente": "",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 13,
-      "costo": 53719.008
-    },
-    "createdAt": "2025-06-30T03:00:00.000Z",
-    "updatedAt": "2025-06-30T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010651",
     "orderNumber": "X 0001-00010651",
     "type": "O.R.",
@@ -13218,27 +13192,27 @@
     "updatedAt": "2025-06-30T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010652",
-    "orderNumber": "X 0001-00010652",
+    "id": "X 0001-00010659",
+    "orderNumber": "X 0001-00010659",
     "type": "O.R.",
     "entryDate": "2025-06-30T03:00:00.000Z",
-    "clientName": "HEREDIA PABLO ESTEBAN (108406)",
-    "machineName": "MOTOR VIBRADOR 1H ELECTRICO",
-    "status": "Entreg./Factur.",
+    "clientName": "COCREAR (100)",
+    "machineName": "",
+    "status": "Recepcion de Cliente",
     "originalData": {
       "tipdoc": "O.R.",
       "fecha": "30/06/2025",
-      "numero": "X 0001-00010652",
-      "estado": "Entreg./Factur.",
-      "cliente": "HEREDIA PABLO ESTEBAN (108406)",
-      "observ": "CABLE Y PERILLA ENCASTRE",
-      "descrip": "MOTOR VIBRADOR 1H ELECTRICO",
+      "numero": "X 0001-00010659",
+      "estado": "Recepcion de Cliente",
+      "cliente": "COCREAR (100)",
+      "observ": "",
+      "descrip": "",
       "expediente": "",
       "entrega": "",
       "garant": "N",
       "presup": "",
-      "vendedor": 99,
-      "costo": 30000
+      "vendedor": 13,
+      "costo": 53719.008
     },
     "createdAt": "2025-06-30T03:00:00.000Z",
     "updatedAt": "2025-06-30T03:00:00.000Z"
@@ -13270,30 +13244,30 @@
     "updatedAt": "2025-06-30T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010648",
-    "orderNumber": "X 0001-00010648",
+    "id": "X 0001-00010652",
+    "orderNumber": "X 0001-00010652",
     "type": "O.R.",
-    "entryDate": "2025-06-27T03:00:00.000Z",
-    "clientName": "COCREAR (100)",
-    "machineName": "28200 - SILLETA",
-    "status": "Recepcion de Cliente",
+    "entryDate": "2025-06-30T03:00:00.000Z",
+    "clientName": "HEREDIA PABLO ESTEBAN (108406)",
+    "machineName": "MOTOR VIBRADOR 1H ELECTRICO",
+    "status": "Entreg./Factur.",
     "originalData": {
       "tipdoc": "O.R.",
-      "fecha": "27/06/2025",
-      "numero": "X 0001-00010648",
-      "estado": "Recepcion de Cliente",
-      "cliente": "COCREAR (100)",
-      "observ": "",
-      "descrip": "28200 - SILLETA",
+      "fecha": "30/06/2025",
+      "numero": "X 0001-00010652",
+      "estado": "Entreg./Factur.",
+      "cliente": "HEREDIA PABLO ESTEBAN (108406)",
+      "observ": "CABLE Y PERILLA ENCASTRE",
+      "descrip": "MOTOR VIBRADOR 1H ELECTRICO",
       "expediente": "",
       "entrega": "",
       "garant": "N",
       "presup": "",
       "vendedor": 99,
-      "costo": 10416
+      "costo": 30000
     },
-    "createdAt": "2025-06-27T03:00:00.000Z",
-    "updatedAt": "2025-06-27T03:00:00.000Z"
+    "createdAt": "2025-06-30T03:00:00.000Z",
+    "updatedAt": "2025-06-30T03:00:00.000Z"
   },
   {
     "id": "X 0001-00010649",
@@ -13317,6 +13291,32 @@
       "presup": "",
       "vendedor": 18,
       "costo": 0
+    },
+    "createdAt": "2025-06-27T03:00:00.000Z",
+    "updatedAt": "2025-06-27T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010648",
+    "orderNumber": "X 0001-00010648",
+    "type": "O.R.",
+    "entryDate": "2025-06-27T03:00:00.000Z",
+    "clientName": "COCREAR (100)",
+    "machineName": "28200 - SILLETA",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "27/06/2025",
+      "numero": "X 0001-00010648",
+      "estado": "Recepcion de Cliente",
+      "cliente": "COCREAR (100)",
+      "observ": "",
+      "descrip": "28200 - SILLETA",
+      "expediente": "",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 99,
+      "costo": 10416
     },
     "createdAt": "2025-06-27T03:00:00.000Z",
     "updatedAt": "2025-06-27T03:00:00.000Z"
@@ -14136,32 +14136,6 @@
     "updatedAt": "2025-06-02T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010614",
-    "orderNumber": "X 0001-00010614",
-    "type": "O.R.",
-    "entryDate": "2025-06-02T03:00:00.000Z",
-    "clientName": "COCREAR (100)",
-    "machineName": "22001 - PISON CANGURO MACROMAQ",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "02/06/2025",
-      "numero": "X 0001-00010614",
-      "estado": "Recepcion de Cliente",
-      "cliente": "COCREAR (100)",
-      "observ": "",
-      "descrip": "22001 - PISON CANGURO MACROMAQ",
-      "expediente": "  3",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 99,
-      "costo": 3395.24
-    },
-    "createdAt": "2025-06-02T03:00:00.000Z",
-    "updatedAt": "2025-06-02T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010616",
     "orderNumber": "X 0001-00010616",
     "type": "O.R.",
@@ -14184,6 +14158,32 @@
       "presup": "",
       "vendedor": 99,
       "costo": 49932.564
+    },
+    "createdAt": "2025-06-02T03:00:00.000Z",
+    "updatedAt": "2025-06-02T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010614",
+    "orderNumber": "X 0001-00010614",
+    "type": "O.R.",
+    "entryDate": "2025-06-02T03:00:00.000Z",
+    "clientName": "COCREAR (100)",
+    "machineName": "22001 - PISON CANGURO MACROMAQ",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "02/06/2025",
+      "numero": "X 0001-00010614",
+      "estado": "Recepcion de Cliente",
+      "cliente": "COCREAR (100)",
+      "observ": "",
+      "descrip": "22001 - PISON CANGURO MACROMAQ",
+      "expediente": "  3",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 99,
+      "costo": 3395.24
     },
     "createdAt": "2025-06-02T03:00:00.000Z",
     "updatedAt": "2025-06-02T03:00:00.000Z"
@@ -14555,32 +14555,6 @@
     "updatedAt": "2025-05-22T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010599",
-    "orderNumber": "X 0001-00010599",
-    "type": "O.R.",
-    "entryDate": "2025-05-21T03:00:00.000Z",
-    "clientName": "COMAR (108135)",
-    "machineName": "Amoladora DeWalt  4241 AR ---T",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "21/05/2025",
-      "numero": "X 0001-00010599",
-      "estado": "Recepcion de Cliente",
-      "cliente": "COMAR (108135)",
-      "observ": "a REVISAR",
-      "descrip": "Amoladora DeWalt  4241 AR ---T",
-      "expediente": "ALLER N 2",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 18,
-      "costo": 20661.157
-    },
-    "createdAt": "2025-05-21T03:00:00.000Z",
-    "updatedAt": "2025-05-21T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010598",
     "orderNumber": "X 0001-00010598",
     "type": "O.R.",
@@ -14602,6 +14576,32 @@
       "presup": "",
       "vendedor": 18,
       "costo": 66942.148
+    },
+    "createdAt": "2025-05-21T03:00:00.000Z",
+    "updatedAt": "2025-05-21T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010599",
+    "orderNumber": "X 0001-00010599",
+    "type": "O.R.",
+    "entryDate": "2025-05-21T03:00:00.000Z",
+    "clientName": "COMAR (108135)",
+    "machineName": "Amoladora DeWalt  4241 AR ---T",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "21/05/2025",
+      "numero": "X 0001-00010599",
+      "estado": "Recepcion de Cliente",
+      "cliente": "COMAR (108135)",
+      "observ": "a REVISAR",
+      "descrip": "Amoladora DeWalt  4241 AR ---T",
+      "expediente": "ALLER N 2",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 18,
+      "costo": 20661.157
     },
     "createdAt": "2025-05-21T03:00:00.000Z",
     "updatedAt": "2025-05-21T03:00:00.000Z"
@@ -14633,32 +14633,6 @@
     "updatedAt": "2025-05-16T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010590",
-    "orderNumber": "X 0001-00010590",
-    "type": "O.R.",
-    "entryDate": "2025-05-14T03:00:00.000Z",
-    "clientName": "DE LA PEÑA SANTIAGO (108307)",
-    "machineName": "amoladora",
-    "status": "Entreg./Factur.",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "14/05/2025",
-      "numero": "X 0001-00010590",
-      "estado": "Entreg./Factur.",
-      "cliente": "DE LA PEÑA SANTIAGO (108307)",
-      "observ": "falla, cambiar repuesto",
-      "descrip": "amoladora",
-      "expediente": "",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 13,
-      "costo": 15000
-    },
-    "createdAt": "2025-05-14T03:00:00.000Z",
-    "updatedAt": "2025-05-14T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010596",
     "orderNumber": "X 0001-00010596",
     "type": "O.R.",
@@ -14680,6 +14654,32 @@
       "presup": "",
       "vendedor": 13,
       "costo": 49586.777
+    },
+    "createdAt": "2025-05-14T03:00:00.000Z",
+    "updatedAt": "2025-05-14T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010590",
+    "orderNumber": "X 0001-00010590",
+    "type": "O.R.",
+    "entryDate": "2025-05-14T03:00:00.000Z",
+    "clientName": "DE LA PEÑA SANTIAGO (108307)",
+    "machineName": "amoladora",
+    "status": "Entreg./Factur.",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "14/05/2025",
+      "numero": "X 0001-00010590",
+      "estado": "Entreg./Factur.",
+      "cliente": "DE LA PEÑA SANTIAGO (108307)",
+      "observ": "falla, cambiar repuesto",
+      "descrip": "amoladora",
+      "expediente": "",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 13,
+      "costo": 15000
     },
     "createdAt": "2025-05-14T03:00:00.000Z",
     "updatedAt": "2025-05-14T03:00:00.000Z"
@@ -14713,34 +14713,6 @@
     "updatedAt": "2025-05-14T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010591",
-    "orderNumber": "X 0001-00010591",
-    "type": "O.R.",
-    "entryDate": "2025-05-14T03:00:00.000Z",
-    "returnDate": "2025-06-30T03:00:00.000Z",
-    "repairDate": "2001-01-01T03:00:00.000Z",
-    "clientName": "COMAR (108135)",
-    "machineName": "amoladora 1",
-    "status": "Entreg./Factur.",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "14/05/2025",
-      "numero": "X 0001-00010591",
-      "estado": "Entreg./Factur.",
-      "cliente": "COMAR (108135)",
-      "observ": "revisar",
-      "descrip": "amoladora 1",
-      "expediente": "",
-      "entrega": "30/06/2025",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 13,
-      "costo": 63182.482
-    },
-    "createdAt": "2025-05-14T03:00:00.000Z",
-    "updatedAt": "2025-05-14T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010592",
     "orderNumber": "X 0001-00010592",
     "type": "O.R.",
@@ -14764,6 +14736,34 @@
       "presup": "",
       "vendedor": 13,
       "costo": 71150.415
+    },
+    "createdAt": "2025-05-14T03:00:00.000Z",
+    "updatedAt": "2025-05-14T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010591",
+    "orderNumber": "X 0001-00010591",
+    "type": "O.R.",
+    "entryDate": "2025-05-14T03:00:00.000Z",
+    "returnDate": "2025-06-30T03:00:00.000Z",
+    "repairDate": "2001-01-01T03:00:00.000Z",
+    "clientName": "COMAR (108135)",
+    "machineName": "amoladora 1",
+    "status": "Entreg./Factur.",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "14/05/2025",
+      "numero": "X 0001-00010591",
+      "estado": "Entreg./Factur.",
+      "cliente": "COMAR (108135)",
+      "observ": "revisar",
+      "descrip": "amoladora 1",
+      "expediente": "",
+      "entrega": "30/06/2025",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 13,
+      "costo": 63182.482
     },
     "createdAt": "2025-05-14T03:00:00.000Z",
     "updatedAt": "2025-05-14T03:00:00.000Z"
@@ -15892,32 +15892,6 @@
     "updatedAt": "2025-04-16T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010548",
-    "orderNumber": "X 0001-00010548",
-    "type": "O.R.",
-    "entryDate": "2025-04-16T03:00:00.000Z",
-    "clientName": "ANODAL S.A. (108510)",
-    "machineName": "ATORNILLADOR LUQTOFF CARGADORY",
-    "status": "Entreg./Factur.",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "16/04/2025",
-      "numero": "X 0001-00010548",
-      "estado": "Entreg./Factur.",
-      "cliente": "ANODAL S.A. (108510)",
-      "observ": "REFACTURADO OR10509",
-      "descrip": "ATORNILLADOR LUQTOFF CARGADORY",
-      "expediente": " 2 BATERIAS",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 13,
-      "costo": 18181.818
-    },
-    "createdAt": "2025-04-16T03:00:00.000Z",
-    "updatedAt": "2025-04-16T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010545",
     "orderNumber": "X 0001-00010545",
     "type": "O.R.",
@@ -15940,6 +15914,32 @@
       "presup": "",
       "vendedor": 18,
       "costo": 47933.884
+    },
+    "createdAt": "2025-04-16T03:00:00.000Z",
+    "updatedAt": "2025-04-16T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010548",
+    "orderNumber": "X 0001-00010548",
+    "type": "O.R.",
+    "entryDate": "2025-04-16T03:00:00.000Z",
+    "clientName": "ANODAL S.A. (108510)",
+    "machineName": "ATORNILLADOR LUQTOFF CARGADORY",
+    "status": "Entreg./Factur.",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "16/04/2025",
+      "numero": "X 0001-00010548",
+      "estado": "Entreg./Factur.",
+      "cliente": "ANODAL S.A. (108510)",
+      "observ": "REFACTURADO OR10509",
+      "descrip": "ATORNILLADOR LUQTOFF CARGADORY",
+      "expediente": " 2 BATERIAS",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 13,
+      "costo": 18181.818
     },
     "createdAt": "2025-04-16T03:00:00.000Z",
     "updatedAt": "2025-04-16T03:00:00.000Z"
@@ -16102,6 +16102,32 @@
     "updatedAt": "2025-04-14T03:00:00.000Z"
   },
   {
+    "id": "X 0001-00010539",
+    "orderNumber": "X 0001-00010539",
+    "type": "O.R.",
+    "entryDate": "2025-04-11T03:00:00.000Z",
+    "clientName": "COCREAR (100)",
+    "machineName": "20103 - MARTILLO DEMOLEDOR N3-",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "11/04/2025",
+      "numero": "X 0001-00010539",
+      "estado": "Recepcion de Cliente",
+      "cliente": "COCREAR (100)",
+      "observ": "",
+      "descrip": "20103 - MARTILLO DEMOLEDOR N3-",
+      "expediente": "BOCSH 10KG",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 13,
+      "costo": 126363.637
+    },
+    "createdAt": "2025-04-11T03:00:00.000Z",
+    "updatedAt": "2025-04-11T03:00:00.000Z"
+  },
+  {
     "id": "X 0001-00010536",
     "orderNumber": "X 0001-00010536",
     "type": "O.R.",
@@ -16150,32 +16176,6 @@
       "presup": "",
       "vendedor": 13,
       "costo": 40000
-    },
-    "createdAt": "2025-04-11T03:00:00.000Z",
-    "updatedAt": "2025-04-11T03:00:00.000Z"
-  },
-  {
-    "id": "X 0001-00010539",
-    "orderNumber": "X 0001-00010539",
-    "type": "O.R.",
-    "entryDate": "2025-04-11T03:00:00.000Z",
-    "clientName": "COCREAR (100)",
-    "machineName": "20103 - MARTILLO DEMOLEDOR N3-",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "11/04/2025",
-      "numero": "X 0001-00010539",
-      "estado": "Recepcion de Cliente",
-      "cliente": "COCREAR (100)",
-      "observ": "",
-      "descrip": "20103 - MARTILLO DEMOLEDOR N3-",
-      "expediente": "BOCSH 10KG",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 13,
-      "costo": 126363.637
     },
     "createdAt": "2025-04-11T03:00:00.000Z",
     "updatedAt": "2025-04-11T03:00:00.000Z"
@@ -20703,32 +20703,6 @@
     "updatedAt": "2024-09-30T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010359",
-    "orderNumber": "X 0001-00010359",
-    "type": "O.R.",
-    "entryDate": "2024-09-23T03:00:00.000Z",
-    "clientName": "COCREAR (100)",
-    "machineName": "23101 - PLACA VIBRADORA R 1 NR",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "23/09/2024",
-      "numero": "X 0001-00010359",
-      "estado": "Recepcion de Cliente",
-      "cliente": "COCREAR (100)",
-      "observ": "",
-      "descrip": "23101 - PLACA VIBRADORA R 1 NR",
-      "expediente": "O.1",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 13,
-      "costo": 8871.901
-    },
-    "createdAt": "2024-09-23T03:00:00.000Z",
-    "updatedAt": "2024-09-23T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010358",
     "orderNumber": "X 0001-00010358",
     "type": "O.R.",
@@ -20750,6 +20724,32 @@
       "presup": "",
       "vendedor": 13,
       "costo": 0
+    },
+    "createdAt": "2024-09-23T03:00:00.000Z",
+    "updatedAt": "2024-09-23T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010359",
+    "orderNumber": "X 0001-00010359",
+    "type": "O.R.",
+    "entryDate": "2024-09-23T03:00:00.000Z",
+    "clientName": "COCREAR (100)",
+    "machineName": "23101 - PLACA VIBRADORA R 1 NR",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "23/09/2024",
+      "numero": "X 0001-00010359",
+      "estado": "Recepcion de Cliente",
+      "cliente": "COCREAR (100)",
+      "observ": "",
+      "descrip": "23101 - PLACA VIBRADORA R 1 NR",
+      "expediente": "O.1",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 13,
+      "costo": 8871.901
     },
     "createdAt": "2024-09-23T03:00:00.000Z",
     "updatedAt": "2024-09-23T03:00:00.000Z"
@@ -22112,6 +22112,32 @@
     "updatedAt": "2024-08-02T03:00:00.000Z"
   },
   {
+    "id": "X 0001-00010304",
+    "orderNumber": "X 0001-00010304",
+    "type": "O.R.",
+    "entryDate": "2024-07-26T03:00:00.000Z",
+    "clientName": "ARIZA ESQUIVEL PIMENTEL (108678)",
+    "machineName": "PISON CANGURO MOTOR ROBIN / LO",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "26/07/2024",
+      "numero": "X 0001-00010304",
+      "estado": "Recepcion de Cliente",
+      "cliente": "ARIZA ESQUIVEL PIMENTEL (108678)",
+      "observ": "COMIENZA A ANDAR, LUEGO ACELERA UN POCO Y SE PARA",
+      "descrip": "PISON CANGURO MOTOR ROBIN / LO",
+      "expediente": "GO TEMUCO",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 18,
+      "costo": 0
+    },
+    "createdAt": "2024-07-26T03:00:00.000Z",
+    "updatedAt": "2024-07-26T03:00:00.000Z"
+  },
+  {
     "id": "X 0001-00010305",
     "orderNumber": "X 0001-00010305",
     "type": "O.R.",
@@ -22133,32 +22159,6 @@
       "garant": "N",
       "presup": "",
       "vendedor": 13,
-      "costo": 0
-    },
-    "createdAt": "2024-07-26T03:00:00.000Z",
-    "updatedAt": "2024-07-26T03:00:00.000Z"
-  },
-  {
-    "id": "X 0001-00010304",
-    "orderNumber": "X 0001-00010304",
-    "type": "O.R.",
-    "entryDate": "2024-07-26T03:00:00.000Z",
-    "clientName": "ARIZA ESQUIVEL PIMENTEL (108678)",
-    "machineName": "PISON CANGURO MOTOR ROBIN / LO",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "26/07/2024",
-      "numero": "X 0001-00010304",
-      "estado": "Recepcion de Cliente",
-      "cliente": "ARIZA ESQUIVEL PIMENTEL (108678)",
-      "observ": "COMIENZA A ANDAR, LUEGO ACELERA UN POCO Y SE PARA",
-      "descrip": "PISON CANGURO MOTOR ROBIN / LO",
-      "expediente": "GO TEMUCO",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 18,
       "costo": 0
     },
     "createdAt": "2024-07-26T03:00:00.000Z",
@@ -22477,32 +22477,6 @@
     "updatedAt": "2024-07-04T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010292",
-    "orderNumber": "X 0001-00010292",
-    "type": "O.R.",
-    "entryDate": "2024-07-04T03:00:00.000Z",
-    "clientName": "COCREAR (100)",
-    "machineName": "30701 - REGLA VIBRADORA 5 M. M",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "04/07/2024",
-      "numero": "X 0001-00010292",
-      "estado": "Recepcion de Cliente",
-      "cliente": "COCREAR (100)",
-      "observ": "regul de valvula , limpi carb , contr aceite , limpi de filtro aire",
-      "descrip": "30701 - REGLA VIBRADORA 5 M. M",
-      "expediente": "MQ",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 13,
-      "costo": 15720.843
-    },
-    "createdAt": "2024-07-04T03:00:00.000Z",
-    "updatedAt": "2024-07-04T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010291",
     "orderNumber": "X 0001-00010291",
     "type": "O.R.",
@@ -22524,6 +22498,32 @@
       "presup": "",
       "vendedor": 13,
       "costo": 166713.735
+    },
+    "createdAt": "2024-07-04T03:00:00.000Z",
+    "updatedAt": "2024-07-04T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010292",
+    "orderNumber": "X 0001-00010292",
+    "type": "O.R.",
+    "entryDate": "2024-07-04T03:00:00.000Z",
+    "clientName": "COCREAR (100)",
+    "machineName": "30701 - REGLA VIBRADORA 5 M. M",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "04/07/2024",
+      "numero": "X 0001-00010292",
+      "estado": "Recepcion de Cliente",
+      "cliente": "COCREAR (100)",
+      "observ": "regul de valvula , limpi carb , contr aceite , limpi de filtro aire",
+      "descrip": "30701 - REGLA VIBRADORA 5 M. M",
+      "expediente": "MQ",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 13,
+      "costo": 15720.843
     },
     "createdAt": "2024-07-04T03:00:00.000Z",
     "updatedAt": "2024-07-04T03:00:00.000Z"
@@ -22555,32 +22555,6 @@
     "updatedAt": "2024-07-04T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010293",
-    "orderNumber": "X 0001-00010293",
-    "type": "O.R.",
-    "entryDate": "2024-07-04T03:00:00.000Z",
-    "clientName": "COCREAR (100)",
-    "machineName": "22001 - PISON CANGURO MACROMAQ",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "04/07/2024",
-      "numero": "X 0001-00010293",
-      "estado": "Recepcion de Cliente",
-      "cliente": "COCREAR (100)",
-      "observ": "",
-      "descrip": "22001 - PISON CANGURO MACROMAQ",
-      "expediente": "  3",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 13,
-      "costo": 12001
-    },
-    "createdAt": "2024-07-04T03:00:00.000Z",
-    "updatedAt": "2024-07-04T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010287",
     "orderNumber": "X 0001-00010287",
     "type": "O.R.",
@@ -22602,6 +22576,32 @@
       "presup": "",
       "vendedor": 13,
       "costo": 12000
+    },
+    "createdAt": "2024-07-04T03:00:00.000Z",
+    "updatedAt": "2024-07-04T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010293",
+    "orderNumber": "X 0001-00010293",
+    "type": "O.R.",
+    "entryDate": "2024-07-04T03:00:00.000Z",
+    "clientName": "COCREAR (100)",
+    "machineName": "22001 - PISON CANGURO MACROMAQ",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "04/07/2024",
+      "numero": "X 0001-00010293",
+      "estado": "Recepcion de Cliente",
+      "cliente": "COCREAR (100)",
+      "observ": "",
+      "descrip": "22001 - PISON CANGURO MACROMAQ",
+      "expediente": "  3",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 13,
+      "costo": 12001
     },
     "createdAt": "2024-07-04T03:00:00.000Z",
     "updatedAt": "2024-07-04T03:00:00.000Z"
@@ -24510,6 +24510,32 @@
     "updatedAt": "2023-10-19T03:00:00.000Z"
   },
   {
+    "id": "X 0001-00010210",
+    "orderNumber": "X 0001-00010210",
+    "type": "O.R.",
+    "entryDate": "2023-10-11T03:00:00.000Z",
+    "clientName": "PRETORIA WOODSHOP (108294)",
+    "machineName": "compresor 150 lt.",
+    "status": "Recepcion de Cliente",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "11/10/2023",
+      "numero": "X 0001-00010210",
+      "estado": "Recepcion de Cliente",
+      "cliente": "PRETORIA WOODSHOP (108294)",
+      "observ": "no funciona a controlar",
+      "descrip": "compresor 150 lt.",
+      "expediente": "",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 19,
+      "costo": 0
+    },
+    "createdAt": "2023-10-11T03:00:00.000Z",
+    "updatedAt": "2023-10-11T03:00:00.000Z"
+  },
+  {
     "id": "X 0001-00010211",
     "orderNumber": "X 0001-00010211",
     "type": "O.R.",
@@ -24531,32 +24557,6 @@
       "garant": "N",
       "presup": "",
       "vendedor": 13,
-      "costo": 0
-    },
-    "createdAt": "2023-10-11T03:00:00.000Z",
-    "updatedAt": "2023-10-11T03:00:00.000Z"
-  },
-  {
-    "id": "X 0001-00010210",
-    "orderNumber": "X 0001-00010210",
-    "type": "O.R.",
-    "entryDate": "2023-10-11T03:00:00.000Z",
-    "clientName": "PRETORIA WOODSHOP (108294)",
-    "machineName": "compresor 150 lt.",
-    "status": "Recepcion de Cliente",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "11/10/2023",
-      "numero": "X 0001-00010210",
-      "estado": "Recepcion de Cliente",
-      "cliente": "PRETORIA WOODSHOP (108294)",
-      "observ": "no funciona a controlar",
-      "descrip": "compresor 150 lt.",
-      "expediente": "",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 19,
       "costo": 0
     },
     "createdAt": "2023-10-11T03:00:00.000Z",
@@ -25898,32 +25898,6 @@
     "updatedAt": "2023-07-21T03:00:00.000Z"
   },
   {
-    "id": "X 0001-00010158",
-    "orderNumber": "X 0001-00010158",
-    "type": "O.R.",
-    "entryDate": "2023-07-20T03:00:00.000Z",
-    "clientName": "MANZINO NICOLAS ESTEBAN (108161)",
-    "machineName": "Amoladora Bosch 230mm",
-    "status": "Retirada",
-    "originalData": {
-      "tipdoc": "O.R.",
-      "fecha": "20/07/2023",
-      "numero": "X 0001-00010158",
-      "estado": "Retirada",
-      "cliente": "MANZINO NICOLAS ESTEBAN (108161)",
-      "observ": "Dejo de andar, revisacion",
-      "descrip": "Amoladora Bosch 230mm",
-      "expediente": "",
-      "entrega": "",
-      "garant": "N",
-      "presup": "",
-      "vendedor": 18,
-      "costo": 4000
-    },
-    "createdAt": "2023-07-20T03:00:00.000Z",
-    "updatedAt": "2023-07-20T03:00:00.000Z"
-  },
-  {
     "id": "X 0001-00010156",
     "orderNumber": "X 0001-00010156",
     "type": "O.R.",
@@ -25945,6 +25919,32 @@
       "presup": "",
       "vendedor": 18,
       "costo": 53000
+    },
+    "createdAt": "2023-07-20T03:00:00.000Z",
+    "updatedAt": "2023-07-20T03:00:00.000Z"
+  },
+  {
+    "id": "X 0001-00010158",
+    "orderNumber": "X 0001-00010158",
+    "type": "O.R.",
+    "entryDate": "2023-07-20T03:00:00.000Z",
+    "clientName": "MANZINO NICOLAS ESTEBAN (108161)",
+    "machineName": "Amoladora Bosch 230mm",
+    "status": "Retirada",
+    "originalData": {
+      "tipdoc": "O.R.",
+      "fecha": "20/07/2023",
+      "numero": "X 0001-00010158",
+      "estado": "Retirada",
+      "cliente": "MANZINO NICOLAS ESTEBAN (108161)",
+      "observ": "Dejo de andar, revisacion",
+      "descrip": "Amoladora Bosch 230mm",
+      "expediente": "",
+      "entrega": "",
+      "garant": "N",
+      "presup": "",
+      "vendedor": 18,
+      "costo": 4000
     },
     "createdAt": "2023-07-20T03:00:00.000Z",
     "updatedAt": "2023-07-20T03:00:00.000Z"

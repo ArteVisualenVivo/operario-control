@@ -4,5 +4,6 @@ import { loadLocalRepairs } from "@/lib/local-sync"
 export const runtime = "nodejs"
 
 export async function GET() {
-  return NextResponse.json(loadLocalRepairs())
+  const repairs = await loadLocalRepairs()
+  return NextResponse.json(repairs)
 }
