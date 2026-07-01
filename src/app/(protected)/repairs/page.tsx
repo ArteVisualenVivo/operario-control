@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/table"
 import { formatDate } from "@/lib/ui"
 import { toast } from "sonner"
+import { hasMaintenanceLink } from "@/lib/machine-links"
 
 function daysUntil(date: Date | undefined | null): number | null {
   if (!date) return null
@@ -130,7 +131,24 @@ export default function RepairsPage() {
               <TableCell>{formatDate(r.entryDate)}</TableCell>
               <TableCell>{formatDate(r.exitDate)}</TableCell>
               <TableCell>{r.status}</TableCell>
-              <TableCell>{formatDate(r.maintenanceDueDate)}</TableCell>
+              <TableCell>
+                {hasMaintenanceLink(r) ? (
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const orderKey = r.externalId ?? r.machineId
+                      router.push(`/maintenance?order=${encodeURIComponent(orderKey)}`)
+                    }}
+                  >
+                    Ver orden
+                  </Button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">—</span>
+                )}
+              </TableCell>
 
               <TableCell>
                 <Button

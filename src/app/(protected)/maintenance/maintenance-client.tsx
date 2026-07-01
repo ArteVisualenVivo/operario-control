@@ -1,10 +1,22 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useState } from "react"
 import type { MaintenanceRecord } from "@/services/maintenance"
+import type { MachineRepair } from "@/types"
 import { SearchInput } from "@/components/ui/SearchInput"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 import { formatDate } from "@/lib/ui"
+import { getRepairsForMaintenanceOrder } from "@/lib/machine-links"
+
+// Cargar repairs desde API local
+async function fetchRepairs(): Promise<MachineRepair[]> {
+  try {
+    const res = await fetch("/api/local/repairs", { cache: "no-store" })
+    if (res.ok) return await res.json()
+  } catch { /* silencioso */ }
+  return []
+}
 
 type Props = {
   initialOrders: MaintenanceRecord[]
@@ -12,6 +24,11 @@ type Props = {
 
 export default function MaintenanceClient({ initialOrders }: Props) {
   const [search, setSearch] = useState("")
+  const [repairs, setRepairs] = useState<MachineRepair[]>([])
+
+  useEffect(() => {
+    fetchRepairs().then(setRepairs)
+  }, [])
 
   const visibleOrders = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -59,26 +76,48 @@ export default function MaintenanceClient({ initialOrders }: Props) {
                     <th className="p-2 text-left">Estado</th>
                     <th className="p-2 text-left">Tecnico</th>
                     <th className="p-2 text-left">Doc / Item</th>
+                    <th className="p-2 text-left">Reparaciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleOrders.map((order) => (
-                    <tr key={order.id} className="border-b hover:bg-muted/50">
-                      <td className="p-2 font-mono">{order.orderNumber}</td>
-                      <td className="p-2">{order.clientName}</td>
-                      <td className="p-2">{order.machineName}</td>
-                      <td className="p-2">{order.type ?? "â€”"}</td>
-                      <td className="p-2">{formatDate(order.entryDate)}</td>
-                      <td className="p-2">{formatDate(order.returnDate)}</td>
-                      <td className="p-2">{formatDate(order.repairDate)}</td>
-                      <td className="p-2">{order.status}</td>
-                      <td className="p-2">{order.technician ?? "â€”"}</td>
-                      <td className="p-2">
-                        {order.docId ?? "â€”"}
-                        {order.itemId != null ? ` / ${order.itemId}` : ""}
-                      </td>
-                    </tr>
-                  ))}
+                  {visibleOrders.map((order) => {
+                    const linkedRepairs = getRepairsForMaintenanceOrder(order, repairs)
+                    return (
+                      <tr key={order.id} className="border-b hover:bg-muted/50">
+                        <td className="p-2 font-mono">{order.orderNumber}</td>
+                        <td className="p-2">{order.clientName}</td>
+                        <td className="p-2">{order.machineName}</td>
+                        <td className="p-2">{order.type ?? "—"}</td>
+                        <td className="p-2">{formatDate(order.entryDate)}</td>
+                        <td className="p-2">{formatDate(order.returnDate)}</td>
+                        <td className="p-2">{formatDate(order.repairDate)}</td>
+                        <td className="p-2">{order.status}</td>
+                        <td className="p-2">{order.technician ?? "—"}</td>
+                        <td className="p-2">
+                          {order.docId ?? "—"}
+                          {order.itemId != null ? ` / ${order.itemId}` : ""}
+                        </td>
+                        <td className="p-2">
+                          {linkedRepairs.length > 0 ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() =>
+                                window.open(
+                                  "/repairs?order=" + encodeURIComponent(order.orderNumber),
+                                  "_self"
+                                )
+                              }
+                            >
+                              Ver reparaciones ({linkedRepairs.length})
+                            </Button>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
