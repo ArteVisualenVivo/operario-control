@@ -101,10 +101,22 @@ export default function AndamiosPage() {
 
   const totals = useMemo(() => {
     const machineCount = scaffoldMachines.length
-    const totalParts = filteredItems.reduce((sum, item) => sum + item.stockTotal, 0)
-    const availableParts = filteredItems.reduce((sum, item) => sum + item.stockAvailable, 0)
-    return { machineCount, totalParts, availableParts }
-  }, [filteredItems, scaffoldMachines.length])
+
+    // Calculate key components stock
+    const panos = stockItems.filter((item) => item.name === "Paños").reduce((sum, item) => sum + item.stockAvailable, 0)
+    const riendasLargas = stockItems.filter((item) => item.name === "Riendas" && item.size === "largas").reduce((sum, item) => sum + item.stockAvailable, 0)
+    const riendasCortas = stockItems.filter((item) => item.name === "Riendas" && item.size === "cortas").reduce((sum, item) => sum + item.stockAvailable, 0)
+    const tablones = stockItems.filter((item) => item.name === "Tablones").reduce((sum, item) => sum + item.stockAvailable, 0)
+
+    // Calculate cuerpos completos using the limiting component
+    const cuerposCompletos = Math.min(
+      Math.floor(panos / 2),
+      Math.floor(riendasLargas / 2),
+      Math.floor(riendasCortas / 2)
+    )
+
+    return { machineCount, panos, riendasLargas, riendasCortas, tablones, cuerposCompletos }
+  }, [stockItems, scaffoldMachines.length])
 
   if (loading) return <p className="text-muted-foreground">Cargando...</p>
 
@@ -123,29 +135,45 @@ export default function AndamiosPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Card>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+        <Card className="border-2 border-orange-500 bg-orange-50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Estructuras</CardTitle>
+            <CardTitle className="text-lg font-semibold text-orange-800">Cuerpos Completos</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{totals.machineCount}</p>
+            <p className="text-5xl font-bold text-orange-700">{totals.cuerposCompletos}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Partes visibles</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Paños</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold">{totals.totalParts}</p>
+            <p className="text-3xl font-bold">{totals.panos}</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Disponibles</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Riendas Largas</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-green-600">{totals.availableParts}</p>
+            <p className="text-3xl font-bold">{totals.riendasLargas}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Riendas Cortas</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">{totals.riendasCortas}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-muted-foreground">Tablones</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-3xl font-bold">{totals.tablones}</p>
           </CardContent>
         </Card>
       </div>

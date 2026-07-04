@@ -561,6 +561,15 @@ export async function syncRepairsToMaintenance(
       originalData: sourceData,
       sourceRow: rowNumber,
       updatedAt: now,
+      // Campos de 3C extraídos de sourceData
+      tipDoc: sourceData.tipdoc ?? sourceData.tipo ?? null,
+      expediente: sourceData.expediente ?? null,
+      observaciones: sourceData.observaciones ?? sourceData.observ ?? null,
+      garantia: sourceData.garantia ?? sourceData.garant ?? null,
+      presupuesto: sourceData.presupuesto ?? sourceData.presup ?? null,
+      vendedor: sourceData.vendedor ?? null,
+      costo: sourceData.costo ?? null,
+      reason: sourceData.observaciones ?? sourceData.observ ?? null,
     }
 
     if (!before.exists) {

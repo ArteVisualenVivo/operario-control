@@ -27,7 +27,7 @@ export const SCAFFOLD_CATALOG: ScaffoldCatalogItem[] = [
 ]
 
 export const SCAFFOLD_RECIPE: ScaffoldComponent[] = [
+  { name: "Paños", quantity: 2 },
   { name: "Riendas", size: "largas", quantity: 2 },
   { name: "Riendas", size: "cortas", quantity: 2 },
-  { name: "Tablones", size: "3m", quantity: 1 },
 ]

@@ -47,6 +47,15 @@ export interface MaintenanceRecord {
   shopTime?: number
   createdAt: Date
   updatedAt: Date
+  // Campos de 3C extraídos de originalData
+  tipDoc?: string
+  expediente?: string
+  observaciones?: string
+  garantia?: string
+  presupuesto?: string
+  vendedor?: string
+  costo?: string
+  reason?: string
 }
 
 export interface MaintenanceInput {
@@ -81,6 +90,15 @@ export interface MaintenanceInput {
   warranty?: Date
   history?: string
   shopTime?: number
+  // Campos de 3C extraídos de originalData
+  tipDoc?: string
+  expediente?: string
+  observaciones?: string
+  garantia?: string
+  presupuesto?: string
+  vendedor?: string
+  costo?: string
+  reason?: string
 }
 
 const COLLECTION = "maintenance"
@@ -193,6 +211,15 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
         shopTime: data.shopTime as number | undefined,
         createdAt: toDate(data.createdAt),
         updatedAt: toDate(data.updatedAt),
+        // Campos de 3C extraídos de originalData
+        tipDoc: data.tipDoc as string | undefined,
+        expediente: data.expediente as string | undefined,
+        observaciones: data.observaciones as string | undefined,
+        garantia: data.garantia as string | undefined,
+        presupuesto: data.presupuesto as string | undefined,
+        vendedor: data.vendedor as string | undefined,
+        costo: data.costo as string | undefined,
+        reason: data.reason as string | undefined,
       }
     })
     .filter((record) => ORDER_PATTERN.test(record.orderNumber))
