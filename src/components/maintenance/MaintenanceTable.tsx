@@ -30,7 +30,6 @@ export function MaintenanceTable({ initialOrders }: Props) {
   const [selectedOrder, setSelectedOrder] = useState<MaintenanceRecord | null>(null)
   const [repairs, setRepairs] = useState<MachineRepair[]>([])
 
-  // Fetch repairs on mount
   useEffect(() => {
     const fetchRepairs = async () => {
       try {
@@ -70,7 +69,9 @@ export function MaintenanceTable({ initialOrders }: Props) {
         </CardHeader>
         <CardContent>
           {visibleOrders.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No hay órdenes de mantenimiento disponibles.</p>
+            <p className="text-sm text-muted-foreground">
+              No hay órdenes de mantenimiento disponibles.
+            </p>
           ) : (
             <div className="rounded-md border overflow-x-auto">
               <table className="w-full text-sm">
@@ -90,12 +91,24 @@ export function MaintenanceTable({ initialOrders }: Props) {
                     <th className="p-2 text-left">Acciones</th>
                   </tr>
                 </thead>
+
                 <tbody>
                   {visibleOrders.map((order) => {
                     const linkedRepairs = getRepairsForMaintenanceOrder(order, repairs)
-                    const statusConfig = STATUS_CONFIG[order.status] || { label: order.status, className: "bg-gray-100 text-gray-800 border border-gray-300" }
+                    const statusConfig =
+                      STATUS_CONFIG[order.status] || {
+                        label: order.status,
+                        className: "bg-gray-100 text-gray-800 border border-gray-300",
+                      }
+
                     const isNoReparado = order.status === "No reparado"
-                    const reason = order.reason ?? order.originalData?.observaciones ?? order.originalData?.observ ?? "—"
+
+                    const reason =
+                      (order.reason as string) ??
+                      (order.originalData?.observaciones as string) ??
+                      (order.originalData?.observ as string) ??
+                      "—"
+
                     return (
                       <tr key={order.id} className="border-b hover:bg-muted/50">
                         <td className="p-2 font-mono">{order.orderNumber}</td>
@@ -105,20 +118,28 @@ export function MaintenanceTable({ initialOrders }: Props) {
                         <td className="p-2">{formatDate(order.entryDate)}</td>
                         <td className="p-2">{formatDate(order.returnDate)}</td>
                         <td className="p-2">{formatDate(order.repairDate)}</td>
+
                         <td className="p-2">
-                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${statusConfig.className}`}>
+                          <span
+                            className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${statusConfig.className}`}
+                          >
                             {statusConfig.label}
                           </span>
+
                           {isNoReparado && (
                             <span className="ml-2 text-xs text-red-700 font-medium">
                               Motivo: {reason}
                             </span>
                           )}
                         </td>
+
                         <td className="p-2">{order.technician ?? " "}</td>
+
                         <td className="p-2">
-                          {order.docId ?? " "}{order.itemId != null ? ` / ${order.itemId}` : ""}
+                          {order.docId ?? " "}
+                          {order.itemId != null ? ` / ${order.itemId}` : ""}
                         </td>
+
                         <td className="p-2">
                           {linkedRepairs.length > 0 ? (
                             <Button
@@ -126,7 +147,8 @@ export function MaintenanceTable({ initialOrders }: Props) {
                               size="sm"
                               onClick={() =>
                                 window.open(
-                                  "/repairs?order=" + encodeURIComponent(order.orderNumber),
+                                  "/repairs?order=" +
+                                    encodeURIComponent(order.orderNumber),
                                   "_self"
                                 )
                               }
@@ -137,8 +159,13 @@ export function MaintenanceTable({ initialOrders }: Props) {
                             <span className="text-xs text-muted-foreground">—</span>
                           )}
                         </td>
+
                         <td className="p-2">
-                          <Button variant="secondary" size="sm" onClick={() => setSelectedOrder(order)}>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setSelectedOrder(order)}
+                          >
                             Ver detalle
                           </Button>
                         </td>
@@ -152,41 +179,82 @@ export function MaintenanceTable({ initialOrders }: Props) {
         </CardContent>
       </Card>
 
-      {/* Detail Dialog */}
-      <Dialog open={selectedOrder !== null} onOpenChange={(open) => !open && setSelectedOrder(null)}>
+      <Dialog
+        open={selectedOrder !== null}
+        onOpenChange={(open) => !open && setSelectedOrder(null)}
+      >
         <DialogContent className="sm:max-w-[600px]">
           <DialogHeader>
-            <DialogTitle>Detalle de Orden: {selectedOrder?.orderNumber}</DialogTitle>
+            <DialogTitle>
+              Detalle de Orden: {selectedOrder?.orderNumber}
+            </DialogTitle>
           </DialogHeader>
+
           {selectedOrder ? (
             <div className="grid grid-cols-1 gap-4 mt-4">
               <div>
                 <span className="font-semibold">Tipo de Documento:</span>
-                <p className="text-sm">{selectedOrder.originalData?.tipdoc ?? selectedOrder.originalData?.tipo ?? selectedOrder.tipDoc ?? "—"}</p>
+                <p className="text-sm">
+                  {selectedOrder.originalData?.tipdoc ??
+                    selectedOrder.originalData?.tipo ??
+                    selectedOrder.tipDoc ??
+                    "—"}
+                </p>
               </div>
+
               <div>
                 <span className="font-semibold">Expediente:</span>
-                <p className="text-sm">{selectedOrder.originalData?.expediente ?? selectedOrder.expediente ?? "—"}</p>
+                <p className="text-sm">
+                  {selectedOrder.originalData?.expediente ??
+                    selectedOrder.expediente ??
+                    "—"}
+                </p>
               </div>
+
               <div>
                 <span className="font-semibold">Observaciones:</span>
-                <p className="text-sm whitespace-pre-wrap">{selectedOrder.originalData?.observaciones ?? selectedOrder.observations ?? selectedOrder.observaciones ?? "—"}</p>
+                <p className="text-sm whitespace-pre-wrap">
+                  {selectedOrder.originalData?.observaciones ??
+                    selectedOrder.observations ??
+                    selectedOrder.observaciones ??
+                    "—"}
+                </p>
               </div>
+
               <div>
                 <span className="font-semibold">Garantía:</span>
-                <p className="text-sm">{selectedOrder.originalData?.garantia ?? selectedOrder.garantia ?? "—"}</p>
+                <p className="text-sm">
+                  {selectedOrder.originalData?.garantia ??
+                    selectedOrder.garantia ??
+                    "—"}
+                </p>
               </div>
+
               <div>
                 <span className="font-semibold">Presupuesto:</span>
-                <p className="text-sm">{selectedOrder.originalData?.presupuesto ?? selectedOrder.presupuesto ?? "—"}</p>
+                <p className="text-sm">
+                  {selectedOrder.originalData?.presupuesto ??
+                    selectedOrder.presupuesto ??
+                    "—"}
+                </p>
               </div>
+
               <div>
                 <span className="font-semibold">Vendedor:</span>
-                <p className="text-sm">{selectedOrder.originalData?.vendedor ?? selectedOrder.vendedor ?? "—"}</p>
+                <p className="text-sm">
+                  {selectedOrder.originalData?.vendedor ??
+                    selectedOrder.vendedor ??
+                    "—"}
+                </p>
               </div>
+
               <div>
                 <span className="font-semibold">Costo:</span>
-                <p className="text-sm">{selectedOrder.originalData?.costo ?? selectedOrder.costo ?? "—"}</p>
+                <p className="text-sm">
+                  {selectedOrder.originalData?.costo ??
+                    selectedOrder.costo ??
+                    "—"}
+                </p>
               </div>
             </div>
           ) : null}
