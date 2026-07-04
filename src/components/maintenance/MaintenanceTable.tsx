@@ -195,8 +195,8 @@ export function MaintenanceTable({ initialOrders }: Props) {
               <div>
                 <span className="font-semibold">Tipo de Documento:</span>
                 <p className="text-sm">
-                  {selectedOrder.originalData?.tipdoc ??
-                    selectedOrder.originalData?.tipo ??
+                  {(selectedOrder.originalData?.tipdoc as string) ??
+                    (selectedOrder.originalData?.tipo as string) ??
                     selectedOrder.tipDoc ??
                     "—"}
                 </p>
@@ -205,7 +205,7 @@ export function MaintenanceTable({ initialOrders }: Props) {
               <div>
                 <span className="font-semibold">Expediente:</span>
                 <p className="text-sm">
-                  {selectedOrder.originalData?.expediente ??
+                  {(selectedOrder.originalData?.expediente as string) ??
                     selectedOrder.expediente ??
                     "—"}
                 </p>
@@ -214,7 +214,7 @@ export function MaintenanceTable({ initialOrders }: Props) {
               <div>
                 <span className="font-semibold">Observaciones:</span>
                 <p className="text-sm whitespace-pre-wrap">
-                  {selectedOrder.originalData?.observaciones ??
+                  {(selectedOrder.originalData?.observaciones as string) ??
                     selectedOrder.observations ??
                     selectedOrder.observaciones ??
                     "—"}
@@ -224,7 +224,7 @@ export function MaintenanceTable({ initialOrders }: Props) {
               <div>
                 <span className="font-semibold">Garantía:</span>
                 <p className="text-sm">
-                  {selectedOrder.originalData?.garantia ??
+                  {(selectedOrder.originalData?.garantia as string) ??
                     selectedOrder.garantia ??
                     "—"}
                 </p>
@@ -233,7 +233,7 @@ export function MaintenanceTable({ initialOrders }: Props) {
               <div>
                 <span className="font-semibold">Presupuesto:</span>
                 <p className="text-sm">
-                  {selectedOrder.originalData?.presupuesto ??
+                  {(selectedOrder.originalData?.presupuesto as string) ??
                     selectedOrder.presupuesto ??
                     "—"}
                 </p>
@@ -242,7 +242,7 @@ export function MaintenanceTable({ initialOrders }: Props) {
               <div>
                 <span className="font-semibold">Vendedor:</span>
                 <p className="text-sm">
-                  {selectedOrder.originalData?.vendedor ??
+                  {(selectedOrder.originalData?.vendedor as string) ??
                     selectedOrder.vendedor ??
                     "—"}
                 </p>
@@ -251,7 +251,7 @@ export function MaintenanceTable({ initialOrders }: Props) {
               <div>
                 <span className="font-semibold">Costo:</span>
                 <p className="text-sm">
-                  {selectedOrder.originalData?.costo ??
+                  {(selectedOrder.originalData?.costo as string) ??
                     selectedOrder.costo ??
                     "—"}
                 </p>
