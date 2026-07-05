@@ -75,8 +75,8 @@ export async function syncItems(
 
   const snapshot = await collection.get()
 
-  const stockMap = new Map<string, { id: string; [key: string]: unknown }>()
-  const codeMap = new Map<string, { id: string; [key: string]: unknown }>()
+  const stockMap = new Map<string, { id: string;[key: string]: unknown }>()
+  const codeMap = new Map<string, { id: string;[key: string]: unknown }>()
 
   for (const doc of snapshot.docs) {
     const data = doc.data() as Record<string, unknown>
@@ -161,10 +161,25 @@ export async function syncRepairsToMaintenance(
     warnings: [] as string[],
   }
 
+  // AUDITORÍA TEMPORAL
+  const auditLogs = {
+    totalRowsRead: 0,
+    validRows: 0,
+    discardedRows: 0,
+    reasons: {} as Record<string, number>
+  }
+
+  const trackSkip = (reason: string) => {
+    auditLogs.discardedRows++
+    auditLogs.reasons[reason] = (auditLogs.reasons[reason] || 0) + 1
+  }
+
   const workbook = XLSX.read(buffer, { type: "buffer" })
   const sheetName = workbook.SheetNames[0]
   const worksheet = workbook.Sheets[sheetName]
   const rows: unknown[][] = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+
+  auditLogs.totalRowsRead = rows.length
 
   console.log("[ENGINE] syncRepairsToMaintenance iniciando")
   console.log("[MAINTENANCE BATCH] start")
@@ -338,13 +353,13 @@ export async function syncRepairsToMaintenance(
     return value
   }
 
-  const payloadSignature = (payload: Record<string, unknown>): string =>
-    JSON.stringify(
-      Object.entries(payload)
-        .filter(([key]) => key !== "updatedAt" && key !== "createdAt")
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, value]) => [key, normalizable(value)]),
-    )
+  const payloadSignature = (payload: Record<string, unknown>): string => {
+    return JSON.stringify({
+      orderNumber: String(payload.orderNumber ?? "").trim(),
+      clientName: String(payload.clientName ?? "").trim(),
+      machineName: String(payload.machineName ?? "").trim()
+    })
+  }
 
   const cell = (row: unknown[], index: number): unknown => {
     if (index < 0) return undefined
@@ -432,7 +447,16 @@ export async function syncRepairsToMaintenance(
   const commitBatch = async (lastBatchPayload: Record<string, unknown> | null) => {
     if (counter === 0) return
 
-    console.log("[MAINTENANCE BATCH] commit size:", counter)
+    console.log("=== AUDITORIA TEMPORAL SYNC ===")
+    console.log(`Filas totales leidas: ${auditLogs.totalRowsRead}`)
+    console.log(`Filas validas: ${auditLogs.validRows}`)
+    console.log(`Filas descartadas: ${auditLogs.discardedRows}`)
+    console.log("Motivos de descarte:", auditLogs.reasons)
+    console.log("===============================")
+
+    console.log("[MAINTENANCE BATCH] finished")
+    console.log(`[ENGINE] Procesados: ${counter} items, Firebase Writes: ${result.created + result.updated} (${result.created} creados, ${result.updated} actualizados), Skips: ${result.skipped}`)
+
     try {
       await batch.commit()
       result.created += pendingCreated
@@ -468,29 +492,24 @@ export async function syncRepairsToMaintenance(
 
     if (isHeaderRow(row, orderNumber, entryDateRaw)) {
       result.skipped++
+      trackSkip("Header row o token prohibido")
       result.warnings.push(
         `Fila ${i + 1} omitida: orderNumber inválido o fila de encabezado (${String(orderNumber)})`,
-      )
-      console.warn(
-        `[MAINTENANCE ROW] skip row ${i + 1}: invalid orderNumber or header`,
-        { orderNumber, entryDateRaw },
       )
       continue
     }
 
     if (!isValidOrderNumber(orderNumber)) {
+      trackSkip("orderNumber invalido (regex)")
       logSkippedRow(rowNumber, "orderNumber invalido", { orderNumber, entryDateRaw })
       continue
     }
 
     if (!entryDate) {
       result.skipped++
+      trackSkip(`entryDate invalido: ${String(entryDateRaw)}`)
       result.warnings.push(
         `Fila ${i + 1} omitida: entryDate inválido (${String(entryDateRaw)})`,
-      )
-      console.warn(
-        `[MAINTENANCE ROW] skip row ${i + 1}: invalid entryDate`,
-        { orderNumber, entryDateRaw },
       )
       continue
     }
@@ -605,6 +624,7 @@ export async function syncRepairsToMaintenance(
       }
       if (payloadSignature(beforePayload) === payloadSignature(payload)) {
         result.skipped++
+        trackSkip("Duplicado exacto (payloadSignature)")
         continue
       }
     }
@@ -628,10 +648,12 @@ export async function syncRepairsToMaintenance(
         setErr instanceof Error ? setErr.stack : undefined,
       )
       result.skipped++
+      trackSkip("Error Firestore set()")
       result.warnings.push(`Fila ${i + 1} omitida: error al armar payload`)
       continue
     }
 
+    auditLogs.validRows++
     counter++
 
     if (counter >= BATCH_LIMIT) {
