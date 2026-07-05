@@ -58,3 +58,43 @@
 [2026-07-05 01:34:59] Click en SalirRep (942,254)
 [2026-07-05 01:35:00] [NAV] Main menu restored (Reparaciones)
 [2026-07-05 01:35:00] === FIN REPARACIONES ===
+[2026-07-05 02:26:16] === INICIO REPARACIONES ===
+[2026-07-05 02:26:18] Ventana '3C' detectada y activada
+[2026-07-05 02:26:18] Resync: enviando Ctrl+Home
+[2026-07-05 02:26:18] Click en Ventas (413,188)
+[2026-07-05 02:26:21] Click en Reparaciones (448,346)
+[2026-07-05 02:26:22] Click en PrintAll (1450,829)
+[2026-07-05 02:26:22] Click en Imprimir (896,254)
+[2026-07-05 02:26:23] Click en ExcelFormat (936,577)
+[2026-07-05 02:26:28] Exportación de reparaciones completada. Esperando Excel...
+[2026-07-05 02:26:28] Esperando Excel (timeout: 30s)...
+[2026-07-05 02:26:28] Excel detectado correctamente
+[2026-07-05 02:26:28] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-07-05 02:26:29] [WATCHER] ARCHIVO DETECTADO:
+[2026-07-05 02:26:29] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc3306506156414253255.xls
+[2026-07-05 02:26:29] [WATCHER] Fecha: 20260705013453
+[2026-07-05 02:26:29] [WATCHER] Tamaño: 393 KB
+[2026-07-05 02:26:29] [ERROR] No se pudo copiar el archivo a exports
+[2026-07-05 02:26:30] Click en SalirRep (942,254)
+[2026-07-05 02:26:31] [NAV] Main menu restored (Reparaciones)
+[2026-07-05 02:26:31] === FIN REPARACIONES ===
+[2026-07-05 17:23:55] === INICIO REPARACIONES ===
+[2026-07-05 17:23:56] Ventana '3C' detectada y activada
+[2026-07-05 17:23:56] Resync: enviando Ctrl+Home
+[2026-07-05 17:23:56] Click en Ventas (413,188)
+[2026-07-05 17:23:59] Click en Reparaciones (448,346)
+[2026-07-05 17:24:00] Click en PrintAll (1450,829)
+[2026-07-05 17:24:00] Click en Imprimir (896,254)
+[2026-07-05 17:24:01] Click en ExcelFormat (936,577)
+[2026-07-05 17:24:06] Exportación de reparaciones completada. Esperando Excel...
+[2026-07-05 17:24:06] Esperando Excel (timeout: 30s)...
+[2026-07-05 17:24:06] Excel detectado correctamente
+[2026-07-05 17:24:06] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-07-05 17:24:07] [WATCHER] ARCHIVO DETECTADO:
+[2026-07-05 17:24:07] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc3306506156414253255.xls
+[2026-07-05 17:24:07] [WATCHER] Fecha: 20260705013453
+[2026-07-05 17:24:07] [WATCHER] Tamaño: 393 KB
+[2026-07-05 17:24:07] [ERROR] No se pudo copiar el archivo a exports
+[2026-07-05 17:24:09] Click en SalirRep (942,254)
+[2026-07-05 17:24:10] [NAV] Main menu restored (Reparaciones)
+[2026-07-05 17:24:10] === FIN REPARACIONES ===
