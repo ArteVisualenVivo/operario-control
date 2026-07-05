@@ -47,12 +47,7 @@ export default function DashboardClient({ initialOrders }: Props) {
   const [showMachines, setShowMachines] = useState(false)
 
   useEffect(() => {
-    if (!loading) {
-      const rented = machines.filter(m => m.status === "rented")
-      rented.forEach(m => {
-        console.log(`[DASHBOARD] ${m.name} | status: ${m.status} | rental: ${m.rental ? "OK" : "NULL"} | location: ${m.location ? "OK" : "NULL"}`)
-      })
-    }
+    // Debug log removido
   }, [machines, loading])
 
   const filteredMachines = useMemo(() => {
@@ -163,13 +158,12 @@ export default function DashboardClient({ initialOrders }: Props) {
                     onClick={() => router.push(`/machines/${machine.id}`)}
                   >
                     <CardContent className="p-3 text-sm space-y-1">
-                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold mb-1 ${
-                        days <= 0
-                          ? "bg-red-200 text-red-800"
-                          : days === 1
+                      <span className={`inline-block px-2 py-0.5 rounded text-xs font-semibold mb-1 ${days <= 0
+                        ? "bg-red-200 text-red-800"
+                        : days === 1
                           ? "bg-orange-200 text-orange-800"
                           : "bg-yellow-200 text-yellow-800"
-                      }`}>
+                        }`}>
                         {days <= 0 ? "VENCIDO" : days === 1 ? "VENCE MAÑANA" : "PRÓXIMO A VENCER"}
                       </span>
                       <p className="font-medium">{machine.name}</p>
@@ -341,7 +335,7 @@ export default function DashboardClient({ initialOrders }: Props) {
           </div>
 
           <div className="border-t pt-6 mt-6">
-            <h2 className="text-xl font-semibold mb-4">📦 Stock Intelligence</h2>
+            <h2 className="text-xl font-semibold mb-4">Stock Intelligence</h2>
 
             {siLoading ? (
               <p className="text-muted-foreground">Analizando stock...</p>
@@ -359,13 +353,12 @@ export default function DashboardClient({ initialOrders }: Props) {
                       </div>
                       <div className="mt-1 h-2 w-full rounded-full bg-gray-200">
                         <div
-                          className={`h-2 rounded-full transition-all ${
-                            stockIntelligence.healthScore.overall >= 70
-                              ? "bg-green-500"
-                              : stockIntelligence.healthScore.overall >= 40
+                          className={`h-2 rounded-full transition-all ${stockIntelligence.healthScore.overall >= 70
+                            ? "bg-green-500"
+                            : stockIntelligence.healthScore.overall >= 40
                               ? "bg-yellow-500"
                               : "bg-red-500"
-                          }`}
+                            }`}
                           style={{ width: `${stockIntelligence.healthScore.overall}%` }}
                         />
                       </div>
@@ -454,8 +447,8 @@ export default function DashboardClient({ initialOrders }: Props) {
                               const path = item.entityType === "MATERIAL"
                                 ? `/inventory/${item.entityId}`
                                 : item.entityType === "SPARE_PART"
-                                ? `/machines/${item.entityId}/parts`
-                                : `/machines/${item.entityId}`
+                                  ? `/machines/${item.entityId}/parts`
+                                  : `/machines/${item.entityId}`
                               router.push(path)
                             }}
                           >

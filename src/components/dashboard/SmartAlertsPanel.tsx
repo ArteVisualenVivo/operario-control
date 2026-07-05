@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { AlertTriangle, AlertCircle, Info } from "lucide-react"
 import { getRepairs } from "@/services/repairs"
 import { useStockIntelligence } from "@/hooks/useStockIntelligence"
 import type { MachineRepair } from "@/types"
@@ -29,21 +30,21 @@ const SEVERITY_CONFIG = {
     border: "border-red-400",
     bg: "bg-red-50",
     badge: "bg-red-200 text-red-800",
-    icon: "🔴",
+    icon: <AlertTriangle className="h-5 w-5 text-red-600" />,
   },
   preventive: {
     label: "Preventivas",
     border: "border-amber-400",
     bg: "bg-amber-50",
     badge: "bg-amber-200 text-amber-800",
-    icon: "🟡",
+    icon: <AlertCircle className="h-5 w-5 text-amber-600" />,
   },
   recommendation: {
     label: "Recomendaciones",
     border: "border-blue-400",
     bg: "bg-blue-50",
     badge: "bg-blue-200 text-blue-800",
-    icon: "🔵",
+    icon: <Info className="h-5 w-5 text-blue-600" />,
   },
 }
 
@@ -261,8 +262,8 @@ function AlertSection({
                   <p className="font-medium">{alert.title}</p>
                   <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-semibold ${config.badge}`}>
                     {alert.entityType === "MATERIAL" ? "Stock" :
-                     alert.entityType === "SPARE_PART" ? "Repuesto" :
-                     config.label.slice(0, -1)}
+                      alert.entityType === "SPARE_PART" ? "Repuesto" :
+                        config.label.slice(0, -1)}
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">{alert.description}</p>
@@ -364,7 +365,7 @@ export default function SmartAlertsPanel() {
           <div className="rounded-lg border p-3">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium">📦 Stock Intelligence</p>
+                <p className="text-sm font-medium">Stock Intelligence</p>
                 <p className="text-xs text-muted-foreground">
                   Health Score: <strong>{intelligence.healthScore.overall}/100</strong>
                   {intelligence.healthScore.overall >= 70 ? " 🟢" : intelligence.healthScore.overall >= 40 ? " 🟡" : " 🔴"}
