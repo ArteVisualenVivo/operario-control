@@ -115,7 +115,12 @@ export default function AndamiosPage() {
       Math.floor(riendasCortas / 2)
     )
 
-    return { machineCount, panos, riendasLargas, riendasCortas, tablones, cuerposCompletos }
+    // Calculate wheels by codigo (exclusively)
+    const ruedasSinFreno = stockItems.find((item) => item.codigo === "N7-1")?.stockAvailable ?? 0
+    const ruedasConFreno = stockItems.find((item) => item.codigo === "29501")?.stockAvailable ?? 0
+    const juegosRuedas = stockItems.find((item) => item.codigo === "29601")?.stockAvailable ?? 0
+
+    return { machineCount, panos, riendasLargas, riendasCortas, tablones, ruedasSinFreno, ruedasConFreno, juegosRuedas, cuerposCompletos }
   }, [stockItems, scaffoldMachines.length])
 
   if (loading) return <p className="text-muted-foreground">Cargando...</p>
@@ -135,47 +140,86 @@ export default function AndamiosPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+      <div className="space-y-4">
+        {/* Card principal: Cuerpos completos disponibles */}
         <Card className="border-2 border-orange-500 bg-orange-50">
           <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-semibold text-orange-800">Cuerpos Completos</CardTitle>
+            <CardTitle className="text-lg font-semibold text-orange-800">🏗️ Cuerpos completos disponibles</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-5xl font-bold text-orange-700">{totals.cuerposCompletos}</p>
+            <p className="text-sm text-muted-foreground mt-2">
+              Cada cuerpo requiere: 2 Paños + 2 Riendas largas + 2 Riendas cortas
+            </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Paños</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{totals.panos}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Riendas Largas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{totals.riendasLargas}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Riendas Cortas</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{totals.riendasCortas}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Tablones</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-3xl font-bold">{totals.tablones}</p>
-          </CardContent>
-        </Card>
+
+        {/* Fila de cards individuales */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">🟦 Paños</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">{totals.panos}</p>
+              <p className="text-xs text-muted-foreground">Disponibles</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">🟨 Riendas largas</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">{totals.riendasLargas}</p>
+              <p className="text-xs text-muted-foreground">Disponibles</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">🟧 Riendas cortas</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">{totals.riendasCortas}</p>
+              <p className="text-xs text-muted-foreground">Disponibles</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">🟫 Tablones</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">{totals.tablones}</p>
+              <p className="text-xs text-muted-foreground">Disponibles</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">⚫ Ruedas sin freno</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">{totals.ruedasSinFreno}</p>
+              <p className="text-xs text-muted-foreground">Disponibles</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">🟢 Ruedas con freno</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">{totals.ruedasConFreno}</p>
+              <p className="text-xs text-muted-foreground">Disponibles</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">🔵 Juegos de ruedas (4 unidades)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">{totals.juegosRuedas}</p>
+              <p className="text-xs text-muted-foreground">Disponibles</p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       <div className="flex flex-col gap-4 sm:flex-row">

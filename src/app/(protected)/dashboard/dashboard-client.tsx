@@ -199,10 +199,7 @@ export default function DashboardClient({ initialOrders }: Props) {
             </Card>
           </div>
 
-          {/* Fila 3: Alertas */}
-          <SmartAlertsPanel />
-
-          {/* Fila 4: Alquileres próximos a vencer */}
+          {/* Fila 3: Alquileres próximos a vencer */}
           {alerts.length > 0 && (
             <div className="space-y-2">
               <h2 className="text-sm font-semibold text-red-700">Alquileres próximos a vencer</h2>
@@ -243,6 +240,12 @@ export default function DashboardClient({ initialOrders }: Props) {
               </div>
             </div>
           )}
+
+          {/* Fila 4: WorkshopSummary */}
+          <WorkshopSummary />
+
+          {/* Fila 5: SmartAlertsPanel */}
+          <SmartAlertsPanel />
 
           {/* Fila 5: Stock Intelligence */}
           <div className="border-t pt-6 mt-6">
