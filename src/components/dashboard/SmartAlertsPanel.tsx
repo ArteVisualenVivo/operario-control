@@ -2,9 +2,7 @@
 
 import { useEffect, useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Separator } from "@/components/ui/separator"
+import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle, AlertCircle, Info } from "lucide-react"
 import { getRepairs } from "@/services/repairs"
 import { useStockIntelligence } from "@/hooks/useStockIntelligence"
@@ -22,30 +20,6 @@ interface SmartAlert {
   repairId?: string
   entityType?: string
   href?: string
-}
-
-const SEVERITY_CONFIG = {
-  critical: {
-    label: "Críticas",
-    border: "border-red-400",
-    bg: "bg-red-50",
-    badge: "bg-red-200 text-red-800",
-    icon: <AlertTriangle className="h-5 w-5 text-red-600" />,
-  },
-  preventive: {
-    label: "Preventivas",
-    border: "border-amber-400",
-    bg: "bg-amber-50",
-    badge: "bg-amber-200 text-amber-800",
-    icon: <AlertCircle className="h-5 w-5 text-amber-600" />,
-  },
-  recommendation: {
-    label: "Recomendaciones",
-    border: "border-blue-400",
-    bg: "bg-blue-50",
-    badge: "bg-blue-200 text-blue-800",
-    icon: <Info className="h-5 w-5 text-blue-600" />,
-  },
 }
 
 function detectRepetitiveFailures(repairs: MachineRepair[]): SmartAlert[] {
@@ -224,67 +198,56 @@ function stockToSmartAlert(alert: StockAlert): SmartAlert {
   }
 }
 
-function AlertSection({
+const SEVERITY_CONFIG = {
+  critical: {
+    label: "Críticas",
+    border: "border-red-400",
+    bg: "bg-red-50",
+    badge: "bg-red-200 text-red-800",
+    icon: <AlertTriangle className="h-5 w-5 text-red-600" />,
+    textColor: "text-red-600",
+    hoverBg: "hover:bg-red-50/50",
+  },
+  preventive: {
+    label: "Preventivas",
+    border: "border-amber-400",
+    bg: "bg-amber-50",
+    badge: "bg-amber-200 text-amber-800",
+    icon: <AlertCircle className="h-5 w-5 text-amber-600" />,
+    textColor: "text-amber-600",
+    hoverBg: "hover:bg-amber-50/50",
+  },
+  recommendation: {
+    label: "Recomendaciones",
+    border: "border-blue-400",
+    bg: "bg-blue-50",
+    badge: "bg-blue-200 text-blue-800",
+    icon: <Info className="h-5 w-5 text-blue-600" />,
+    textColor: "text-blue-600",
+    hoverBg: "hover:bg-blue-50/50",
+  },
+}
+
+function AlertCountCard({
   severity,
-  alerts,
+  count,
 }: {
   severity: "critical" | "preventive" | "recommendation"
-  alerts: SmartAlert[]
+  count: number
 }) {
   const router = useRouter()
   const config = SEVERITY_CONFIG[severity]
 
-  if (alerts.length === 0) return null
-
-  const navigate = (alert: SmartAlert) => {
-    if (alert.href) { router.push(alert.href); return }
-    if (alert.repairId) { router.push(`/repairs/${alert.repairId}`); return }
-    if (alert.machineId) { router.push(`/machines/${alert.machineId}`); return }
-  }
-
   return (
-    <Card className={`border-t-4 ${config.border}`}>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">
-          {config.icon} {config.label} ({alerts.length})
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="space-y-2">
-          {alerts.map((alert) => (
-            <div
-              key={alert.id}
-              className="flex items-center justify-between rounded-lg border p-3 text-sm cursor-pointer hover:bg-muted/30 transition-colors"
-              onClick={() => navigate(alert)}
-            >
-              <div className="space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <p className="font-medium">{alert.title}</p>
-                  <span className={`inline-block px-1.5 py-0.5 rounded text-xs font-semibold ${config.badge}`}>
-                    {alert.entityType === "MATERIAL" ? "Stock" :
-                      alert.entityType === "SPARE_PART" ? "Repuesto" :
-                        config.label.slice(0, -1)}
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground">{alert.description}</p>
-                {alert.machineName && (
-                  <p className="text-xs">
-                    <span className="text-muted-foreground">Máquina: </span>
-                    {alert.machineName}
-                    {alert.machineModel ? ` (${alert.machineModel})` : ""}
-                  </p>
-                )}
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="text-xs shrink-0"
-                onClick={(e) => { e.stopPropagation(); navigate(alert) }}
-              >
-                Ver
-              </Button>
-            </div>
-          ))}
+    <Card
+      className={`border-t-4 ${config.border} cursor-pointer transition-all hover:shadow-md ${config.hoverBg}`}
+      onClick={() => router.push("/repairs")}
+    >
+      <CardContent className="p-4 flex items-center gap-3">
+        <div className="flex-shrink-0">{config.icon}</div>
+        <div className="flex-1 min-w-0">
+          <p className={`text-2xl font-bold ${config.textColor}`}>{count}</p>
+          <p className="text-sm text-muted-foreground">{config.label}</p>
         </div>
       </CardContent>
     </Card>
@@ -317,75 +280,32 @@ export default function SmartAlertsPanel() {
     return { critical, preventive, recommendations, stockCount: stockAlerts.length }
   }, [repairs, intelligence])
 
-  const total =
-    alerts.critical.length + alerts.preventive.length + alerts.recommendations.length
-
   if (loading || stockLoading) {
     return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Alertas inteligentes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">Analizando reparaciones y stock...</p>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {(["critical", "preventive", "recommendation"] as const).map((severity) => (
+          <Card key={severity} className={`border-t-4 ${SEVERITY_CONFIG[severity].border}`}>
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="flex-shrink-0">{SEVERITY_CONFIG[severity].icon}</div>
+              <div className="flex-1">
+                <p className="text-2xl font-bold text-muted-foreground">—</p>
+                <p className="text-sm text-muted-foreground">{SEVERITY_CONFIG[severity].label}</p>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     )
   }
 
-  if (total === 0) {
-    return (
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-base">Alertas inteligentes</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Sin alertas detectadas. Todas las máquinas y stock dentro de parámetros normales.
-          </p>
-        </CardContent>
-      </Card>
-    )
-  }
+  const total = alerts.critical.length + alerts.preventive.length + alerts.recommendations.length
+  if (total === 0) return null
 
   return (
-    <div className="space-y-4">
-      <h2 className="text-sm font-semibold">Alertas inteligentes y recomendaciones</h2>
-      <p className="text-xs text-muted-foreground -mt-3">
-        Detectadas desde reparaciones y análisis de stock.
-      </p>
-
-      <AlertSection severity="critical" alerts={alerts.critical} />
-      <AlertSection severity="preventive" alerts={alerts.preventive} />
-      <AlertSection severity="recommendation" alerts={alerts.recommendations} />
-
-      {intelligence && alerts.stockCount > 0 && (
-        <>
-          <Separator className="my-2" />
-          <div className="rounded-lg border p-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium">Stock Intelligence</p>
-                <p className="text-xs text-muted-foreground">
-                  Health Score: <strong>{intelligence.healthScore.overall}/100</strong>
-                  {intelligence.healthScore.overall >= 70 ? " 🟢" : intelligence.healthScore.overall >= 40 ? " 🟡" : " 🔴"}
-                  {" · "}
-                  Tendencia: {intelligence.trend === "up" ? "↑" : intelligence.trend === "down" ? "↓" : "→"}
-                  {" · "}
-                  {intelligence.criticalItems.length} críticos
-                </p>
-              </div>
-              <div className="flex gap-1 text-xs">
-                <span className="text-green-600">M: {intelligence.healthScore.materials}%</span>
-                <span className="text-muted-foreground">|</span>
-                <span className="text-amber-600">R: {intelligence.healthScore.spareParts}%</span>
-                <span className="text-muted-foreground">|</span>
-                <span className="text-blue-600">Mq: {intelligence.healthScore.machines}%</span>
-              </div>
-            </div>
-          </div>
-        </>
-      )}
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <AlertCountCard severity="critical" count={alerts.critical.length} />
+      <AlertCountCard severity="preventive" count={alerts.preventive.length} />
+      <AlertCountCard severity="recommendation" count={alerts.recommendations.length} />
     </div>
   )
 }

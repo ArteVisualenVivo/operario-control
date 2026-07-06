@@ -45,6 +45,7 @@ export default function DashboardClient({ initialOrders }: Props) {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<MachineStatus | "all">("all")
   const [showMachines, setShowMachines] = useState(false)
+  const [showStock, setShowStock] = useState(false)
 
   useEffect(() => {
     // Debug log removido
@@ -122,9 +123,9 @@ export default function DashboardClient({ initialOrders }: Props) {
 
   return (
     <div className="space-y-6">
+      {/* Header: Sync button + search */}
       <div className="flex flex-wrap items-center gap-3">
         <Sync3CButton onComplete={refreshAll} variant="outline" />
-        {/* Global search input */}
         <div className="flex items-center gap-2 flex-1 max-w-md">
           <Input
             type="search"
@@ -142,11 +143,66 @@ export default function DashboardClient({ initialOrders }: Props) {
       </div>
 
       {search ? (
-        // Show MaintenanceTable when searching
         <MaintenanceTable initialOrders={initialOrders} />
       ) : (
-        // Show original dashboard when search is empty
         <>
+          {/* Fila 1: KPI Bar */}
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-6">
+            <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines")}>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total equipos</CardTitle></CardHeader>
+              <CardContent><p className="text-3xl font-bold">{machines.length}</p></CardContent>
+            </Card>
+            <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?status=available")}>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Disponibles</CardTitle></CardHeader>
+              <CardContent><p className="text-3xl font-bold text-green-600">{machines.filter((m) => m.status === "available").length}</p></CardContent>
+            </Card>
+            <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?status=rented")}>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Alquiladas</CardTitle></CardHeader>
+              <CardContent><p className="text-3xl font-bold text-blue-600">{machines.filter((m) => m.status === "rented").length}</p></CardContent>
+            </Card>
+            <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?status=maintenance")}>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Mantenimiento</CardTitle></CardHeader>
+              <CardContent><p className="text-3xl font-bold text-yellow-600">{machines.filter((m) => m.status === "maintenance").length}</p></CardContent>
+            </Card>
+            <WorkshopSummary />
+          </div>
+
+          {/* Fila 2: Categorías */}
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?category=machine")}>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Maquinaria</CardTitle></CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold">{machines.filter((m) => m.category === "machine").length}</p>
+                <div className="mt-2 h-2 w-full rounded-full bg-gray-200">
+                  <div className="h-2 rounded-full bg-blue-500" style={{ width: `${machines.length > 0 ? Math.round((machines.filter(m => m.category === "machine").length / machines.length) * 100) : 0}%` }} />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/andamios")}>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Andamios</CardTitle></CardHeader>
+              <CardContent className="space-y-1">
+                <p><span className="text-3xl font-bold">{machines.filter((m) => m.category === "scaffold").length}</span> <span className="text-sm text-muted-foreground">cuerpos</span></p>
+                <p><span className="text-xl font-bold text-orange-600">{cuerposCompletos}</span> <span className="text-sm text-muted-foreground">completos (según stock)</span></p>
+                <div className="mt-2 h-2 w-full rounded-full bg-gray-200">
+                  <div className="h-2 rounded-full bg-orange-500" style={{ width: `${machines.length > 0 ? Math.round((machines.filter(m => m.category === "scaffold").length / machines.length) * 100) : 0}%` }} />
+                </div>
+              </CardContent>
+            </Card>
+            <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?category=tool")}>
+              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Herramientas</CardTitle></CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold">{machines.filter((m) => m.category === "tool").length}</p>
+                <div className="mt-2 h-2 w-full rounded-full bg-gray-200">
+                  <div className="h-2 rounded-full bg-green-500" style={{ width: `${machines.length > 0 ? Math.round((machines.filter(m => m.category === "tool").length / machines.length) * 100) : 0}%` }} />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Fila 3: Alertas */}
+          <SmartAlertsPanel />
+
+          {/* Fila 4: Alquileres próximos a vencer */}
           {alerts.length > 0 && (
             <div className="space-y-2">
               <h2 className="text-sm font-semibold text-red-700">Alquileres próximos a vencer</h2>
@@ -188,152 +244,7 @@ export default function DashboardClient({ initialOrders }: Props) {
             </div>
           )}
 
-          <WorkshopSummary />
-
-          <SmartAlertsPanel />
-
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-            <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines")}>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total equipos</CardTitle></CardHeader>
-              <CardContent><p className="text-3xl font-bold">{machines.length}</p></CardContent>
-            </Card>
-            <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?status=available")}>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Disponibles</CardTitle></CardHeader>
-              <CardContent><p className="text-3xl font-bold text-green-600">{machines.filter((m) => m.status === "available").length}</p></CardContent>
-            </Card>
-            <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?status=rented")}>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Alquiladas</CardTitle></CardHeader>
-              <CardContent><p className="text-3xl font-bold text-blue-600">{machines.filter((m) => m.status === "rented").length}</p></CardContent>
-            </Card>
-            <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?status=maintenance")}>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Mantenimiento</CardTitle></CardHeader>
-              <CardContent><p className="text-3xl font-bold text-yellow-600">{machines.filter((m) => m.status === "maintenance").length}</p></CardContent>
-            </Card>
-          </div>
-
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-            <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?category=machine")}>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Maquinaria</CardTitle></CardHeader>
-              <CardContent><p className="text-3xl font-bold">{machines.filter((m) => m.category === "machine").length}</p></CardContent>
-            </Card>
-            <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/andamios")}>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Andamios</CardTitle></CardHeader>
-              <CardContent className="space-y-1">
-                <p><span className="text-3xl font-bold">{machines.filter((m) => m.category === "scaffold").length}</span> <span className="text-sm text-muted-foreground">cuerpos</span></p>
-                <p><span className="text-xl font-bold text-orange-600">{cuerposCompletos}</span> <span className="text-sm text-muted-foreground">completos (según stock)</span></p>
-              </CardContent>
-            </Card>
-            <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?category=tool")}>
-              <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Herramientas</CardTitle></CardHeader>
-              <CardContent><p className="text-3xl font-bold">{machines.filter((m) => m.category === "tool").length}</p></CardContent>
-            </Card>
-          </div>
-
-          <button
-            onClick={() => setShowMachines(!showMachines)}
-            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <span className="text-xs">{showMachines ? "▼" : "▶"}</span>
-            <span>Ver listado de máquinas</span>
-            <span className="text-xs text-muted-foreground">({grouped.length} grupo{grouped.length !== 1 ? "s" : ""})</span>
-          </button>
-
-          <div className="flex flex-col gap-4 sm:flex-row">
-            <Input
-              placeholder="Buscar por nombre, modelo, cliente u obra..."
-              value={search}
-              onChange={(e) => { setSearch(e.target.value); setShowMachines(true) }}
-              className="max-w-sm"
-            />
-            <div className="flex gap-2">
-              {(["all", "available", "rented", "maintenance"] as const).map((s) => (
-                <Button key={s} variant={statusFilter === s ? "default" : "outline"} size="sm" onClick={() => setStatusFilter(s)}>
-                  {s === "all" ? "Todos" : statusLabels[s]}
-                </Button>
-              ))}
-            </div>
-          </div>
-
-          {showMachines && (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {grouped.map((group) => (
-                <Card key={group.key}>
-                  <CardHeader className="pb-2">
-                    <CardTitle className="text-lg">{group.name}</CardTitle>
-                    <p className="text-xs text-muted-foreground">Modelo: {group.model}</p>
-                  </CardHeader>
-                  <CardContent className="space-y-2 text-sm">
-                    <div className="flex flex-wrap gap-x-4 gap-y-1">
-                      <span>Total: <strong>{group.total}</strong></span>
-                      <span className="text-green-600">Disp: <strong>{group.available}</strong></span>
-                      <span className="text-blue-600">Alq: <strong>{group.rented}</strong></span>
-                      <span className="text-yellow-600">Mant: <strong>{group.maintenance}</strong></span>
-                    </div>
-                    {group.rented > 0 && group.machines.filter(m => m.status === "rented").map(rm => (
-                      <div key={rm.id} className="border-t pt-2 text-xs space-y-0.5 text-muted-foreground">
-                        {rm.rental && (
-                          <>
-                            <p>→ Cliente: {rm.rental.clientName}</p>
-                            {rm.location?.client?.address && <p>→ Dir. cliente: {rm.location.client.address}</p>}
-                            <p>→ Obra: {rm.rental.projectName}</p>
-                            {rm.location?.project?.address && <p>→ Dir. obra: {rm.location.project.address}</p>}
-                            <p>→ Inicio: {formatDate(rm.rental.startDate)}</p>
-                            {!rm.rental.isOpenEnded && rm.rental.expectedEndDate && (
-                              <p>→ Fin estimado: {formatDate(rm.rental.expectedEndDate)}</p>
-                            )}
-                            {rm.rental.isOpenEnded && (
-                              <p className="text-blue-600">→ Plazo abierto</p>
-                            )}
-                          </>
-                        )}
-                      </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              ))}
-              {grouped.length === 0 && <p className="text-center text-muted-foreground col-span-full">No se encontraron máquinas</p>}
-            </div>
-          )}
-
-          <div className="border-t pt-6 mt-6">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Stock de materiales</h2>
-              <Button size="sm" onClick={() => router.push("/inventory/new")}>
-                + Nuevo material
-              </Button>
-            </div>
-
-            {stockLoading ? (
-              <p className="text-muted-foreground">Cargando stock...</p>
-            ) : (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {stockItems.map((item) => (
-                  <Card
-                    key={item.id}
-                    className="cursor-pointer transition-shadow hover:shadow-md"
-                    onClick={() => router.push(`/inventory/${item.id}`)}
-                  >
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-lg">{item.name}</CardTitle>
-                      <p className="text-xs text-muted-foreground">
-                        {item.unit}{item.size ? ` | Medida: ${item.size}` : ""}
-                      </p>
-                    </CardHeader>
-                    <CardContent className="space-y-1 text-sm">
-                      <p>Total: <strong>{item.stockTotal}</strong></p>
-                      <p className="text-green-600">Disponibles: <strong>{item.stockAvailable}</strong></p>
-                      <p className="text-blue-600">Alquilados: <strong>{item.stockRented}</strong></p>
-                    </CardContent>
-                  </Card>
-                ))}
-                {stockItems.length === 0 && (
-                  <p className="text-muted-foreground col-span-full text-center">No hay materiales registrados</p>
-                )}
-              </div>
-            )}
-
-          </div>
-
+          {/* Fila 5: Stock Intelligence */}
           <div className="border-t pt-6 mt-6">
             <h2 className="text-xl font-semibold mb-4">Stock Intelligence</h2>
 
@@ -462,6 +373,133 @@ export default function DashboardClient({ initialOrders }: Props) {
                 )}
               </div>
             ) : null}
+          </div>
+
+          {/* Fila 6: Máquinas — sección plegable */}
+          <div className="border-t pt-6 mt-6">
+            <button
+              onClick={() => setShowMachines(!showMachines)}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <span className="text-xs">{showMachines ? "▼" : "▶"}</span>
+              <span>Ver listado de máquinas</span>
+              <span className="text-xs text-muted-foreground">({grouped.length} grupo{grouped.length !== 1 ? "s" : ""})</span>
+            </button>
+
+            {showMachines && (
+              <>
+                <div className="flex flex-col gap-4 sm:flex-row mt-4">
+                  <Input
+                    placeholder="Buscar por nombre, modelo, cliente u obra..."
+                    value={search}
+                    onChange={(e) => { setSearch(e.target.value); setShowMachines(true) }}
+                    className="max-w-sm"
+                  />
+                  <div className="flex gap-2">
+                    {(["all", "available", "rented", "maintenance"] as const).map((s) => (
+                      <Button key={s} variant={statusFilter === s ? "default" : "outline"} size="sm" onClick={() => setStatusFilter(s)}>
+                        {s === "all" ? "Todos" : statusLabels[s]}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 mt-4">
+                  {grouped.map((group) => (
+                    <Card key={group.key}>
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-lg">{group.name}</CardTitle>
+                        <p className="text-xs text-muted-foreground">Modelo: {group.model}</p>
+                      </CardHeader>
+                      <CardContent className="space-y-2 text-sm">
+                        <div className="flex flex-wrap gap-x-4 gap-y-1">
+                          <span>Total: <strong>{group.total}</strong></span>
+                          <span className="text-green-600">Disp: <strong>{group.available}</strong></span>
+                          <span className="text-blue-600">Alq: <strong>{group.rented}</strong></span>
+                          <span className="text-yellow-600">Mant: <strong>{group.maintenance}</strong></span>
+                        </div>
+                        {group.rented > 0 && group.machines.filter(m => m.status === "rented").map(rm => (
+                          <div key={rm.id} className="border-t pt-2 text-xs space-y-0.5 text-muted-foreground">
+                            {rm.rental && (
+                              <>
+                                <p>→ Cliente: {rm.rental.clientName}</p>
+                                {rm.location?.client?.address && <p>→ Dir. cliente: {rm.location.client.address}</p>}
+                                <p>→ Obra: {rm.rental.projectName}</p>
+                                {rm.location?.project?.address && <p>→ Dir. obra: {rm.location.project.address}</p>}
+                                <p>→ Inicio: {formatDate(rm.rental.startDate)}</p>
+                                {!rm.rental.isOpenEnded && rm.rental.expectedEndDate && (
+                                  <p>→ Fin estimado: {formatDate(rm.rental.expectedEndDate)}</p>
+                                )}
+                                {rm.rental.isOpenEnded && (
+                                  <p className="text-blue-600">→ Plazo abierto</p>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {grouped.length === 0 && <p className="text-center text-muted-foreground col-span-full">No se encontraron máquinas</p>}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Fila 7: Stock completo — sección plegable */}
+          <div className="border-t pt-6 mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <button
+                onClick={() => setShowStock(!showStock)}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <span className="text-xs">{showStock ? "▼" : "▶"}</span>
+                <span>Stock de materiales</span>
+                <span className="text-xs text-muted-foreground">({stockItems.length} item{stockItems.length !== 1 ? "s" : ""})</span>
+              </button>
+              <Button size="sm" onClick={() => router.push("/inventory/new")}>
+                + Nuevo material
+              </Button>
+            </div>
+
+            {showStock && (
+              <>
+                {stockLoading ? (
+                  <p className="text-muted-foreground">Cargando stock...</p>
+                ) : (
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {stockItems.map((item) => {
+                      const isLowStock = item.stockAvailable <= 0 || item.stockTotal <= 0
+                      return (
+                        <Card
+                          key={item.id}
+                          className={`cursor-pointer transition-shadow hover:shadow-md ${isLowStock ? "border-red-300 bg-red-50/50" : ""}`}
+                          onClick={() => router.push(`/inventory/${item.id}`)}
+                        >
+                          <CardHeader className="pb-2">
+                            <CardTitle className="text-lg">{item.name}</CardTitle>
+                            <p className="text-xs text-muted-foreground">
+                              {item.unit}{item.size ? ` | Medida: ${item.size}` : ""}
+                            </p>
+                          </CardHeader>
+                          <CardContent className="space-y-1 text-sm">
+                            <p>Total: <strong>{item.stockTotal}</strong></p>
+                            <p className={isLowStock ? "text-red-600 font-semibold" : "text-green-600"}>
+                              Disponibles: <strong>{item.stockAvailable}</strong>
+                              {isLowStock && " ⚠️ Sin stock"}
+                            </p>
+                            <p className="text-blue-600">Alquilados: <strong>{item.stockRented}</strong></p>
+                          </CardContent>
+                        </Card>
+                      )
+                    })}
+                    {stockItems.length === 0 && (
+                      <p className="text-muted-foreground col-span-full text-center">No hay materiales registrados</p>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
           </div>
         </>
       )}
