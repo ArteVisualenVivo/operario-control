@@ -1,7 +1,7 @@
 # Auditoría Completa del Sistema — Operario Control
 **Fecha:** 2026-07-05  
 **Versión:** 0.1.0  
-**Estado:** En progreso
+**Estado:** INCOMPLETA (validación de getDaysLeft() no realizada - requiere acceso a Firestore con datos reales)
 
 ---
 
@@ -565,5 +565,33 @@ git checkout 63574c0 -- sync-agent/agent.mjs
 
 ---
 
+## 18. Comparación: Proyecto actual vs Respaldo funcional (D:\respaldo APK\operario-control)
+
+### Diferencias en el flujo de alquileres
+
+**1. `dashboard-client.tsx` - Debug logging removido**
+- **Respaldo (funcional):** Tiene `useEffect` con logging detallado de máquinas alquiladas (líneas 49-56)
+- **Actual:** El `useEffect` está vacío con comentario "Debug log removido" (líneas 50-52)
+- **Impacto:** No se puede verificar en consola qué máquinas llegan y con qué datos de rental
+
+**2. `dashboard-client.tsx` - State `showStock` agregado**
+- **Respaldo:** No tiene `showStock` state
+- **Actual:** Agregó `const [showStock, setShowStock] = useState(false)` (línea 48)
+- **Impacto:** El renderizado del stock cambió a sección plegable
+
+**3. `dashboard-client.tsx` - Renderizado de alertas**
+- **Respaldo:** Alertas aparecen antes de `WorkshopSummary` y `SmartAlertsPanel`
+- **Actual:** Alertas aparecen después de `SmartAlertsPanel`
+- **Impacto:** Orden de renderizado diferente, pero lógica de `getDaysLeft()` idéntica
+
+**4. `machines.ts` - Idéntico**
+- La función `parseRental()` y `toDate()` son idénticas en ambos proyectos
+- No hay cambios en el parsing de fechas
+
+### Conclusión
+El **flujo de `getDaysLeft()` es idéntico** entre ambos proyectos. La lógica no cambió. La diferencia principal es que el proyecto actual tiene el debug logging removido, lo que dificulta la verificación en tiempo real.
+
+---
+
 *Auditoría generada el 2026-07-05*  
-*Estado: COMPLETA*
+*Estado: INCOMPLETA (validación de getDaysLeft() no realizada - requiere acceso a Firestore con datos reales)*
