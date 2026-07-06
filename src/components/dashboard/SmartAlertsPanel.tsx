@@ -241,7 +241,7 @@ function AlertCountCard({
   return (
     <Card
       className={`border-t-4 ${config.border} cursor-pointer transition-all hover:shadow-md ${config.hoverBg}`}
-      onClick={() => router.push("/repairs")}
+      onClick={() => router.push("/inventory")}
     >
       <CardContent className="p-4 flex items-center gap-3">
         <div className="flex-shrink-0">{config.icon}</div>

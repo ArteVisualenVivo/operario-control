@@ -341,36 +341,6 @@ export default function DashboardClient({ initialOrders }: Props) {
                   </Card>
                 )}
 
-                {stockIntelligence.criticalItems.length > 0 && (
-                  <Card className="border-t-4 border-red-400">
-                    <CardHeader className="pb-2">
-                      <CardTitle className="text-base text-red-700">
-                        🔴 Ítems críticos ({stockIntelligence.criticalItems.length})
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-1">
-                        {stockIntelligence.criticalItems.map((item) => (
-                          <div
-                            key={item.id}
-                            className="flex items-center justify-between rounded-lg border p-2 text-sm cursor-pointer hover:bg-red-50"
-                            onClick={() => {
-                              const path = item.entityType === "MATERIAL"
-                                ? `/inventory/${item.entityId}`
-                                : item.entityType === "SPARE_PART"
-                                  ? `/machines/${item.entityId}/parts`
-                                  : `/machines/${item.entityId}`
-                              router.push(path)
-                            }}
-                          >
-                            <span>{item.message}</span>
-                            <span className="text-xs text-muted-foreground">{item.detail}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
               </div>
             ) : null}
           </div>
