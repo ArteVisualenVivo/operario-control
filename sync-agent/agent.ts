@@ -98,8 +98,8 @@ function findAhkExe() {
     return null
 }
 
-function runAhk(scriptPath) {
-    return new Promise((resolve, reject) => {
+function runAhk(scriptPath: string) {
+    return new Promise<void>((resolve, reject) => {
         const exe = findAhkExe()
         if (!exe) {
             reject(new Error("AutoHotkey no encontrado. Instalalo desde https://www.autohotkey.com/"))
@@ -170,16 +170,17 @@ function ensureCacheDir() {
     }
 }
 
-function safeWriteJson(filePath, data) {
+function safeWriteJson(filePath: string, data: unknown) {
     try {
         ensureCacheDir()
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
     } catch (err) {
-        console.warn(`[AGENT] No se pudo escribir cache ${path.basename(filePath)}:`, err?.message)
+        const error = err instanceof Error ? err : new Error(String(err))
+        console.warn(`[AGENT] No se pudo escribir cache ${path.basename(filePath)}:`, error.message)
     }
 }
 
-function buildMachineSeedFromStock(items) {
+function buildMachineSeedFromStock(items: Sync3CItem[]) {
     const scaffoldNames = new Set([
         "andamio tubular",
         "andamio modular",
@@ -209,7 +210,7 @@ function buildMachineSeedFromStock(items) {
         }))
 }
 
-function buildSparePartsSeedFromStock(items) {
+function buildSparePartsSeedFromStock(items: Sync3CItem[]) {
     return items
         .filter((item) => {
             const name = String(item.name ?? "").toLowerCase().trim()
@@ -234,7 +235,9 @@ function buildSparePartsSeedFromStock(items) {
         }))
 }
 
-async function processCommand(redis, commandId, module) {
+type ModuleName = "stock" | "reparaciones" | "articulos"
+
+async function processCommand(redis: Redis, commandId: string, module: ModuleName) {
     isProcessing = true
 
     try {
@@ -382,7 +385,7 @@ async function processCommand(redis, commandId, module) {
     }
 }
 
-async function pollQueue(redis) {
+async function pollQueue(redis: Redis) {
     console.log("[AGENT] Redis polling started (5s)")
 
     while (true) {
@@ -404,17 +407,18 @@ async function pollQueue(redis) {
                 continue
             }
 
-            const module = raw.module || "stock"
+            const module = (raw.module || "stock") as ModuleName
             await processCommand(redis, commandId, module)
         } catch (err) {
-            console.error("[AGENT] Polling error:", err.message)
+            const error = err instanceof Error ? err : new Error(String(err))
+            console.error("[AGENT] Polling error:", error.message)
         }
 
         await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
     }
 }
 
-async function recoverStaleCommands(redis) {
+async function recoverStaleCommands(redis: Redis) {
     console.log("[AGENT] Checking for stale running commands...")
     let cursor = 0
     let recovered = 0
@@ -431,10 +435,10 @@ async function recoverStaleCommands(redis) {
                 const data = await redis.hgetall(key)
                 if (data?.status !== "running") continue
 
-                const startedAt = parseInt(data.startedAt ?? "0", 10)
+                const startedAt = parseInt((data.startedAt as string) ?? "0", 10)
                 if (startedAt > 0 && startedAt >= cutoff) continue
 
-                const id = key.replace("sync-3c:command:", "")
+                const id = key.replace("sync-3c:command:", "") as string
                 await redis.hset(key, { status: "pending", startedAt: "", agent: "" })
                 await redis.lpush("sync-3c:queue", id)
                 recovered++
@@ -442,14 +446,15 @@ async function recoverStaleCommands(redis) {
             }
         } while (cursor !== 0)
     } catch (err) {
-        console.error("[AGENT] Recovery scan error:", err.message)
+        const error = err instanceof Error ? err : new Error(String(err))
+        console.error("[AGENT] Recovery scan error:", error.message)
     }
 
     if (recovered > 0) console.log(`[AGENT] Recovered ${recovered} stale command(s)`)
     else console.log("[AGENT] No stale commands found")
 }
 
-function startHeartbeat(redis) {
+function startHeartbeat(redis: Redis) {
     const beat = async () => {
         try {
             await redis.set("sync-3c:agent:production", JSON.stringify({
@@ -458,7 +463,8 @@ function startHeartbeat(redis) {
                 machineName: MACHINE_NAME,
             }))
         } catch (err) {
-            console.error("[AGENT] Heartbeat error:", err.message)
+            const error = err instanceof Error ? err : new Error(String(err))
+            console.error("[AGENT] Heartbeat error:", error.message)
         }
     }
 
