@@ -1,18 +1,19 @@
 #!/usr/bin/env node
 
-import dotenv from "dotenv"
 import { fileURLToPath } from "url"
+import path from "path"
+import fs from "fs"
+import { spawn, execSync } from "child_process"
+import dotenv from "dotenv"
+import { Redis } from "@upstash/redis"
+
+// IMPORTS CORRECTOS (IMPORTANTE: .js aunque uses TS + tsx)
+import { parseExcel } from "../src/lib/sync-3c/parser.js"
+import { syncItems, syncRepairsToMaintenance } from "../src/lib/sync-3c/engine.js"
 
 dotenv.config({
   path: fileURLToPath(new URL("../.env.local", import.meta.url)),
 })
-
-import { Redis } from "@upstash/redis"
-import { spawn, execSync } from "child_process"
-import fs from "fs"
-import path from "path"
-import { parseExcel } from "../src/lib/sync-3c/parser.ts"
-import { syncItems, syncRepairsToMaintenance } from "../src/lib/sync-3c/engine.ts"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
@@ -26,7 +27,6 @@ const MACHINES_CACHE_FILE = path.join(CACHE_DIR, "machines-cache.json")
 const SPARE_PARTS_CACHE_FILE = path.join(CACHE_DIR, "spare-parts-cache.json")
 
 const LOG_FILE = path.join(__dirname, "agent.log")
-
 const logStream = fs.createWriteStream(LOG_FILE, { flags: "a" })
 
 const origLog = console.log
@@ -217,7 +217,7 @@ async function processCommand(redis: any, commandId: string, module: string) {
       status: "completed",
       result: JSON.stringify(result),
     })
-  } catch (err: any) {
+  } catch (err) {
     console.error(err)
   } finally {
     isProcessing = false

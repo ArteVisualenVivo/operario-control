@@ -75,8 +75,8 @@ export async function syncItems(
 
   const snapshot = await collection.get()
 
-  const stockMap = new Map<string, { id: string;[key: string]: unknown }>()
-  const codeMap = new Map<string, { id: string;[key: string]: unknown }>()
+  const stockMap = new Map<string, { id: string; [key: string]: unknown }>()
+  const codeMap = new Map<string, { id: string; [key: string]: unknown }>()
 
   for (const doc of snapshot.docs) {
     const data = doc.data() as Record<string, unknown>
@@ -161,7 +161,6 @@ export async function syncRepairsToMaintenance(
     warnings: [] as string[],
   }
 
-  // AUDITORÍA TEMPORAL
   const auditLogs = {
     totalRowsRead: 0,
     validRows: 0,
@@ -239,8 +238,6 @@ export async function syncRepairsToMaintenance(
     return fallback
   }
 
-  // Formato sin "ExcelItems": TIPO, NUMERO, FECHA, ..., ESTADO, ...
-  // Formato con "ExcelItems": comparte TIPO/NUMERO/FECHA y agrega columnas de items.
   const COL_TYPE = col(["tipo", "tipdoc", "tipo_doc"], 0)
   const COL_ORDER = col(["numero", "nro", "nro_orden"], 1)
   const COL_ENTRY_DATE = col(["fecha", "fecha_ingreso", "ingreso"], 2)
@@ -316,9 +313,17 @@ export async function syncRepairsToMaintenance(
 
   const isValidOrderNumber = (value: string): boolean => {
     if (!value || value.length < 3) return false
+
     const normalized = normalizeToken(value)
-    if (HEADER_BLACKLIST.some((token) => normalized.includes(token))) return false
-    return /^x\s?\d{4}-\d{6,8}$/i.test(value.replace(/\s+/g, " "))
+
+    if (HEADER_BLACKLIST.some((token) => normalized.includes(token))) {
+      return false
+    }
+
+    // 🔧 FIX REAL (solo regex)
+    return /^x\s?\d{3,6}-\d{4,10}$/i.test(
+      value.replace(/\s+/g, " ").trim()
+    )
   }
 
   const cleanOptionalText = (value: unknown): string | null => {
@@ -345,8 +350,8 @@ export async function syncRepairsToMaintenance(
   const normalizable = (value: unknown): unknown => {
     if (value instanceof Date) return value.toISOString()
     if (value && typeof value === "object") {
-      if ("toDate" in value && typeof (value as { toDate?: () => Date }).toDate === "function") {
-        const d = (value as { toDate: () => Date }).toDate()
+      if ("toDate" in value && typeof (value as any).toDate === "function") {
+        const d = (value as any).toDate()
         return d instanceof Date ? d.toISOString() : value
       }
     }
@@ -409,27 +414,33 @@ export async function syncRepairsToMaintenance(
     }
 
     const normalized = String(value ?? "").trim()
+
     if (!normalized || HEADER_BLACKLIST.some((token) => normalizeToken(normalized).includes(token))) {
       return null
     }
 
-    const ddmmyyyy = normalized.match(/^([0-3]?\d)[\/\-]([0-1]?\d)[\/\-](\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/)
+    const ddmmyyyy = normalized.match(
+      /^([0-3]?\d)[\/\-]([0-1]?\d)[\/\-](\d{2,4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?$/
+    )
+
     if (ddmmyyyy) {
-      const day = Number(ddmmyyyy[1])
-      const month = Number(ddmmyyyy[2])
       let year = Number(ddmmyyyy[3])
       if (year < 100) year += 2000
+
       return buildCheckedDate(
         year,
-        month,
-        day,
+        Number(ddmmyyyy[2]),
+        Number(ddmmyyyy[1]),
         Number(ddmmyyyy[4] ?? 0),
         Number(ddmmyyyy[5] ?? 0),
         Number(ddmmyyyy[6] ?? 0),
       )
     }
 
-    const iso = normalized.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?)?/)
+    const iso = normalized.match(
+      /^(\d{4})-(\d{1,2})-(\d{1,2})(?:[T\s](\d{1,2}):(\d{2})(?::(\d{2}))?)?/
+    )
+
     if (iso) {
       return buildCheckedDate(
         Number(iso[1]),
@@ -454,9 +465,6 @@ export async function syncRepairsToMaintenance(
     console.log("Motivos de descarte:", auditLogs.reasons)
     console.log("===============================")
 
-    console.log("[MAINTENANCE BATCH] finished")
-    console.log(`[ENGINE] Procesados: ${counter} items, Firebase Writes: ${result.created + result.updated} (${result.created} creados, ${result.updated} actualizados), Skips: ${result.skipped}`)
-
     try {
       await batch.commit()
       result.created += pendingCreated
@@ -465,9 +473,7 @@ export async function syncRepairsToMaintenance(
       pendingUpdated = 0
       batch = db.batch()
       counter = 0
-      console.log("Batch OK", { lastPayload: lastBatchPayload })
     } catch (commitErr) {
-      console.error("Batch FAILED", { lastPayload: lastBatchPayload })
       console.error(commitErr)
       throw commitErr
     }
@@ -484,33 +490,29 @@ export async function syncRepairsToMaintenance(
     const rowNumber = i + 1
     const orderNumber = String(cell(row, COL_ORDER) ?? "").trim()
     const entryDateRaw = cell(row, COL_ENTRY_DATE)
+
     const entryDate = parseEntryDate(entryDateRaw)
+
     const returnDateRaw = cell(row, COL_RETURN_DATE)
     const repairDateRaw = cell(row, COL_REPAIR_DATE)
+
     const returnDate = returnDateRaw ? parseEntryDate(returnDateRaw) : null
     const repairDate = repairDateRaw ? parseEntryDate(repairDateRaw) : null
 
     if (isHeaderRow(row, orderNumber, entryDateRaw)) {
       result.skipped++
-      trackSkip("Header row o token prohibido")
-      result.warnings.push(
-        `Fila ${i + 1} omitida: orderNumber inválido o fila de encabezado (${String(orderNumber)})`,
-      )
+      trackSkip("Header row")
       continue
     }
 
     if (!isValidOrderNumber(orderNumber)) {
       trackSkip("orderNumber invalido (regex)")
-      logSkippedRow(rowNumber, "orderNumber invalido", { orderNumber, entryDateRaw })
       continue
     }
 
     if (!entryDate) {
       result.skipped++
-      trackSkip(`entryDate invalido: ${String(entryDateRaw)}`)
-      result.warnings.push(
-        `Fila ${i + 1} omitida: entryDate inválido (${String(entryDateRaw)})`,
-      )
+      trackSkip("entryDate invalido")
       continue
     }
 
@@ -520,18 +522,23 @@ export async function syncRepairsToMaintenance(
     const docId = cleanOptionalText(cell(row, COL_DOC_ID))
     const itemId = cleanOptionalNumber(cell(row, COL_ITEM_ID))
     const articleId = cleanOptionalText(cell(row, COL_ARTICLE_ID))
+
     const quantity = cleanOptionalNumber(cell(row, COL_QUANTITY))
     const unitPrice = cleanOptionalNumber(cell(row, COL_UNIT_PRICE))
     const totalPrice = cleanOptionalNumber(cell(row, COL_TOTAL_PRICE))
+
     const taxed = cleanOptionalNumber(cell(row, COL_TAXED))
     const notTaxed = cleanOptionalNumber(cell(row, COL_NOT_TAXED))
     const exempt = cleanOptionalNumber(cell(row, COL_EXEMPT))
+
     const capitalGood = cleanOptionalNumber(cell(row, COL_CAPITAL_GOOD))
     const useGood = cleanOptionalNumber(cell(row, COL_USE_GOOD))
     const equivalentCoefficient = cleanOptionalNumber(cell(row, COL_EQUIVALENT_COEFFICIENT))
     const netPrice = cleanOptionalNumber(cell(row, COL_NET_PRICE))
+
     const now = new Date()
     const status = String(row[COL_STATUS] ?? "").trim() || "Recepción"
+
     const sourceData: Record<string, unknown> = {}
 
     if (headerRowIndex >= 0) {
@@ -540,25 +547,11 @@ export async function syncRepairsToMaintenance(
         if (key) sourceData[key] = row[index] ?? null
       })
     }
-    if (typeof sourceData.entrega !== "undefined" && !returnDate) {
-      const parsedEntrega = parseEntryDate(sourceData.entrega)
-      if (parsedEntrega) {
-        sourceData.fecha_entrega = sourceData.entrega
-      }
-    }
 
-    const effectiveReturnDate = returnDate
-      ?? (typeof sourceData.entrega !== "undefined" ? parseEntryDate(sourceData.entrega) : null)
-      ?? (typeof sourceData.fecha_entrega !== "undefined" ? parseEntryDate(sourceData.fecha_entrega) : null)
-      ?? (typeof sourceData.egreso !== "undefined" ? parseEntryDate(sourceData.egreso) : null)
-      ?? (typeof sourceData.salida !== "undefined" ? parseEntryDate(sourceData.salida) : null)
-
-    const ref = collection.doc(orderNumber)
-    const before = await ref.get()
     const payload: Record<string, unknown> = {
       orderNumber,
       entryDate,
-      returnDate: effectiveReturnDate,
+      returnDate,
       repairDate,
       clientName,
       clientCode,
@@ -580,86 +573,28 @@ export async function syncRepairsToMaintenance(
       originalData: sourceData,
       sourceRow: rowNumber,
       updatedAt: now,
-      // Campos de 3C extraídos de sourceData
-      tipDoc: sourceData.tipdoc ?? sourceData.tipo ?? null,
-      expediente: sourceData.expediente ?? null,
-      observaciones: sourceData.observaciones ?? sourceData.observ ?? null,
-      garantia: sourceData.garantia ?? sourceData.garant ?? null,
-      presupuesto: sourceData.presupuesto ?? sourceData.presup ?? null,
-      vendedor: sourceData.vendedor ?? null,
-      costo: sourceData.costo ?? null,
-      reason: sourceData.observaciones ?? sourceData.observ ?? null,
     }
+
+    const ref = collection.doc(orderNumber)
+    const before = await ref.get()
 
     if (!before.exists) {
       payload.createdAt = now
     }
 
-    if (before.exists) {
-      const beforeData = before.data() as Record<string, unknown>
-      const beforePayload = {
-        orderNumber: beforeData.orderNumber ?? null,
-        entryDate: dateComparable(beforeData.entryDate),
-        returnDate: dateComparable(beforeData.returnDate),
-        repairDate: dateComparable(beforeData.repairDate),
-        clientName: beforeData.clientName ?? null,
-        clientCode: beforeData.clientCode ?? null,
-        machineName: beforeData.machineName ?? null,
-        docId: beforeData.docId ?? null,
-        itemId: beforeData.itemId ?? null,
-        articleId: beforeData.articleId ?? null,
-        quantity: beforeData.quantity ?? null,
-        unitPrice: beforeData.unitPrice ?? null,
-        totalPrice: beforeData.totalPrice ?? null,
-        taxed: beforeData.taxed ?? null,
-        notTaxed: beforeData.notTaxed ?? null,
-        exempt: beforeData.exempt ?? null,
-        capitalGood: beforeData.capitalGood ?? null,
-        useGood: beforeData.useGood ?? null,
-        equivalentCoefficient: beforeData.equivalentCoefficient ?? null,
-        netPrice: beforeData.netPrice ?? null,
-        status: beforeData.status ?? null,
-        originalData: beforeData.originalData ?? null,
-        sourceRow: beforeData.sourceRow ?? null,
-      }
-      if (payloadSignature(beforePayload) === payloadSignature(payload)) {
-        result.skipped++
-        trackSkip("Duplicado exacto (payloadSignature)")
-        continue
-      }
-    }
-
     try {
       batch.set(ref, payload, { merge: true })
-      if (!before.exists) {
-        pendingCreated++
-      } else {
-        pendingUpdated++
-      }
-      lastBatchPayload = { ...payload, orderNumber, row: i + 1 }
-    } catch (setErr) {
-      console.error("ROW FAILED")
-      console.error("Número de fila:", i + 1)
-      console.error("orderNumber:", orderNumber)
-      console.error("Payload completo:", payload)
-      console.error("Error completo:", setErr)
-      console.error(
-        "Stack completo:",
-        setErr instanceof Error ? setErr.stack : undefined,
-      )
+      counter++
+    } catch (err) {
+      console.error(err)
       result.skipped++
-      trackSkip("Error Firestore set()")
-      result.warnings.push(`Fila ${i + 1} omitida: error al armar payload`)
-      continue
     }
 
     auditLogs.validRows++
-    counter++
 
     if (counter >= BATCH_LIMIT) {
       await commitBatch(lastBatchPayload)
     }
-
   }
 
   if (counter > 0) {
