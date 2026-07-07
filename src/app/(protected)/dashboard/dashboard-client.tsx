@@ -14,6 +14,7 @@ import { useStockIntelligence } from "@/hooks/useStockIntelligence"
 import type { MachineStatus, Machine } from "@/types"
 import { statusLabels, formatDate } from "@/lib/ui"
 import { SCAFFOLD_RECIPE } from "@/lib/scaffoldConfig"
+import { sumStockByCodes, SCAFFOLD_CODES } from "@/lib/inventoryGroups"
 import { MaintenanceTable } from "@/components/maintenance/MaintenanceTable"
 import type { MaintenanceRecord } from "@/services/maintenance"
 
@@ -119,6 +120,65 @@ export default function DashboardClient({ initialOrders }: Props) {
     return min === Infinity ? 0 : min
   }, [stockItems])
 
+  // ---------------------------------------------------------------------------
+  // Cálculos de stock de andamios para el bloque visual del Dashboard
+  // TODO: Cuando Paños y Riendas existan en 3C con código propio,
+  //       reemplazar la búsqueda por nombre por búsqueda mediante código.
+  // ---------------------------------------------------------------------------
+  const scaffoldStock = useMemo(() => {
+    const n = (s: string) => s.toLowerCase().trim()
+
+    // Búsqueda parcial normalizada (temporal hasta que tengan código 3C)
+    const panos = stockItems
+      .filter((item) => n(item.name).includes("paño"))
+      .reduce((sum, item) => sum + item.stockAvailable, 0)
+
+    const riendasLargas = stockItems
+      .filter((item) => {
+        const name = n(item.name)
+        return (name.includes("rienda")) && (name.includes("larga"))
+      })
+      .reduce((sum, item) => sum + item.stockAvailable, 0)
+
+    const riendasCortas = stockItems
+      .filter((item) => {
+        const name = n(item.name)
+        return (name.includes("rienda")) && (name.includes("corta"))
+      })
+      .reduce((sum, item) => sum + item.stockAvailable, 0)
+
+    // Búsqueda por códigos 3C (estable)
+    const estructuras = sumStockByCodes(stockItems, SCAFFOLD_CODES.structures)
+    const tablones = sumStockByCodes(stockItems, SCAFFOLD_CODES.planks)
+    const ruedasSinFreno = sumStockByCodes(stockItems, SCAFFOLD_CODES.wheels_nobrake)
+    const ruedasConFreno = sumStockByCodes(stockItems, SCAFFOLD_CODES.wheels_brake)
+    const juegosRuedas = sumStockByCodes(stockItems, SCAFFOLD_CODES.wheels_set)
+    const puntales = sumStockByCodes(stockItems, SCAFFOLD_CODES.puntales)
+    const extensiones = sumStockByCodes(stockItems, SCAFFOLD_CODES.extensions)
+    const reguladores = sumStockByCodes(stockItems, SCAFFOLD_CODES.regulators)
+    const barandas = sumStockByCodes(stockItems, SCAFFOLD_CODES.handrails)
+
+    const cuerpos = Math.min(
+      Math.floor(panos / 2),
+      Math.floor(riendasLargas / 2),
+      Math.floor(riendasCortas / 2)
+    )
+
+    return {
+      estructuras, cuerpos,
+      panos, riendasLargas, riendasCortas,
+      tablones, ruedasSinFreno, ruedasConFreno, juegosRuedas,
+      puntales, extensiones, reguladores, barandas,
+    }
+  }, [stockItems])
+
+  /** Determina el color según el stock. */
+  function stockColor(value: number): string {
+    if (value <= 0) return "text-red-600"
+    if (value <= 5) return "text-yellow-600"
+    return "text-green-600"
+  }
+
   if (loading) return <p className="text-muted-foreground">Cargando...</p>
 
   return (
@@ -199,7 +259,156 @@ export default function DashboardClient({ initialOrders }: Props) {
             </Card>
           </div>
 
-          {/* Fila 3: Alquileres próximos a vencer */}
+          {/* Fila 3: Estado de Andamios */}
+          <div className="border-t pt-6 mt-6">
+            <h2 className="text-xl font-semibold mb-4">🏗️ Estado de Andamios</h2>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+              {/* 1. Estructuras */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">🏗️ Estructuras</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className={`text-3xl font-bold ${stockColor(scaffoldStock.estructuras)}`}>{scaffoldStock.estructuras}</p>
+                  <p className="text-xs text-muted-foreground">Disponibles</p>
+                </CardContent>
+              </Card>
+
+              {/* 2. Cuerpos completos */}
+              <Card className="border-2 border-orange-500 bg-orange-50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold text-orange-800">🏗️ Cuerpos completos</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-3xl font-bold text-orange-700">{scaffoldStock.cuerpos}</p>
+                  <p className="text-xs text-muted-foreground">Requiere: 2 Paños + 2 Riendas largas + 2 Riendas cortas</p>
+                </CardContent>
+              </Card>
+
+              {/* 3. Paños (temporal, sin código 3C) */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">🟦 Paños</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className={`text-3xl font-bold ${stockColor(scaffoldStock.panos)}`}>{scaffoldStock.panos}</p>
+                  <p className="text-xs text-muted-foreground">Disponibles</p>
+                </CardContent>
+              </Card>
+
+              {/* 4. Riendas largas (temporal, sin código 3C) */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">🟨 Riendas largas</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className={`text-3xl font-bold ${stockColor(scaffoldStock.riendasLargas)}`}>{scaffoldStock.riendasLargas}</p>
+                  <p className="text-xs text-muted-foreground">Disponibles</p>
+                </CardContent>
+              </Card>
+
+              {/* 5. Riendas cortas (temporal, sin código 3C) */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">🟧 Riendas cortas</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className={`text-3xl font-bold ${stockColor(scaffoldStock.riendasCortas)}`}>{scaffoldStock.riendasCortas}</p>
+                  <p className="text-xs text-muted-foreground">Disponibles</p>
+                </CardContent>
+              </Card>
+
+              {/* 6. Tablones */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">🟫 Tablones</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className={`text-3xl font-bold ${stockColor(scaffoldStock.tablones)}`}>{scaffoldStock.tablones}</p>
+                  <p className="text-xs text-muted-foreground">Disponibles</p>
+                </CardContent>
+              </Card>
+
+              {/* 7. Ruedas sin freno */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">⚫ Ruedas sin freno</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className={`text-3xl font-bold ${stockColor(scaffoldStock.ruedasSinFreno)}`}>{scaffoldStock.ruedasSinFreno}</p>
+                  <p className="text-xs text-muted-foreground">Disponibles</p>
+                </CardContent>
+              </Card>
+
+              {/* 8. Ruedas con freno */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">🟢 Ruedas con freno</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className={`text-3xl font-bold ${stockColor(scaffoldStock.ruedasConFreno)}`}>{scaffoldStock.ruedasConFreno}</p>
+                  <p className="text-xs text-muted-foreground">Disponibles</p>
+                </CardContent>
+              </Card>
+
+              {/* 9. Juegos de ruedas */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">🔵 Juegos de ruedas (4)</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className={`text-3xl font-bold ${stockColor(scaffoldStock.juegosRuedas)}`}>{scaffoldStock.juegosRuedas}</p>
+                  <p className="text-xs text-muted-foreground">Disponibles</p>
+                </CardContent>
+              </Card>
+
+              {/* 10. Puntales */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">🟤 Puntales</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className={`text-3xl font-bold ${stockColor(scaffoldStock.puntales)}`}>{scaffoldStock.puntales}</p>
+                  <p className="text-xs text-muted-foreground">Disponibles</p>
+                </CardContent>
+              </Card>
+
+              {/* 11. Extensiones */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">🟠 Extensiones</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className={`text-3xl font-bold ${stockColor(scaffoldStock.extensiones)}`}>{scaffoldStock.extensiones}</p>
+                  <p className="text-xs text-muted-foreground">Disponibles</p>
+                </CardContent>
+              </Card>
+
+              {/* 12. Reguladores */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">⚙ Reguladores</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className={`text-3xl font-bold ${stockColor(scaffoldStock.reguladores)}`}>{scaffoldStock.reguladores}</p>
+                  <p className="text-xs text-muted-foreground">Disponibles</p>
+                </CardContent>
+              </Card>
+
+              {/* 13. Barandas */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">🛡 Barandas</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className={`text-3xl font-bold ${stockColor(scaffoldStock.barandas)}`}>{scaffoldStock.barandas}</p>
+                  <p className="text-xs text-muted-foreground">Disponibles</p>
+                </CardContent>
+              </Card>
+            </div>
+          </div>
+
+          {/* Fila 4: Alquileres próximos a vencer */}
           {alerts.length > 0 && (
             <div className="space-y-2">
               <h2 className="text-sm font-semibold text-red-700">Alquileres próximos a vencer</h2>
