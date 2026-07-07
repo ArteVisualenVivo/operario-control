@@ -1,0 +1,115 @@
+========================================
+1. RIENDAS
+========================================
+Codigo     | Nombre                                                    | Total | Disp | Alq | Categoria
+-----------|------------------------------------------------------------|-------|------|-----|----------
+28601      |ANDAMIOS  1,3 X 3 MTS(4 RIENDA                            |     0|    0|   0|riendas
+28501      |ANDAMIOS PASILLEROS 0,9 X 2 MTS(4 RIENDA                  |     0|    0|   0|riendas
+A 07       |JGO AND. PASILLERO c/RIENDAS ESPEC.  3mt                  |     3|    3|   0|riendas
+R 01       |RIENDA CORTA P/ANDAMIO ESPECIAL (3M)                      |    12|   12|   0|riendas
+R 03       |RIENDA CORTA P/ANDAMIO PASILLERO (1.96m)                  |     4|    4|   0|riendas
+R 04       |RIENDA LARGA  P/ANDAMIO PASILLERO (2.28m                  |     2|    2|   0|riendas
+R02        |RIENDA LARGA P/ANDAMIO ESPECIAL (3.25m)                   |     1|    1|   0|riendas
+
+--- Riendas LARGAS ---
+  R 04 | RIENDA LARGA  P/ANDAMIO PASILLERO (2.28m | Disp: 2 | Total: 2
+  R02 | RIENDA LARGA P/ANDAMIO ESPECIAL (3.25m) | Disp: 1 | Total: 1
+
+--- Riendas CORTAS ---
+  R 01 | RIENDA CORTA P/ANDAMIO ESPECIAL (3M) | Disp: 12 | Total: 12
+  R 03 | RIENDA CORTA P/ANDAMIO PASILLERO (1.96m) | Disp: 4 | Total: 4
+
+========================================
+2. TABLONES
+========================================
+29101 | TABLON NARANJA P/ANDAMIO 3 MTS | Total: 10 | Disp: 10 | Cat: andamio_accesorios
+TA03 | Tablon para andamio especial 3 mts | Total: -7 | Disp: -7 | Cat: andamio_accesorios
+TA02 | Tablon para andamio pasillero | Total: 15 | Disp: 15 | Cat: andamio_accesorios
+28901 | TABLON PASILLERO P/ANDAMIO 2 MTS | Total: 0 | Disp: 0 | Cat: andamio_accesorios
+29001 | TABLON PASILLERO P/ANDAMIO 2 MTS | Total: -2 | Disp: -2 | Cat: andamio_accesorios
+29201 | TABLON VERDE P/ANDAMIO 3 MTS | Total: 0 | Disp: 0 | Cat: andamio_accesorios
+
+========================================
+3. ESTRUCTURAS COMPLETAS
+========================================
+A 07 | JGO AND. PASILLERO c/RIENDAS ESPEC.  3mt | Total: 3 | Disp: 3 | Cat: riendas
+A03 | Juego andamio especial reforzado | Total: 27 | Disp: 27 | Cat: andamio_accesorios
+A04 | Juego andamio pasillero(2mt,0,90mt, 2mt) | Total: 24 | Disp: 24 | Cat: andamio_accesorios
+
+========================================
+4. RUEDAS
+========================================
+29601 | JUEGO RUEDAS P/ANDAMIO (4UNID) C/ FRENO | Total: 0 | Disp: 0 | Cat: andamio_accesorios
+N7-1 | RUEDAS ANDAMIOS | Total: -3 | Disp: -3 | Cat: andamio_accesorios
+29501 | RUEDAS P/ANDAMIO CON FRENO | Total: -3 | Disp: -3 | Cat: andamio_accesorios
+
+========================================
+5. PUNTALES
+========================================
+GANCHO | GANCHO PUNTALES | Total: -5 | Disp: -5 | Cat: puntales
+28512 | PUNTAL  HASTA 3.80 M | Total: 0 | Disp: 0 | Cat: puntales
+PH305 | PUNTAL A 3.05 MMQ | Total: -28 | Disp: -28 | Cat: puntales
+28510 | PUNTAL BAROVO HASTA 3.05 M | Total: 0 | Disp: 0 | Cat: puntales
+28318 | PUNTAL MARRON HASTA 30 MTS | Total: 0 | Disp: 0 | Cat: puntales
+28511 | PUNTAL NARANJA HASTA 3 M | Total: 0 | Disp: 0 | Cat: puntales
+APH305 | REP. PUNTAL 305 ARANDELA | Total: 0 | Disp: 0 | Cat: puntales
+PPH305 | REP. PUNTAL 305 GANCHO G P/TRABA PUNTAL | Total: 1 | Disp: 1 | Cat: puntales
+RPH305 | REP. PUNTAL 305 ROSCA CON MANIJA | Total: 1 | Disp: 1 | Cat: puntales
+
+========================================
+6. ACCESORIOS
+========================================
+B01 | Barandas p/ andamios Especiales (alto 1m | Total: -1 | Disp: -1 | Tipo: baranda
+BASE600 | BASE ANDAMIO | Total: 6 | Disp: 6 | Tipo: base
+NNQBASP | BASE REGULADORA DE ALTURA P/ANDAMIO MMQ | Total: 0 | Disp: 0 | Tipo: base
+28505 | EXTENSION CUERPO ANDAMIO ESPECIAL | Total: -3 | Disp: -3 | Tipo: extension
+28506 | EXTENSION CUERPO ANDAMIO PASILLERO | Total: -1 | Disp: -1 | Tipo: extension
+28502 | REGULADOR DE ANDAMIOS | Total: 0 | Disp: 0 | Tipo: regulador
+
+========================================
+7. CABALLETES
+========================================
+28101 | CABALLETES EXTENCIBLES A 2 MTS | Total: 0 | Disp: 0
+CP01 | Juego caballete  ext. A 1,80mt caño1.2 | Total: 8 | Disp: 8
+CP02 | Juego caballete plegable ex. c/ caño 1.6 | Total: 6 | Disp: 6
+
+========================================
+8. GANCHOS
+========================================
+GANCHO | GANCHO PUNTALES | Total: -5 | Disp: -5
+PPH305 | REP. PUNTAL 305 GANCHO G P/TRABA PUNTAL | Total: 1 | Disp: 1
+2X400K2MGS | Zuncho mmq 400kg x 2mts gancho "S" | Total: 0 | Disp: 0
+2X800K5MGJ | Zuncho mmq 800kg x 5mts gancho "J" | Total: 0 | Disp: 0
+
+========================================
+9. DUPLICADOS DETECTADOS
+========================================
+
+DUPLICADO: "JGO AND. PASILLERO c/RIENDAS ESPEC.  3mt"
+  Codigo: A 07 | Total: 3 | Disp: 3
+  Codigo: A 07 | Total: 3 | Disp: 3
+
+DUPLICADO: "TABLON PASILLERO P/ANDAMIO 2 MTS"
+  Codigo: 28901 | Total: 0 | Disp: 0
+  Codigo: 29001 | Total: -2 | Disp: -2
+
+DUPLICADO: "GANCHO PUNTALES"
+  Codigo: GANCHO | Total: -5 | Disp: -5
+  Codigo: GANCHO | Total: -5 | Disp: -5
+
+DUPLICADO: "REP. PUNTAL 305 GANCHO G P/TRABA PUNTAL"
+  Codigo: PPH305 | Total: 1 | Disp: 1
+  Codigo: PPH305 | Total: 1 | Disp: 1
+
+========================================
+10. RESUMEN POR FAMILIA
+========================================
+Riendas largas: 3 disponibles (2 articulos)
+Riendas cortas: 16 disponibles (2 articulos)
+Tablones: 16 disponibles (6 articulos)
+Estructuras: 54 disponibles (3 articulos)
+Ruedas andamio: -6 disponibles (3 articulos)
+Puntales: -31 disponibles (9 articulos)
+Accesorios: 1 disponibles (6 articulos)
+Caballetes: 14 disponibles (3 articulos)
+Ganchos: -4 disponibles (4 articulos)

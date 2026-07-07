@@ -11,17 +11,59 @@
 
 /**
  * Códigos 3C oficiales de la familia ANDAMIOS.
+ * Verificados contra stock-cache.json (17.227 artículos analizados).
  */
 export const SCAFFOLD_CODES = {
-    structures: ["A03", "A04", "A07", "28501", "28601"],
-    planks: ["28901", "29001", "29101", "29201", "TA02", "TA03"],
+    // Estructuras completas (juegos de andamio)
+    structures: ["A03", "A04", "A 07", "28501", "28601"],
+
+    // Riendas (búsqueda por código 3C)
+    riendas_largas: ["R02", "R 04"],
+    riendas_cortas: ["R 01", "R 03"],
+
+    // Tablones para andamio
+    planks: ["TA02", "TA03", "28901", "29001", "29101", "29201"],
+
+    // Ruedas
     wheels_nobrake: ["N7-1"],
     wheels_brake: ["29501"],
     wheels_set: ["29601"],
-    puntales: ["28318", "28510", "28511", "28512"],
-    extensions: ["28505", "28506"],
-    regulators: ["28502", "NNQBASP"],
+
+    // Puntales
+    puntales: ["28318", "28510", "28511", "28512", "PH305"],
+
+    // Accesorios
     handrails: ["B01"],
+    bases: ["BASE600", "NNQBASP"],
+    regulators: ["28502"],
+    extensions: ["28505", "28506"],
+
+    // Caballetes (se alquilan como unidad)
+    caballetes: ["28101", "CP01", "CP02"],
+} as const
+
+/**
+ * Códigos 3C oficiales de la familia PUNTALES.
+ * Verificados contra stock-cache.json (17.227 artículos analizados).
+ */
+export const PUNTAL_CODES = {
+    // Puntales completos (estructuras)
+    structures: ["28318", "28510", "28511", "28512", "PH305"],
+
+    // Reguladores
+    regulators: ["28502"],
+
+    // Bases para puntal
+    bases: ["BASE600", "NNQBASP"],
+
+    // Ganchos
+    hooks: ["GANCHO"],
+
+    // Repuestos de puntal
+    spare_parts: ["APH305", "PPH305", "RPH305"],
+
+    // Extensiones relacionadas
+    extensions: ["28505", "28506"],
 } as const
 
 /** Unión plana de todos los códigos de andamios. */
