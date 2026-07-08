@@ -177,12 +177,16 @@ function getOverallTrend(movements: InventoryMovement[]): "up" | "down" | "stabl
   return "stable"
 }
 
+let getStockIntelligenceCalls = 0
+
 export async function getStockIntelligence(): Promise<StockIntelligence> {
   const now = Date.now()
   if (cache && now - lastFetch < CACHE_TTL) return cache
   if (globalPromise) return globalPromise
 
   globalPromise = (async () => {
+    getStockIntelligenceCalls++
+    console.log(`[SYNC] getStockIntelligence() Call #${getStockIntelligenceCalls}`)
     const [items, parts, machines, repairs, movements] = await Promise.all([
       getStockItems(),
       getAllSpareParts(),

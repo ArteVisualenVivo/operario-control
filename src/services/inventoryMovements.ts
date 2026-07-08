@@ -20,9 +20,16 @@ export async function createInventoryMovement(input: CreateInventoryMovementInpu
   return docRef.id
 }
 
+let getAllInventoryMovementsCalls = 0
+let getInventoryMovementsByMaterialCalls = 0
+let getRecentInventoryMovementsCalls = 0
+
 export async function getAllInventoryMovements(): Promise<InventoryMovement[]> {
+  const start = Date.now()
   const q = query(collection(db, COLLECTION), orderBy("date", "desc"))
   const snapshot = await getDocs(q)
+  getAllInventoryMovementsCalls++
+  console.log(`[SYNC] getAllInventoryMovements() Call #${getAllInventoryMovementsCalls} docs=${snapshot.size} time=${(Date.now() - start).toFixed(1)}ms`)
   return snapshot.docs.map((doc) => {
     const data = doc.data()
     return {
@@ -40,12 +47,15 @@ export async function getAllInventoryMovements(): Promise<InventoryMovement[]> {
 }
 
 export async function getInventoryMovementsByMaterial(materialId: string): Promise<InventoryMovement[]> {
+  const start = Date.now()
   const q = query(
     collection(db, COLLECTION),
     where("materialId", "==", materialId),
     orderBy("date", "desc"),
   )
   const snapshot = await getDocs(q)
+  getInventoryMovementsByMaterialCalls++
+  console.log(`[SYNC] getInventoryMovementsByMaterial() Call #${getInventoryMovementsByMaterialCalls} docs=${snapshot.size} time=${(Date.now() - start).toFixed(1)}ms`)
   return snapshot.docs.map((doc) => {
     const data = doc.data()
     return {
@@ -66,6 +76,7 @@ export async function getRecentInventoryMovements(
   daysAgo: number,
   maxItems: number,
 ): Promise<InventoryMovement[]> {
+  const start = Date.now()
   const since = new Date(Date.now() - daysAgo * 24 * 60 * 60 * 1000)
   const q = query(
     collection(db, COLLECTION),
@@ -74,6 +85,8 @@ export async function getRecentInventoryMovements(
     limit(maxItems),
   )
   const snapshot = await getDocs(q)
+  getRecentInventoryMovementsCalls++
+  console.log(`[SYNC] getRecentInventoryMovements() Call #${getRecentInventoryMovementsCalls} docs=${snapshot.size} time=${(Date.now() - start).toFixed(1)}ms`)
   return snapshot.docs.map((doc) => {
     const data = doc.data()
     return {

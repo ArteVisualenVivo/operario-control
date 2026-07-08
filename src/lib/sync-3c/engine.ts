@@ -73,7 +73,13 @@ export async function syncItems(
 
   if (items.length === 0) return result
 
+  const syncId = (Date.now().toString().slice(-6))
+  const startTotal = Date.now()
+  console.log(`[SYNC ${syncId}] START`)
+
+  const start = Date.now()
   const snapshot = await collection.get()
+  console.log(`[SYNC ${syncId}] Firestore docs: ${snapshot.size}`)
 
   const stockMap = new Map<string, { id: string;[key: string]: unknown }>()
   const codeMap = new Map<string, { id: string;[key: string]: unknown }>()
@@ -136,6 +142,13 @@ export async function syncItems(
       )
     }
   }
+
+  console.log(`[SYNC ${syncId}] Excel rows: ${items.length}`)
+  console.log(`[SYNC ${syncId}] Updated: ${result.updated}`)
+  console.log(`[SYNC ${syncId}] Created: ${result.created}`)
+  console.log(`[SYNC ${syncId}] Skipped: ${result.skipped}`)
+  console.log(`[SYNC ${syncId}] END`)
+  console.log(`[SYNC ${syncId}] TOTAL: ${Date.now() - startTotal}ms`)
 
   return result
 }

@@ -37,12 +37,16 @@ type Props = {
   scaffoldRentals?: ScaffoldRentalStats | null
 }
 
+let refreshAllCalls = 0
+
 export default function DashboardClient({ initialOrders, scaffoldRentals }: Props) {
   const { machines, loading, reload: reloadMachines } = useMachines()
   const { items: stockItems, loading: stockLoading, reload: reloadStock } = useInventoryStock()
   const { intelligence: stockIntelligence, loading: siLoading, refresh: refreshIntelligence } = useStockIntelligence()
   const router = useRouter()
   const refreshAll = useCallback(() => {
+    refreshAllCalls++
+    console.log(`[SYNC] refreshAll() Call #${refreshAllCalls}`)
     reloadMachines()
     reloadStock()
     refreshIntelligence()

@@ -160,6 +160,8 @@ function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRec
   }
 }
 
+let getRepairsCalls = 0
+
 export async function getRepairs(): Promise<MachineRepair[]> {
   try {
     const res = await fetch("/api/local/repairs", { cache: "no-store" })
@@ -183,8 +185,11 @@ export async function getRepairs(): Promise<MachineRepair[]> {
 
   if (LOCAL_MODE) return []
 
+  const start = Date.now()
   const q = query(collection(db, COLLECTION), orderBy("entryDate", "desc"))
   const snapshot = await getDocs(q)
+  getRepairsCalls++
+  console.log(`[SYNC] getRepairs() Call #${getRepairsCalls} docs=${snapshot.size} time=${(Date.now() - start).toFixed(1)}ms`)
   const repairs = snapshot.docs.map(docToRepair)
   const maintenance = await getMaintenanceRecords()
   const imported = maintenance.map(maintenanceToRepair)
@@ -193,13 +198,18 @@ export async function getRepairs(): Promise<MachineRepair[]> {
   return merged
 }
 
+let getRepairsByMachineCalls = 0
+
 export async function getRepairsByMachine(machineId: string): Promise<MachineRepair[]> {
+  const start = Date.now()
   const q = query(
     collection(db, COLLECTION),
     where("machineId", "==", machineId),
     orderBy("entryDate", "desc"),
   )
   const snapshot = await getDocs(q)
+  getRepairsByMachineCalls++
+  console.log(`[SYNC] getRepairsByMachine() Call #${getRepairsByMachineCalls} docs=${snapshot.size} time=${(Date.now() - start).toFixed(1)}ms`)
   return snapshot.docs.map(docToRepair)
 }
 

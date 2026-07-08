@@ -44,10 +44,15 @@ function docToStock(docSnap: { id: string; data: () => Record<string, unknown> }
   }
 }
 
+let getStockItemsCalls = 0
+
 export async function getStockItems(): Promise<InventoryStock[]> {
   try {
     const q = query(collection(db, COLLECTION), orderBy("name"))
+    const start = Date.now()
     const snapshot = await getDocs(q)
+    getStockItemsCalls++
+    console.log(`[SYNC] getStockItems() Call #${getStockItemsCalls} docs=${snapshot.size} time=${(Date.now() - start).toFixed(1)}ms`)
     const data = snapshot.docs.map(docToStock)
     if (LOCAL_MODE && data.length === 0) {
       return LOCAL_STOCK_SEED

@@ -143,6 +143,8 @@ function findDateLikeValue(data: Record<string, unknown> | undefined, patterns: 
   return undefined
 }
 
+let getMaintenanceRecordsCalls = 0
+
 function firstDateCandidate(...values: unknown[]): Date | undefined {
   for (const value of values) {
     const date = toDate(value)
@@ -152,8 +154,11 @@ function firstDateCandidate(...values: unknown[]): Date | undefined {
 }
 
 export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
+  const start = Date.now()
   const q = query(collection(db, COLLECTION), orderBy("entryDate", "desc"))
   const snapshot = await getDocs(q)
+  getMaintenanceRecordsCalls++
+  console.log(`[SYNC] getMaintenanceRecords() Call #${getMaintenanceRecordsCalls} docs=${snapshot.size} time=${(Date.now() - start).toFixed(1)}ms`)
   return snapshot.docs
     .map((d) => {
       const data = d.data()

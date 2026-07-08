@@ -195,10 +195,15 @@ export async function deleteAllMachines(): Promise<number> {
   return total
 }
 
+let getMachinesCalls = 0
+
 export async function getMachines(): Promise<Machine[]> {
   try {
     const q = query(collection(db, COLLECTION), orderBy("name"))
+    const start = Date.now()
     const snapshot = await getDocs(q)
+    getMachinesCalls++
+    console.log(`[SYNC] getMachines() Call #${getMachinesCalls} docs=${snapshot.size} time=${(Date.now() - start).toFixed(1)}ms`)
     const data = snapshot.docs.map(docToMachine)
     if (LOCAL_MODE && data.length === 0) {
       return LOCAL_MACHINE_SEED

@@ -17,6 +17,9 @@ function toDate(val: unknown): Date {
   return new Date()
 }
 
+let getAllSparePartsCalls = 0
+let getSparePartsByMachineCalls = 0
+
 function docToSparePart(docSnap: { id: string; data: () => Record<string, unknown> }): SparePart {
   const data = docSnap.data()
   return {
@@ -40,8 +43,11 @@ function docToSparePart(docSnap: { id: string; data: () => Record<string, unknow
 
 export async function getAllSpareParts(): Promise<SparePart[]> {
   try {
+    const start = Date.now()
     const q = query(collection(db, COLLECTION), orderBy("partName"))
     const snapshot = await getDocs(q)
+    getAllSparePartsCalls++
+    console.log(`[SYNC] getAllSpareParts() Call #${getAllSparePartsCalls} docs=${snapshot.size} time=${(Date.now() - start).toFixed(1)}ms`)
     const data = snapshot.docs.map(docToSparePart)
     if (LOCAL_MODE && data.length === 0) {
       return LOCAL_SPARE_PART_SEED
@@ -56,11 +62,14 @@ export async function getAllSpareParts(): Promise<SparePart[]> {
 }
 
 export async function getSparePartsByMachine(machineId: string): Promise<SparePart[]> {
+  const start = Date.now()
   const q = query(
     collection(db, COLLECTION),
     where("machineId", "==", machineId),
   )
   const snapshot = await getDocs(q)
+  getSparePartsByMachineCalls++
+  console.log(`[SYNC] getSparePartsByMachine() Call #${getSparePartsByMachineCalls} docs=${snapshot.size} time=${(Date.now() - start).toFixed(1)}ms`)
   return snapshot.docs.map(docToSparePart)
 }
 
