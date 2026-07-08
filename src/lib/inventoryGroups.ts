@@ -70,6 +70,40 @@ export const PUNTAL_CODES = {
 export const ALL_SCAFFOLD_CODES: string[] = Object.values(SCAFFOLD_CODES).flat()
 
 // =============================================================================
+// Catálogo de ESTRUCTURAS COMPLETAS DE ANDAMIO (cuerpos de alquiler)
+// Códigos 3C oficiales según especificación de negocio.
+// =============================================================================
+
+/**
+ * Códigos 3C que identifican un cuerpo completo de andamio alquilado.
+ * Según la especificación: A03, A04, A07, 28501, 28601.
+ */
+export const SCAFFOLD_STRUCTURE_CODES = ["A03", "A04", "A07", "28501", "28601"] as const
+
+/** Normaliza un código 3C para comparación (elimina espacios internos y mayúsculas). */
+export function normalizeCode(code: string | undefined | null): string {
+    if (!code) return ""
+    return code.toString().trim().replace(/\s+/g, "").toUpperCase()
+}
+
+/** Devuelve true si el código corresponde a una estructura de andamio. */
+export function isScaffoldStructureCode(code: string | undefined | null): boolean {
+    const normalized = normalizeCode(code)
+    return SCAFFOLD_STRUCTURE_CODES.some((c) => normalizeCode(c) === normalized)
+}
+
+/** Valida que la descripción corresponda a estructuras de andamios. */
+export function isScaffoldStructureDescription(description: string | undefined | null): boolean {
+    const text = (description ?? "").toLowerCase()
+    return (
+        text.includes("andamio") ||
+        text.includes("and.") ||
+        text.includes("pasillero") ||
+        text.includes("jgo and")
+    )
+}
+
+// =============================================================================
 // Helper: filtrar artículos de inventory_stock que pertenezcan a un grupo
 // =============================================================================
 import type { InventoryStock } from "@/types"
@@ -87,4 +121,14 @@ export function filterByCodes(items: InventoryStock[], codes: readonly string[])
  */
 export function sumStockByCodes(items: InventoryStock[], codes: readonly string[]): number {
     return filterByCodes(items, codes).reduce((sum, item) => sum + item.stockAvailable, 0)
+}
+
+/**
+ * Suma el stockAvailable de las estructuras de andamio (códigos A03, A04, A07,
+ * 28501, 28601) en inventory_stock. Solo consulta, no altera el stock.
+ */
+export function sumScaffoldStructures(items: InventoryStock[]): number {
+    return items
+        .filter((item) => isScaffoldStructureCode(item.codigo))
+        .reduce((sum, item) => sum + item.stockAvailable, 0)
 }

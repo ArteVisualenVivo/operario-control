@@ -17,7 +17,9 @@ import { SCAFFOLD_RECIPE } from "@/lib/scaffoldConfig"
 import { sumStockByCodes, SCAFFOLD_CODES, PUNTAL_CODES } from "@/lib/inventoryGroups"
 import { searchEverywhere, type SearchResult } from "@/lib/search"
 import { GlobalSearchResults } from "@/components/dashboard/GlobalSearchResults"
+import { sumScaffoldStructures } from "@/lib/inventoryGroups"
 import type { MaintenanceRecord } from "@/services/maintenance"
+import type { ScaffoldRentalStats } from "@/lib/dashboardStats"
 
 interface MachineGroup {
   key: string
@@ -32,9 +34,10 @@ interface MachineGroup {
 
 type Props = {
   initialOrders: MaintenanceRecord[]
+  scaffoldRentals?: ScaffoldRentalStats | null
 }
 
-export default function DashboardClient({ initialOrders }: Props) {
+export default function DashboardClient({ initialOrders, scaffoldRentals }: Props) {
   const { machines, loading, reload: reloadMachines } = useMachines()
   const { items: stockItems, loading: stockLoading, reload: reloadStock } = useInventoryStock()
   const { intelligence: stockIntelligence, loading: siLoading, refresh: refreshIntelligence } = useStockIntelligence()
@@ -185,6 +188,16 @@ export default function DashboardClient({ initialOrders }: Props) {
     extensionsPuntal: sumStockByCodes(stockItems, PUNTAL_CODES.extensions),
   }), [stockItems])
 
+  // Estructuras de andamio en stock (códigos A03, A04, A07, 28501, 28601)
+  const estructurasStock = useMemo(
+    () => sumScaffoldStructures(stockItems),
+    [stockItems],
+  )
+
+  // Cuerpos alquilados (desde Excel de Alquileres Pendientes vía Firestore)
+  const cuerposAlquilados = scaffoldRentals?.cuerposAlquilados ?? 0
+  const totalEstructuras = estructurasStock + cuerposAlquilados
+
   /** Determina el color según el stock. */
   function stockColor(value: number): string {
     if (value <= 0) return "text-red-600"
@@ -292,6 +305,46 @@ export default function DashboardClient({ initialOrders }: Props) {
         {/* Fila 3: Estado de Andamios */}
         <div className="border-t pt-6 mt-6">
           <h2 className="text-xl font-semibold mb-4">🏗️ Estado de Andamios</h2>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-4">
+            {/* 1. Estructuras en Stock */}
+            <Card className="border-2 border-blue-500 bg-blue-50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-blue-800">🏗 Estructuras en Stock</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-blue-700">{estructurasStock}</p>
+                <p className="text-xs text-muted-foreground">Códigos A03, A04, A07, 28501, 28601</p>
+              </CardContent>
+            </Card>
+
+            {/* 2. Estructuras Alquiladas */}
+            <Card className="border-2 border-amber-500 bg-amber-50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-amber-800">🚧 Estructuras Alquiladas</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-amber-700">{cuerposAlquilados}</p>
+                <p className="text-xs text-muted-foreground">
+                  Alquileres pendientes
+                  {scaffoldRentals?.fechaSync
+                    ? ` · ${formatDate(new Date(scaffoldRentals.fechaSync))}`
+                    : ""}
+                </p>
+              </CardContent>
+            </Card>
+
+            {/* 3. Total Estimado de Estructuras */}
+            <Card className="border-2 border-green-500 bg-green-50">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm font-semibold text-green-800">📦 Total Estimado de Estructuras</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-3xl font-bold text-green-700">{totalEstructuras}</p>
+                <p className="text-xs text-muted-foreground">Stock actual + alquileres pendientes</p>
+              </CardContent>
+            </Card>
+          </div>
+
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {/* 1. Estructuras */}
             <Card>

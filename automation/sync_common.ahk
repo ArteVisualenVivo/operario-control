@@ -3,8 +3,8 @@
 #NoTrayIcon
 
 ; ============================================================================
-; sync_common.ahk — Motor compartido para todos los módulos de sincronización 3C
-; Incluir en cada módulo con: #Include sync_common.ahk
+; sync_common.ahk â€” Motor compartido para todos los mÃ³dulos de sincronizaciÃ³n 3C
+; Incluir en cada mÃ³dulo con: #Include sync_common.ahk
 ; ============================================================================
 
 ; ---------------------------------------------------------------------------
@@ -21,6 +21,7 @@ coords := Map()
 for key in ["Almacenes","Informes","Existencias","Depositos",
             "SeleccionarTodos","Consulta","Aceptar","Excel","Salir",
             "Ventas","Reparaciones","ExcelItems","PrintAll","Imprimir","ExcelFormat","SalirRep",
+            "Remitos","AlquileresPendientes",
             "ServiciosArt","ArticulosMenu","ArticulosLista","ImprimirArt","Generar","ExcelArt","SalirArt","SalirArt2"] {
     val := IniRead(configFile, "Coords", key, "")
     parts := StrSplit(val, ",")
@@ -82,19 +83,19 @@ SaveStatus(status, step := "", duration := "") {
 
 DumpState() {
     Log("=== DUMP ===")
-    Log("3C activa: " (WinActive(windowTitle) ? "Sí" : "No"))
+    Log("3C activa: " (WinActive(windowTitle) ? "SÃ­" : "No"))
     if WinExist(windowTitle) {
         WinGetPos(&x, &y, &w, &h, windowTitle)
-        Log("Posición: " x "," y " | " w "x" h)
+        Log("PosiciÃ³n: " x "," y " | " w "x" h)
     }
     for k, v in coords
-        Log("  " k " → " v[1] "," v[2])
+        Log("  " k " â†’ " v[1] "," v[2])
     Log("=== FIN DUMP ===")
 }
 
 ValidarFoco() {
     if !WinActive(windowTitle) {
-        Log("ERROR: Ventana '" windowTitle "' perdió el foco")
+        Log("ERROR: Ventana '" windowTitle "' perdiÃ³ el foco")
         SaveStatus("fallo", "foco_perdido", "")
         ExitApp()
     }
@@ -163,7 +164,7 @@ WatchAndCopy() {
             Log("[WATCHER] ARCHIVO DETECTADO:")
             Log("[WATCHER] Ruta: " A_LoopFileFullPath)
             Log("[WATCHER] Fecha: " A_LoopFileTimeModified)
-            Log("[WATCHER] Tamaño: " A_LoopFileSizeKB " KB")
+            Log("[WATCHER] TamaÃ±o: " A_LoopFileSizeKB " KB")
 
             targetFile := exportsDir "\" A_LoopFileName
             if FileCopy(A_LoopFileFullPath, targetFile, 1) {
@@ -182,7 +183,7 @@ WatchAndCopy() {
         }
     }
 
-    Log("[WATCHER] TIMEOUT � no se detectaron archivos tresc*.xls en Temp	resc")
+    Log("[WATCHER] TIMEOUT — no se detectaron archivos tresc*.xls en Temp	resc")
     return ""
 }
 

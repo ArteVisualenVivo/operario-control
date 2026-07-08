@@ -12,6 +12,7 @@ import path from "path"
 import { fileURLToPath } from "url"
 import { parseExcel } from "../src/lib/sync-3c/parser"
 import { syncItems, syncRepairsToMaintenance } from "../src/lib/sync-3c/engine"
+import { parseScaffoldRentals, saveScaffoldRentalStats } from "../src/lib/sync-3c/scaffoldRentals"
 import type { Sync3CItem } from "../src/lib/sync-3c/types"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -55,6 +56,7 @@ const MODULE_SCRIPTS = {
     stock: "sync_3c.ahk",
     reparaciones: "sync_reparaciones.ahk",
     articulos: "sync_articulos.ahk",
+    alquileres: "sync_alquileres.ahk",
 }
 
 const CANDIDATE_PATHS = [
@@ -235,7 +237,7 @@ function buildSparePartsSeedFromStock(items: Sync3CItem[]) {
         }))
 }
 
-type ModuleName = "stock" | "reparaciones" | "articulos"
+type ModuleName = "stock" | "reparaciones" | "articulos" | "alquileres"
 
 async function processCommand(redis: Redis, commandId: string, module: ModuleName) {
     isProcessing = true
@@ -355,6 +357,33 @@ async function processCommand(redis: Redis, commandId: string, module: ModuleNam
             safeWriteJson(MACHINES_CACHE_FILE, buildMachineSeedFromStock(items))
             safeWriteJson(SPARE_PARTS_CACHE_FILE, buildSparePartsSeedFromStock(items))
             console.log("[AGENT] Local stock cache actualizado")
+        }
+
+        if (module === "alquileres") {
+            try {
+                console.log("[AGENT] SCAFFOLD RENTALS SYNC START")
+                const stats = parseScaffoldRentals(buffer)
+                console.log(`[AGENT] Cuerpos alquilados calculados: ${stats.cuerposAlquilados} (${stats.detalle.length} renglones)`)
+                try {
+                    await saveScaffoldRentalStats(stats)
+                    console.log("[AGENT] SCAFFOLD RENTALS guardado en Firestore (dashboard_stats/scaffold_rentals)")
+                } catch (fbErr) {
+                    const error = fbErr instanceof Error ? fbErr : new Error(String(fbErr))
+                    console.error("[AGENT] Firebase bloqueado para scaffold_rentals:", error.message)
+                    console.warn("[AGENT] Datos de alquileres calculados pero no persistidos (cuota Firebase)")
+                }
+                result = {
+                    ...result,
+                    scaffoldRentalBodies: stats.cuerposAlquilados,
+                    scaffoldRentalDetailCount: stats.detalle.length,
+                }
+            } catch (rentErr) {
+                console.error(`[AGENT] Scaffold rentals parse failed:`, rentErr instanceof Error ? rentErr.message : String(rentErr))
+                result = {
+                    ...result,
+                    scaffoldRentalError: rentErr instanceof Error ? rentErr.message : String(rentErr),
+                }
+            }
         }
 
         await redis.hset(`sync-3c:result:${commandId}`, {

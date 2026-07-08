@@ -13,7 +13,7 @@ import { toast } from "sonner"
 
 type SyncState = "idle" | "pending" | "running" | "completed" | "error"
 type AgentStatus = "unknown" | "online" | "running" | "offline"
-type SyncModule = "stock" | "reparaciones" | "articulos"
+type SyncModule = "stock" | "reparaciones" | "articulos" | "alquileres"
 
 interface Sync3CResult {
   success: boolean
@@ -77,6 +77,7 @@ const MODULE_LABELS: Record<SyncModule, string> = {
   stock: "Stock",
   reparaciones: "Reparaciones",
   articulos: "Artículos",
+  alquileres: "Alquileres",
 }
 
 export default function Sync3CButton({
@@ -254,7 +255,7 @@ export default function Sync3CButton({
       <Select
         value={module}
         onValueChange={(val: string | null) => {
-          if (val === "stock" || val === "reparaciones" || val === "articulos") setModule(val)
+          if (val === "stock" || val === "reparaciones" || val === "articulos" || val === "alquileres") setModule(val)
         }}
         disabled={disabled || state !== "idle"}
       >
@@ -265,6 +266,7 @@ export default function Sync3CButton({
           <SelectItem value="stock">Stock</SelectItem>
           <SelectItem value="reparaciones">Reparaciones</SelectItem>
           <SelectItem value="articulos">Artículos</SelectItem>
+          <SelectItem value="alquileres">Alquileres</SelectItem>
         </SelectContent>
       </Select>
 
