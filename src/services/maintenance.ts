@@ -103,7 +103,7 @@ export interface MaintenanceInput {
 
 const COLLECTION = "maintenance"
 const AUDIT_ENTITY: "maintenance" = "maintenance"
-const ORDER_PATTERN = /^X\s?\d{4}-\d{8}$/i
+const ORDER_PATTERN = /^x\s?\d{3,6}-\d{4,10}$/i
 
 function parseDmyDate(value: string): Date | undefined {
   const match = value.trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/)
@@ -192,18 +192,18 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
         docId: data.docId as string | undefined,
         itemId: typeof data.itemId === "number" ? data.itemId : null,
         articleId: data.articleId as string | undefined,
-        quantity:typeof data.quantity==="number"?data.quantity:null,
-        unitPrice:typeof data.unitPrice==="number"?data.unitPrice:null,
-        totalPrice:typeof data.totalPrice==="number"?data.totalPrice:null,
-        taxed:typeof data.taxed==="number"?data.taxed:null,
-        notTaxed:typeof data.notTaxed==="number"?data.notTaxed:null,
-        exempt:typeof data.exempt==="number"?data.exempt:null,
-        capitalGood:typeof data.capitalGood==="number"?data.capitalGood:null,
-        useGood:typeof data.useGood==="number"?data.useGood:null,
-        equivalentCoefficient:typeof data.equivalentCoefficient==="number"?data.equivalentCoefficient:null,
-        netPrice:typeof data.netPrice==="number"?data.netPrice:null,
+        quantity: typeof data.quantity === "number" ? data.quantity : null,
+        unitPrice: typeof data.unitPrice === "number" ? data.unitPrice : null,
+        totalPrice: typeof data.totalPrice === "number" ? data.totalPrice : null,
+        taxed: typeof data.taxed === "number" ? data.taxed : null,
+        notTaxed: typeof data.notTaxed === "number" ? data.notTaxed : null,
+        exempt: typeof data.exempt === "number" ? data.exempt : null,
+        capitalGood: typeof data.capitalGood === "number" ? data.capitalGood : null,
+        useGood: typeof data.useGood === "number" ? data.useGood : null,
+        equivalentCoefficient: typeof data.equivalentCoefficient === "number" ? data.equivalentCoefficient : null,
+        netPrice: typeof data.netPrice === "number" ? data.netPrice : null,
         originalData,
-        sourceRow:typeof data.sourceRow==="number"?data.sourceRow:undefined,
+        sourceRow: typeof data.sourceRow === "number" ? data.sourceRow : undefined,
         repairDate: repairDateCandidate ?? undefined,
         returnDate: returnDateCandidate ?? undefined,
         warranty: data.warranty ? toDate(data.warranty) : undefined,

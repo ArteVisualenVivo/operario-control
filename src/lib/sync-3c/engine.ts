@@ -75,8 +75,8 @@ export async function syncItems(
 
   const snapshot = await collection.get()
 
-  const stockMap = new Map<string, { id: string; [key: string]: unknown }>()
-  const codeMap = new Map<string, { id: string; [key: string]: unknown }>()
+  const stockMap = new Map<string, { id: string;[key: string]: unknown }>()
+  const codeMap = new Map<string, { id: string;[key: string]: unknown }>()
 
   for (const doc of snapshot.docs) {
     const data = doc.data() as Record<string, unknown>
@@ -576,11 +576,6 @@ export async function syncRepairsToMaintenance(
     }
 
     const ref = collection.doc(orderNumber)
-    const before = await ref.get()
-
-    if (!before.exists) {
-      payload.createdAt = now
-    }
 
     try {
       batch.set(ref, payload, { merge: true })
