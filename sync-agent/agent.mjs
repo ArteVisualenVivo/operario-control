@@ -269,6 +269,7 @@ async function processCommand(redis, commandId, module) {
         const buffer = fs.readFileSync(latest.fullPath).buffer
 
         let result
+        let items = []
 
         if (module === "reparaciones") {
             result = {
@@ -280,7 +281,7 @@ async function processCommand(redis, commandId, module) {
             }
         } else {
             const parsed = parseExcel(buffer)
-            const items = parsed.items
+            items = parsed.items
 
             if (items.length === 0) {
                 result = {

@@ -1,10 +1,10 @@
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent } from "@/components/ui/card"
 import { AlertTriangle, AlertCircle, Info } from "lucide-react"
-import { getRepairs } from "@/services/repairs"
+import { useRepairs } from "@/hooks/useRepairs"
 import { useStockIntelligence } from "@/hooks/useStockIntelligence"
 import type { MachineRepair } from "@/types"
 import type { StockAlert } from "@/types"
@@ -255,16 +255,9 @@ function AlertCountCard({
 }
 
 export default function SmartAlertsPanel() {
-  const [repairs, setRepairs] = useState<MachineRepair[]>([])
-  const [loading, setLoading] = useState(true)
-  const { intelligence, loading: stockLoading } = useStockIntelligence()
-
-  useEffect(() => {
-    getRepairs().then((data) => {
-      setRepairs(data)
-      setLoading(false)
-    })
-  }, [])
+  const { repairs, loading } = useRepairs()
+  const repairsKey = useMemo(() => repairs.map(r => r.id).sort().join(','), [repairs])
+  const { intelligence, loading: stockLoading } = useStockIntelligence({ repairs })
 
   const alerts = useMemo(() => {
     const repairCritical = detectIgnoredMaintenance(repairs)

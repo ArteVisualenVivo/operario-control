@@ -179,7 +179,9 @@ function getOverallTrend(movements: InventoryMovement[]): "up" | "down" | "stabl
 
 let getStockIntelligenceCalls = 0
 
-export async function getStockIntelligence(): Promise<StockIntelligence> {
+export async function getStockIntelligence(
+  options?: { repairs?: MachineRepair[] }
+): Promise<StockIntelligence> {
   const now = Date.now()
   if (cache && now - lastFetch < CACHE_TTL) return cache
   if (globalPromise) return globalPromise
@@ -187,13 +189,15 @@ export async function getStockIntelligence(): Promise<StockIntelligence> {
   globalPromise = (async () => {
     getStockIntelligenceCalls++
     console.log(`[SYNC] getStockIntelligence() Call #${getStockIntelligenceCalls}`)
-    const [items, parts, machines, repairs, movements] = await Promise.all([
+    const [items, parts, machines, movements] = await Promise.all([
       getStockItems(),
       getAllSpareParts(),
       getMachines(),
-      getRepairs(),
       getRecentInventoryMovements(30, 200),
     ])
+
+    // Reutilizar repairs si se proporcionan (evita duplicación de lecturas)
+    const repairs = options?.repairs ?? await getRepairs()
 
     const materialAlerts = getMaterialAlerts(items)
     const partAlerts = getSparePartAlerts(parts)
