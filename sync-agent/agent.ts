@@ -242,6 +242,12 @@ type ModuleName = "stock" | "reparaciones" | "articulos" | "alquileres"
 async function processCommand(redis: Redis, commandId: string, module: ModuleName) {
     isProcessing = true
 
+    const tStart = Date.now()
+    console.log(`=========================`)
+    console.log(`ETAPA: Inicio proceso command ${commandId}`)
+    console.log(`INICIO: ${tStart}`)
+    console.log(`=========================`)
+
     try {
         await redis.hset(`sync-3c:command:${commandId}`, {
             status: "running",
@@ -267,12 +273,39 @@ async function processCommand(redis: Redis, commandId: string, module: ModuleNam
         const scriptPath = path.join(AHK_DIR, scriptName)
         console.log(`[AGENT] Module: ${module} → ${scriptName}`)
 
+        // ETAPA: AutoHotkey
+        const tAhkStart = Date.now()
         await runAhk(scriptPath)
+        const tAhkEnd = Date.now()
+        console.log(`=========================`)
+        console.log(`ETAPA: AutoHotkey`)
+        console.log(`INICIO: ${tAhkStart}`)
+        console.log(`FIN: ${tAhkEnd}`)
+        console.log(`DURACIÓN: ${tAhkEnd - tAhkStart}ms`)
+        console.log(`=========================`)
 
+        // ETAPA: waitForExport
+        const tExportStart = Date.now()
         const latest = await waitForExport()
-        console.log(`[AGENT] Export found: ${latest.name}`)
+        const tExportEnd = Date.now()
+        console.log(`=========================`)
+        console.log(`ETAPA: waitForExport`)
+        console.log(`INICIO: ${tExportStart}`)
+        console.log(`FIN: ${tExportEnd}`)
+        console.log(`DURACIÓN: ${tExportEnd - tExportStart}ms`)
+        console.log(`ARCHIVO: ${latest.name}`)
+        console.log(`=========================`)
 
+        // ETAPA: readFileSync
+        const tReadStart = Date.now()
         const buffer = fs.readFileSync(latest.fullPath).buffer
+        const tReadEnd = Date.now()
+        console.log(`=========================`)
+        console.log(`ETAPA: readFileSync`)
+        console.log(`INICIO: ${tReadStart}`)
+        console.log(`FIN: ${tReadEnd}`)
+        console.log(`DURACIÓN: ${tReadEnd - tReadStart}ms`)
+        console.log(`=========================`)
 
         let result
         let items: Sync3CItem[] = []
@@ -286,8 +319,18 @@ async function processCommand(redis: Redis, commandId: string, module: ModuleNam
                 warnings: [],
             }
         } else {
+            // ETAPA: parseExcel
+            const tParseStart = Date.now()
             const parsed = parseExcel(buffer)
             items = parsed.items
+            const tParseEnd = Date.now()
+            console.log(`=========================`)
+            console.log(`ETAPA: parseExcel`)
+            console.log(`INICIO: ${tParseStart}`)
+            console.log(`FIN: ${tParseEnd}`)
+            console.log(`DURACIÓN: ${tParseEnd - tParseStart}ms`)
+            console.log(`FILAS EXCEL: ${items.length}`)
+            console.log(`=========================`)
 
             if (items.length === 0) {
                 result = {
@@ -301,7 +344,16 @@ async function processCommand(redis: Redis, commandId: string, module: ModuleNam
                 }
             } else {
                 try {
+                    // ETAPA: syncItems
+                    const tSyncStart = Date.now()
                     result = await syncItems(items)
+                    const tSyncEnd = Date.now()
+                    console.log(`=========================`)
+                    console.log(`ETAPA: syncItems`)
+                    console.log(`INICIO: ${tSyncStart}`)
+                    console.log(`FIN: ${tSyncEnd}`)
+                    console.log(`DURACIÓN: ${tSyncEnd - tSyncStart}ms`)
+                    console.log(`=========================`)
                 } catch (err) {
                     const error = err instanceof Error ? err : new Error(String(err))
                     console.error("========== FIREBASE ERROR ==========")
@@ -324,6 +376,38 @@ async function processCommand(redis: Redis, commandId: string, module: ModuleNam
                 }
             }
         }
+
+        // ETAPA: Redis hset result
+        const tRedisStart = Date.now()
+        await redis.hset(`sync-3c:result:${commandId}`, {
+            status: "completed",
+            module,
+            result: JSON.stringify(result),
+            updatedAt: Date.now(),
+        })
+
+        await redis.hset(`sync-3c:command:${commandId}`, {
+            status: "completed",
+            completedAt: Date.now(),
+            result: JSON.stringify(result),
+        })
+        const tRedisEnd = Date.now()
+        console.log(`=========================`)
+        console.log(`ETAPA: Redis hset result`)
+        console.log(`INICIO: ${tRedisStart}`)
+        console.log(`FIN: ${tRedisEnd}`)
+        console.log(`DURACIÓN: ${tRedisEnd - tRedisStart}ms`)
+        console.log(`=========================`)
+
+        const tEnd = Date.now()
+        console.log(`=========================`)
+        console.log(`ETAPA: Fin proceso command ${commandId}`)
+        console.log(`INICIO: ${tStart}`)
+        console.log(`FIN: ${tEnd}`)
+        console.log(`DURACIÓN TOTAL: ${tEnd - tStart}ms`)
+        console.log(`=========================`)
+
+        console.log(`[AGENT] Command ${commandId} completed: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`)
 
         if (module === "reparaciones") {
             try {

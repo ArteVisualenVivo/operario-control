@@ -77,14 +77,21 @@ export async function syncItems(
   const startTotal = Date.now()
   console.log(`[SYNC ${syncId}] START`)
 
-  // PASO 1: Leer toda la colección UNA SOLA VEZ
-  const startLoad = Date.now()
+  // ETAPA: collection.get()
+  const t0 = Date.now()
   const allDocsSnapshot = await collection.get()
+  const t1 = Date.now()
   const performedReads = allDocsSnapshot.size
-  console.log(`[SYNC ${syncId}] inventory_stock reads performed: ${performedReads}`)
-  console.log(`[SYNC ${syncId}] inventory_stock load time: ${Date.now() - startLoad}ms`)
+  console.log(`=========================`);
+  console.log(`ETAPA: collection.get()`);
+  console.log(`INICIO: ${t0}`);
+  console.log(`FIN: ${t1}`);
+  console.log(`DURACIÓN: ${t1 - t0}ms`);
+  console.log(`DOCUMENTOS DESCARGADOS: ${performedReads}`);
+  console.log(`=========================`);
 
-  // PASO 2: Construir índice en memoria
+  // ETAPA: Construir Map
+  const t2 = Date.now()
   const inventoryIndex = new Map<string, { id: string; data: Record<string, unknown> }>()
   for (const doc of allDocsSnapshot.docs) {
     const data = doc.data() as Record<string, unknown>
@@ -95,13 +102,24 @@ export async function syncItems(
       inventoryIndex.set(String(data.name), { id: doc.id, data })
     }
   }
-  console.log(`[SYNC ${syncId}] Index built with ${inventoryIndex.size} entries`)
+  const t3 = Date.now()
+  console.log(`=========================`);
+  console.log(`ETAPA: Construir Map`);
+  console.log(`INICIO: ${t2}`);
+  console.log(`FIN: ${t3}`);
+  console.log(`DURACIÓN: ${t3 - t2}ms`);
+  console.log(`ENTRADAS MAP: ${inventoryIndex.size}`);
+  console.log(`=========================`);
 
   // PASO 3: Preparar escrituras en batch
   const BATCH_LIMIT = 400
   let batch = db.batch()
   let counter = 0
+  let batchCommits = 0
+  let totalBatchOps = 0
 
+  // ETAPA: Bucle items
+  const t4 = Date.now()
   for (const item of items) {
     const scaffold = classifyScaffoldStock(item.name)
     
@@ -160,7 +178,17 @@ export async function syncItems(
 
     counter++
     if (counter >= BATCH_LIMIT) {
+      const tBatchStart = Date.now()
       await batch.commit()
+      const tBatchEnd = Date.now()
+      console.log(`=========================`);
+      console.log(`ETAPA: batch.commit() #${++batchCommits}`);
+      console.log(`INICIO: ${tBatchStart}`);
+      console.log(`FIN: ${tBatchEnd}`);
+      console.log(`DURACIÓN: ${tBatchEnd - tBatchStart}ms`);
+      console.log(`OPERACIONES EN BATCH: ${counter}`);
+      console.log(`=========================`);
+      totalBatchOps += counter
       batch = db.batch()
       counter = 0
     }
@@ -168,8 +196,29 @@ export async function syncItems(
 
   // Commit final
   if (counter > 0) {
+    const tBatchStart = Date.now()
     await batch.commit()
+    const tBatchEnd = Date.now()
+    console.log(`=========================`);
+    console.log(`ETAPA: batch.commit() #${++batchCommits} (final)`);
+    console.log(`INICIO: ${tBatchStart}`);
+    console.log(`FIN: ${tBatchEnd}`);
+    console.log(`DURACIÓN: ${tBatchEnd - tBatchStart}ms`);
+    console.log(`OPERACIONES EN BATCH: ${counter}`);
+    console.log(`=========================`);
+    totalBatchOps += counter
   }
+
+  const t5 = Date.now()
+  console.log(`=========================`);
+  console.log(`ETAPA: Bucle items completo`);
+  console.log(`INICIO: ${t4}`);
+  console.log(`FIN: ${t5}`);
+  console.log(`DURACIÓN: ${t5 - t4}ms`);
+  console.log(`FILAS EXCEL: ${items.length}`);
+  console.log(`BATCHES: ${batchCommits}`);
+  console.log(`OPERACIONES TOTALES: ${totalBatchOps}`);
+  console.log(`=========================`);
 
   console.log(`[SYNC ${syncId}] Excel rows: ${items.length}`)
   console.log(`[SYNC ${syncId}] Updated: ${result.updated}`)
