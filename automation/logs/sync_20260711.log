@@ -1,0 +1,23 @@
+[2026-07-11 18:52:19] === INICIO STOCK ===
+[2026-07-11 18:52:20] Ventana '3C' detectada y activada
+[2026-07-11 18:52:20] Resync: enviando Ctrl+Home
+[2026-07-11 18:52:21] Click en Almacenes (888,189)
+[2026-07-11 18:52:21] Click en Informes (921,370)
+[2026-07-11 18:52:22] Click en Existencias (1105,401)
+[2026-07-11 18:52:22] Click en Depositos (704,476)
+[2026-07-11 18:52:23] Click en SeleccionarTodos (962,858)
+[2026-07-11 18:52:23] Click en Consulta (440,341)
+[2026-07-11 18:52:23] Click en Aceptar (1196,902)
+[2026-07-11 18:52:25] Click en Excel (940,575)
+[2026-07-11 18:52:30] Exportación completada. Esperando Excel...
+[2026-07-11 18:52:30] Esperando Excel (timeout: 30s)...
+[2026-07-11 18:52:34] Excel detectado correctamente
+[2026-07-11 18:52:34] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-07-11 18:52:36] [WATCHER] ARCHIVO DETECTADO:
+[2026-07-11 18:52:36] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc7617025832387075970.xls
+[2026-07-11 18:52:36] [WATCHER] Fecha: 20260711185234
+[2026-07-11 18:52:36] [WATCHER] TamaÃ±o: 912 KB
+[2026-07-11 18:52:36] [ERROR] No se pudo copiar el archivo a exports
+[2026-07-11 18:52:37] Click en Salir (946,250)
+[2026-07-11 18:52:38] [NAV] Main menu restored
+[2026-07-11 18:52:38] === FIN STOCK ===

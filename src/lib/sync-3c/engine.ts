@@ -77,35 +77,42 @@ export async function syncItems(
   const startTotal = Date.now()
   console.log(`[SYNC ${syncId}] START`)
 
-  const expectedReads = items.length
-  let performedReads = 0
-  console.log(`[SYNC ${syncId}] inventory_stock reads expected: ${expectedReads}`)
+  // PASO 1: Leer toda la colección UNA SOLA VEZ
+  const startLoad = Date.now()
+  const allDocsSnapshot = await collection.get()
+  const performedReads = allDocsSnapshot.size
+  console.log(`[SYNC ${syncId}] inventory_stock reads performed: ${performedReads}`)
+  console.log(`[SYNC ${syncId}] inventory_stock load time: ${Date.now() - startLoad}ms`)
 
-  async function findInventoryDoc(item: Sync3CItem) {
-    if (item.codigo) {
-      const querySnapshot = await collection.where("codigo", "==", item.codigo).get()
-      performedReads += querySnapshot.size
-      if (!querySnapshot.empty) {
-        return querySnapshot.docs[0]
-      }
+  // PASO 2: Construir índice en memoria
+  const inventoryIndex = new Map<string, { id: string; data: Record<string, unknown> }>()
+  for (const doc of allDocsSnapshot.docs) {
+    const data = doc.data() as Record<string, unknown>
+    if (data.codigo) {
+      inventoryIndex.set(String(data.codigo), { id: doc.id, data })
     }
-
-    const nameSnapshot = await collection.where("name", "==", item.name).get()
-    performedReads += nameSnapshot.size
-    if (!nameSnapshot.empty) {
-      return nameSnapshot.docs[0]
+    if (data.name) {
+      inventoryIndex.set(String(data.name), { id: doc.id, data })
     }
-
-    return null
   }
+  console.log(`[SYNC ${syncId}] Index built with ${inventoryIndex.size} entries`)
+
+  // PASO 3: Preparar escrituras en batch
+  const BATCH_LIMIT = 400
+  let batch = db.batch()
+  let counter = 0
 
   for (const item of items) {
     const scaffold = classifyScaffoldStock(item.name)
-    const matchDoc = await findInventoryDoc(item)
+    
+    // PASO 4: Buscar en el índice en memoria
     let match: { id: string; [key: string]: unknown } | null = null
-    if (matchDoc) {
-      const data = matchDoc.data() as Record<string, unknown>
-      match = { id: matchDoc.id, ...data }
+    if (item.codigo && inventoryIndex.has(item.codigo)) {
+      const entry = inventoryIndex.get(item.codigo)!
+      match = { id: entry.id, ...entry.data }
+    } else if (inventoryIndex.has(item.name)) {
+      const entry = inventoryIndex.get(item.name)!
+      match = { id: entry.id, ...entry.data }
     }
 
     const payload: Record<string, unknown> = {
@@ -130,10 +137,11 @@ export async function syncItems(
     }
 
     if (match) {
-      await collection.doc(match.id).set(payload, { merge: true })
+      batch.set(collection.doc(match.id), payload, { merge: true })
       result.updated++
     } else if (!config.strictMode) {
-      await collection.add({
+      const newDocRef = collection.doc()
+      batch.set(newDocRef, {
         ...payload,
         name: item.name,
         category: item.category ?? scaffold.category ?? config.category,
@@ -149,9 +157,20 @@ export async function syncItems(
         `Material no encontrado en Firestore: "${item.name}" omitido (strictMode)`
       )
     }
+
+    counter++
+    if (counter >= BATCH_LIMIT) {
+      await batch.commit()
+      batch = db.batch()
+      counter = 0
+    }
   }
 
-  console.log(`[SYNC ${syncId}] inventory_stock reads performed: ${performedReads}`)
+  // Commit final
+  if (counter > 0) {
+    await batch.commit()
+  }
+
   console.log(`[SYNC ${syncId}] Excel rows: ${items.length}`)
   console.log(`[SYNC ${syncId}] Updated: ${result.updated}`)
   console.log(`[SYNC ${syncId}] Created: ${result.created}`)
