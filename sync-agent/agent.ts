@@ -100,7 +100,7 @@ function findAhkExe() {
     return null
 }
 
-function runAhk(scriptPath: string) {
+function runAhk(scriptPath) {
     return new Promise<void>((resolve, reject) => {
         const exe = findAhkExe()
         if (!exe) {
@@ -172,17 +172,16 @@ function ensureCacheDir() {
     }
 }
 
-function safeWriteJson(filePath: string, data: unknown) {
+function safeWriteJson(filePath, data) {
     try {
         ensureCacheDir()
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
     } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err))
-        console.warn(`[AGENT] No se pudo escribir cache ${path.basename(filePath)}:`, error.message)
+        console.warn(`[AGENT] No se pudo escribir cache ${path.basename(filePath)}:`, err?.message)
     }
 }
 
-function buildMachineSeedFromStock(items: Sync3CItem[]) {
+function buildMachineSeedFromStock(items) {
     const scaffoldNames = new Set([
         "andamio tubular",
         "andamio modular",
@@ -212,7 +211,7 @@ function buildMachineSeedFromStock(items: Sync3CItem[]) {
         }))
 }
 
-function buildSparePartsSeedFromStock(items: Sync3CItem[]) {
+function buildSparePartsSeedFromStock(items) {
     return items
         .filter((item) => {
             const name = String(item.name ?? "").toLowerCase().trim()
@@ -239,7 +238,68 @@ function buildSparePartsSeedFromStock(items: Sync3CItem[]) {
 
 type ModuleName = "stock" | "reparaciones" | "articulos" | "alquileres"
 
-async function processCommand(redis: Redis, commandId: string, module: ModuleName) {
+// =============================================================================
+// PIPELINE INSTRUMENTATION
+// =============================================================================
+let pipelineId: string | null = null
+let pipelineModules: string[] = []
+let pipelineStepIndex = 0
+let pipelineStartTime = 0
+let processedCommandIds = new Set<string>()
+
+function logPipelineStart(modules: string[]) {
+    pipelineId = Date.now().toString().slice(-6)
+    pipelineModules = modules
+    pipelineStepIndex = 0
+    pipelineStartTime = Date.now()
+    processedCommandIds = new Set<string>()
+
+    console.log("================================================")
+    console.log(`PIPELINE START`)
+    console.log(`Pipeline ID: ${pipelineId}`)
+    console.log(`Módulos:`)
+    modules.forEach((mod, idx) => {
+        console.log(`${idx + 1}. ${mod}`)
+    })
+    console.log("================================================")
+}
+
+function logPipelineStep(step: number, total: number, module: string, commandId: string) {
+    console.log("================================================")
+    console.log(`PIPELINE STEP ${step}/${total}`)
+    console.log(`Module: ${module}`)
+    console.log(`CommandId: ${commandId}`)
+    console.log("================================================")
+}
+
+function logPipelineStepCompleted(step: number, total: number, module: string, duration: number, result: any) {
+    console.log("================================================")
+    console.log(`PIPELINE STEP ${step}/${total} COMPLETED`)
+    console.log(`Duration: ${duration}ms`)
+    console.log(`Created: ${result.created || 0}`)
+    console.log(`Updated: ${result.updated || 0}`)
+    console.log(`Skipped: ${result.skipped || 0}`)
+    if (result.warnings && result.warnings.length > 0) {
+        console.log(`Warnings: ${result.warnings.length}`)
+    }
+    console.log("================================================")
+}
+
+function logPipelineFinished(success: boolean, errors: string[]) {
+    const totalDuration = Date.now() - pipelineStartTime
+    console.log("================================================")
+    console.log(`PIPELINE FINISHED`)
+    console.log(`Tiempo total: ${totalDuration}ms`)
+    console.log(`Módulos ejecutados: ${pipelineStepIndex}/${pipelineModules.length}`)
+    console.log(`Errores: ${errors.length > 0 ? errors.join(", ") : "Ninguno"}`)
+    console.log("================================================")
+}
+
+// =============================================================================
+// END PIPELINE INSTRUMENTATION
+// =============================================================================
+
+async function processCommand(redis: Redis, commandId: string, module: ModuleName): Promise<any> {
     isProcessing = true
 
     const tStart = Date.now()
@@ -484,6 +544,12 @@ async function processCommand(redis: Redis, commandId: string, module: ModuleNam
         })
 
         console.log(`[AGENT] Command ${commandId} completed: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`)
+        
+        // Log de finalización del paso del pipeline
+        const stepDuration = Date.now() - tStart
+        logPipelineStepCompleted(pipelineStepIndex, pipelineModules.length, module, stepDuration, result)
+        
+        return result
     } catch (err) {
         const message = err instanceof Error ? err.message : "Error desconocido"
         console.error(`[AGENT] Command ${commandId} failed: ${message}`)
@@ -493,6 +559,17 @@ async function processCommand(redis: Redis, commandId: string, module: ModuleNam
             error: message,
             completedAt: Date.now(),
         })
+        
+        // Log de fallo del paso
+        const stepDuration = Date.now() - tStart
+        logPipelineStepCompleted(pipelineStepIndex, pipelineModules.length, module, stepDuration, {
+            created: 0,
+            updated: 0,
+            skipped: 0,
+            warnings: [message]
+        })
+        
+        return { success: false, error: message }
     } finally {
         isProcessing = false
     }
@@ -514,6 +591,9 @@ async function pollQueue(redis: Redis) {
                 continue
             }
 
+            // =============================================================================
+            // PIPELINE INSTRUMENTATION: Detectar nuevo pipeline
+            // =============================================================================
             const raw = await redis.hgetall(`sync-3c:command:${commandId}`)
             if (!raw || raw.status !== "pending") {
                 console.log(`[AGENT] Command ${commandId} skipped (not pending)`)
@@ -521,7 +601,46 @@ async function pollQueue(redis: Redis) {
             }
 
             const module = (raw.module || "stock") as ModuleName
-            await processCommand(redis, commandId, module)
+
+            // Si es el primer comando de un pipeline, iniciar log
+            if (!processedCommandIds.has(commandId)) {
+                // Obtener todos los comandos pendientes para determinar el pipeline completo
+                // Esto es una aproximación: usamos el módulo actual para inferir el orden
+                const pipelineOrder = ["stock", "articulos", "alquileres", "reparaciones"]
+                const currentIndex = pipelineOrder.indexOf(module)
+                const remainingModules = currentIndex >= 0 ? pipelineOrder.slice(currentIndex) : [module]
+                
+                logPipelineStart(remainingModules)
+            }
+
+            // Log del paso actual
+            pipelineStepIndex++
+            logPipelineStep(pipelineStepIndex, pipelineModules.length, module, commandId)
+            processedCommandIds.add(commandId)
+
+            // =============================================================================
+            // END PIPELINE INSTRUMENTATION
+            // =============================================================================
+
+            const commandResult = await processCommand(redis, commandId, module)
+            
+            // Si el comando falló, detener el pipeline
+            if (commandResult && commandResult.success === false) {
+                logPipelineFinished(false, [commandResult.error || "Error en módulo"])
+                // Reiniciar el pipeline para el próximo ciclo
+                pipelineId = null
+                pipelineModules = []
+                pipelineStepIndex = 0
+                processedCommandIds = new Set<string>()
+            } else if (pipelineStepIndex >= pipelineModules.length) {
+                // Todos los módulos completados exitosamente
+                logPipelineFinished(true, [])
+                // Reiniciar el pipeline para el próximo ciclo
+                pipelineId = null
+                pipelineModules = []
+                pipelineStepIndex = 0
+                processedCommandIds = new Set<string>()
+            }
         } catch (err) {
             const error = err instanceof Error ? err : new Error(String(err))
             console.error("[AGENT] Polling error:", error.message)
@@ -551,7 +670,7 @@ async function recoverStaleCommands(redis: Redis) {
                 const startedAt = parseInt((data.startedAt as string) ?? "0", 10)
                 if (startedAt > 0 && startedAt >= cutoff) continue
 
-                const id = key.replace("sync-3c:command:", "") as string
+                const id = key.replace("sync-3c:command:", "")
                 await redis.hset(key, { status: "pending", startedAt: "", agent: "" })
                 await redis.lpush("sync-3c:queue", id)
                 recovered++
@@ -559,8 +678,7 @@ async function recoverStaleCommands(redis: Redis) {
             }
         } while (cursor !== 0)
     } catch (err) {
-        const error = err instanceof Error ? err : new Error(String(err))
-        console.error("[AGENT] Recovery scan error:", error.message)
+        console.error("[AGENT] Recovery scan error:", err instanceof Error ? err.message : String(err))
     }
 
     if (recovered > 0) console.log(`[AGENT] Recovered ${recovered} stale command(s)`)
@@ -576,8 +694,7 @@ function startHeartbeat(redis: Redis) {
                 machineName: MACHINE_NAME,
             }))
         } catch (err) {
-            const error = err instanceof Error ? err : new Error(String(err))
-            console.error("[AGENT] Heartbeat error:", error.message)
+            console.error("[AGENT] Heartbeat error:", err instanceof Error ? err.message : String(err))
         }
     }
 

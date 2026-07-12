@@ -91,10 +91,14 @@ export default function Sync3CButton({
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("unknown")
   const [agentData, setAgentData] = useState<AgentStatusData | null>(null)
   const [result, setResult] = useState<Sync3CResult | null>(null)
+  const [pipeline, setPipeline] = useState<string[]>([])
+  const [currentPipelineIndex, setCurrentPipelineIndex] = useState(0)
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const agentPollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const mountedRef = useRef(true)
+  const commandIdsRef = useRef<string[]>([])
+  const currentIndexRef = useRef(0)
 
   const stopPolling = useCallback(() => {
     if (pollingRef.current) {
@@ -138,10 +142,11 @@ export default function Sync3CButton({
       if (!mountedRef.current) return
 
       if (data.status === "completed") {
-        stopPolling()
-        setState("completed")
-        setResult(data.result ?? null)
-
+        const currentIdx = currentIndexRef.current
+        const currentModule = pipeline[currentIdx]
+        const moduleLabel = MODULE_LABELS[currentModule as SyncModule] || currentModule
+        
+        // Mostrar toast de progreso
         const r = data.result
         if (r) {
           const parts: string[] = []
@@ -150,24 +155,46 @@ export default function Sync3CButton({
           if (r.skipped > 0) parts.push(`${r.skipped} omitidos`)
 
           const message = parts.length > 0
-            ? `Sync 3C completado: ${parts.join(", ")}`
-            : "Sync 3C completado"
+            ? `${moduleLabel}: ${parts.join(", ")}`
+            : `${moduleLabel} completado`
 
           toast.success(message)
 
-          for (const w of (r.warnings ?? []).slice(0, 3)) {
+          for (const w of (r.warnings ?? []).slice(0, 2)) {
             toast.warning(w)
-          }
-          if ((r.warnings ?? []).length > 3) {
-            toast.info(`+${r.warnings.length - 3} advertencias más`)
           }
         }
 
-        onComplete?.()
+        // Verificar si hay más módulos en el pipeline
+        if (currentIdx < pipeline.length - 1) {
+          // Continuar con el siguiente módulo
+          const nextIndex = currentIdx + 1
+          currentIndexRef.current = nextIndex
+          setCurrentPipelineIndex(nextIndex)
+          const nextCommandId = commandIdsRef.current[nextIndex]
+          
+          toast.info(`Iniciando ${MODULE_LABELS[pipeline[nextIndex] as SyncModule]}...`)
+          
+          // Reiniciar polling para el siguiente comando
+          if (pollingRef.current) {
+            clearInterval(pollingRef.current)
+          }
+          pollingRef.current = setInterval(() => {
+            pollStatus(nextCommandId)
+          }, STATUS_POLL_INTERVAL)
+        } else {
+          // Pipeline completo
+          stopPolling()
+          setState("completed")
+          setResult(data.result ?? null)
+          toast.success("Sincronización completa")
+          onComplete?.()
+        }
       } else if (data.status === "failed") {
         stopPolling()
         setState("error")
-        toast.error(data.error ?? "Sync 3C falló")
+        const currentIdx = currentIndexRef.current
+        toast.error(data.error ?? `Error en ${MODULE_LABELS[pipeline[currentIdx] as SyncModule] || "sincronización"}`)
       } else if (data.status === "running") {
         setState("running")
       }
@@ -177,10 +204,15 @@ export default function Sync3CButton({
       stopPolling()
       setState("error")
     }
-  }, [stopPolling, onComplete])
+  }, [stopPolling, onComplete, pipeline])
 
   const handleSync = useCallback(async () => {
     setState("pending")
+    setPipeline([])
+    setCurrentPipelineIndex(0)
+    currentIndexRef.current = 0
+    setResult(null)
+    commandIdsRef.current = []
 
     try {
       const res = await fetch("/api/sync-3c", {
@@ -196,8 +228,13 @@ export default function Sync3CButton({
         return
       }
 
+      // Guardar pipeline y commandIds
+      setPipeline(data.pipeline || [module])
+      commandIdsRef.current = [data.commandId, ...(data.autoEnqueued || [])]
+
       setState("running")
 
+      // Iniciar polling del primer comando
       pollingRef.current = setInterval(() => {
         pollStatus(data.commandId)
       }, STATUS_POLL_INTERVAL)
@@ -213,11 +250,15 @@ export default function Sync3CButton({
       toast.error("Error de conexión al sincronizar")
       setState("idle")
     }
-  }, [pollStatus, stopPolling, module])
+  }, [module, pollStatus, stopPolling])
 
   const reset = useCallback(() => {
     setState("idle")
     setResult(null)
+    setPipeline([])
+    setCurrentPipelineIndex(0)
+    currentIndexRef.current = 0
+    commandIdsRef.current = []
   }, [])
 
   const retry = useCallback(() => {
@@ -242,6 +283,10 @@ export default function Sync3CButton({
   const isBusy = state === "pending" || state === "running"
   const disabled = agentStatus === "offline" || isBusy
   const moduleLabel = MODULE_LABELS[module]
+  const currentPipelineModule = pipeline[currentPipelineIndex]
+  const progressText = pipeline.length > 1 
+    ? `${MODULE_LABELS[currentPipelineModule as SyncModule] || currentPipelineModule} (${currentPipelineIndex + 1}/${pipeline.length})`
+    : moduleLabel
 
   return (
     <div className={`flex items-center gap-2 ${className ?? ""}`}>
@@ -284,7 +329,7 @@ export default function Sync3CButton({
 
       {state === "running" && (
         <Button variant="outline" size={size} disabled>
-          Sincronizando {moduleLabel}...
+          Sincronizando {progressText}...
         </Button>
       )}
 

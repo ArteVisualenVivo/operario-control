@@ -5,6 +5,10 @@ import { randomUUID } from "crypto"
 export const runtime = "nodejs"
 export const maxDuration = 120
 
+// Orden de ejecución del pipeline de sincronización
+// Dependencias: stock → articulos → alquileres → reparaciones
+const SYNC_PIPELINE: string[] = ["stock", "articulos", "alquileres", "reparaciones"]
+
 function getRedis() {
   return new Redis({
     url: process.env.UPSTASH_REDIS_REST_URL!,
@@ -17,9 +21,9 @@ export async function POST(request: Request) {
     const body = await request.json().catch(() => ({}))
     const module = body.module || "stock"
 
-    if (!["stock", "reparaciones", "articulos", "alquileres"].includes(module)) {
+    if (!SYNC_PIPELINE.includes(module)) {
       return NextResponse.json(
-        { success: false, error: "Módulo inválido. Usar: stock, reparaciones, articulos, alquileres" },
+        { success: false, error: `Módulo inválido. Usar: ${SYNC_PIPELINE.join(", ")}` },
         { status: 400 },
       )
     }
@@ -27,30 +31,16 @@ export async function POST(request: Request) {
     const redis = getRedis()
     const now = Date.now()
 
-    // Al sincronizar stock o materiales, también encolar automáticamente
-    // los alquileres pendientes de andamios para mantener el Dashboard al día.
-    const autoEnqueue: string[] = []
-    if (module === "stock" || module === "articulos") {
-      autoEnqueue.push("alquileres")
-    }
+    // Determinar el punto de inicio en el pipeline
+    const startIndex = SYNC_PIPELINE.indexOf(module)
+    const modulesToEnqueue = SYNC_PIPELINE.slice(startIndex)
 
-    const commandId = randomUUID()
-    await redis.hset(`sync-3c:command:${commandId}`, {
-      module,
-      status: "pending",
-      createdAt: now,
-      startedAt: "",
-      completedAt: "",
-      agent: "",
-      result: "",
-      error: "",
-    })
-    await redis.lpush("sync-3c:queue", commandId)
-
-    for (const extra of autoEnqueue) {
-      const extraId = randomUUID()
-      await redis.hset(`sync-3c:command:${extraId}`, {
-        module: extra,
+    // Crear comandos para todos los módulos del pipeline desde el punto de inicio
+    const commandIds: string[] = []
+    for (const mod of modulesToEnqueue) {
+      const commandId = randomUUID()
+      await redis.hset(`sync-3c:command:${commandId}`, {
+        module: mod,
         status: "pending",
         createdAt: now,
         startedAt: "",
@@ -59,10 +49,15 @@ export async function POST(request: Request) {
         result: "",
         error: "",
       })
-      await redis.lpush("sync-3c:queue", extraId)
+      await redis.lpush("sync-3c:queue", commandId)
+      commandIds.push(commandId)
     }
 
-    return NextResponse.json({ commandId, autoEnqueued: autoEnqueue })
+    return NextResponse.json({
+      commandId: commandIds[0],
+      autoEnqueued: commandIds.slice(1),
+      pipeline: modulesToEnqueue,
+    })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error desconocido"
     return NextResponse.json(
