@@ -58,6 +58,12 @@ export async function syncItems(
   options?: SyncEngineOptions,
 ): Promise<Sync3CResult> {
   const config = { ...DEFAULTS, ...options?.config }
+
+  // ─────────── INSTRUMENTACIÓN FORENSE ───────────
+  const PROFILING: Record<string, number> = {}
+  const PROFILING_START = Date.now()
+  // ────────────────────────────────────────────────
+
   const admin = getFirebaseAdmin()
   const { getFirestore } = require("firebase-admin/firestore")
   const db = getFirestore()
@@ -75,22 +81,30 @@ export async function syncItems(
 
   const syncId = (Date.now().toString().slice(-6))
   const startTotal = Date.now()
-  console.log(`[SYNC ${syncId}] START`)
+  console.log(`=========================`)
+  console.log(`[PROFILE ${syncId}] ======== INICIO syncItems ========`)
+  console.log(`[PROFILE ${syncId}] T0 (after Firebase init): ${startTotal}`)
+  console.log(`=========================`)
 
-  // ETAPA: collection.get()
+  // ═══════════════════════════════════════════════
+  // ETAPA 1: collection.get()
+  // ═══════════════════════════════════════════════
   const t0 = Date.now()
   const allDocsSnapshot = await collection.get()
   const t1 = Date.now()
   const performedReads = allDocsSnapshot.size
+  PROFILING["collection_get"] = t1 - t0
   console.log(`=========================`);
-  console.log(`ETAPA: collection.get()`);
-  console.log(`INICIO: ${t0}`);
-  console.log(`FIN: ${t1}`);
-  console.log(`DURACIÓN: ${t1 - t0}ms`);
-  console.log(`DOCUMENTOS DESCARGADOS: ${performedReads}`);
+  console.log(`[PROFILE ${syncId}] ETAPA 1: collection.get()`);
+  console.log(`[PROFILE ${syncId}]   INICIO: ${t0}`);
+  console.log(`[PROFILE ${syncId}]   FIN:    ${t1}`);
+  console.log(`[PROFILE ${syncId}]   ⏱️  DURACIÓN: ${t1 - t0}ms`);
+  console.log(`[PROFILE ${syncId}]   📄 DOCUMENTOS: ${performedReads}`);
   console.log(`=========================`);
 
-  // ETAPA: Construir Map
+  // ═══════════════════════════════════════════════
+  // ETAPA 2: Construir Map en memoria
+  // ═══════════════════════════════════════════════
   const t2 = Date.now()
   const inventoryIndex = new Map<string, { id: string; data: Record<string, unknown> }>()
   for (const doc of allDocsSnapshot.docs) {
@@ -103,23 +117,32 @@ export async function syncItems(
     }
   }
   const t3 = Date.now()
+  PROFILING["build_map"] = t3 - t2
   console.log(`=========================`);
-  console.log(`ETAPA: Construir Map`);
-  console.log(`INICIO: ${t2}`);
-  console.log(`FIN: ${t3}`);
-  console.log(`DURACIÓN: ${t3 - t2}ms`);
-  console.log(`ENTRADAS MAP: ${inventoryIndex.size}`);
+  console.log(`[PROFILE ${syncId}] ETAPA 2: Construir Map`);
+  console.log(`[PROFILE ${syncId}]   INICIO: ${t2}`);
+  console.log(`[PROFILE ${syncId}]   FIN:    ${t3}`);
+  console.log(`[PROFILE ${syncId}]   ⏱️  DURACIÓN: ${t3 - t2}ms`);
+  console.log(`[PROFILE ${syncId}]   📦 ENTRADAS MAP: ${inventoryIndex.size}`);
   console.log(`=========================`);
 
-  // PASO 3: Preparar escrituras en batch
+  // ═══════════════════════════════════════════════
+  // ETAPA 3: Bucle items (procesamiento + batch commits)
+  // ═══════════════════════════════════════════════
   const BATCH_LIMIT = 400
   let batch = db.batch()
   let counter = 0
   let batchCommits = 0
   let totalBatchOps = 0
+  let totalFirestoreWriteTime = 0  // ← INSTRUMENTACIÓN: acumula tiempo de batch.commit()
 
-  // ETAPA: Bucle items
   const t4 = Date.now()
+  const T_LOOP_START = t4
+
+  // Tiempo dentro del bucle dedicado SOLO a procesar items (sin contar commits)
+  let tLoopBodyStart = t4
+  let totalLoopBodyTime = 0
+
   for (const item of items) {
     const scaffold = classifyScaffoldStock(item.name)
     
@@ -178,52 +201,105 @@ export async function syncItems(
 
     counter++
     if (counter >= BATCH_LIMIT) {
+      // ═══════════════════════════════════════════
+      // ETAPA 3a: batch.commit() #N
+      // ═══════════════════════════════════════════
+      // Pausar contador de loop body mientras esperamos Firestore
+      const loopBodyUntilNow = Date.now() - tLoopBodyStart
+      totalLoopBodyTime += loopBodyUntilNow
+
       const tBatchStart = Date.now()
       await batch.commit()
       const tBatchEnd = Date.now()
+      const commitDuration = tBatchEnd - tBatchStart
+      totalFirestoreWriteTime += commitDuration
+
       console.log(`=========================`);
-      console.log(`ETAPA: batch.commit() #${++batchCommits}`);
-      console.log(`INICIO: ${tBatchStart}`);
-      console.log(`FIN: ${tBatchEnd}`);
-      console.log(`DURACIÓN: ${tBatchEnd - tBatchStart}ms`);
-      console.log(`OPERACIONES EN BATCH: ${counter}`);
+      console.log(`[PROFILE ${syncId}] ETAPA 3a: batch.commit() #${++batchCommits}`);
+      console.log(`[PROFILE ${syncId}]   INICIO:             ${tBatchStart}`);
+      console.log(`[PROFILE ${syncId}]   FIN:                ${tBatchEnd}`);
+      console.log(`[PROFILE ${syncId}]   ⏱️  DURACIÓN COMMIT: ${commitDuration}ms`);
+      console.log(`[PROFILE ${syncId}]   📝 OPERACIONES:     ${counter}`);
       console.log(`=========================`);
       totalBatchOps += counter
       batch = db.batch()
       counter = 0
+
+      // Reactivar contador de loop body
+      tLoopBodyStart = Date.now()
     }
   }
 
-  // Commit final
+  // ═══════════════════════════════════════════════
+  // ETAPA 3b: batch.commit() final
+  // ═══════════════════════════════════════════════
   if (counter > 0) {
+    const loopBodyUntilNow = Date.now() - tLoopBodyStart
+    totalLoopBodyTime += loopBodyUntilNow
+
     const tBatchStart = Date.now()
     await batch.commit()
     const tBatchEnd = Date.now()
+    const commitDuration = tBatchEnd - tBatchStart
+    totalFirestoreWriteTime += commitDuration
+
     console.log(`=========================`);
-    console.log(`ETAPA: batch.commit() #${++batchCommits} (final)`);
-    console.log(`INICIO: ${tBatchStart}`);
-    console.log(`FIN: ${tBatchEnd}`);
-    console.log(`DURACIÓN: ${tBatchEnd - tBatchStart}ms`);
-    console.log(`OPERACIONES EN BATCH: ${counter}`);
+    console.log(`[PROFILE ${syncId}] ETAPA 3b: batch.commit() #${++batchCommits} (final)`);
+    console.log(`[PROFILE ${syncId}]   INICIO:             ${tBatchStart}`);
+    console.log(`[PROFILE ${syncId}]   FIN:                ${tBatchEnd}`);
+    console.log(`[PROFILE ${syncId}]   ⏱️  DURACIÓN COMMIT: ${commitDuration}ms`);
+    console.log(`[PROFILE ${syncId}]   📝 OPERACIONES:     ${counter}`);
     console.log(`=========================`);
     totalBatchOps += counter
   }
 
   const t5 = Date.now()
+  PROFILING["loop_total"] = t5 - T_LOOP_START
+  PROFILING["loop_body"] = totalLoopBodyTime
+  PROFILING["firestore_writes"] = totalFirestoreWriteTime
+
   console.log(`=========================`);
-  console.log(`ETAPA: Bucle items completo`);
-  console.log(`INICIO: ${t4}`);
-  console.log(`FIN: ${t5}`);
-  console.log(`DURACIÓN: ${t5 - t4}ms`);
-  console.log(`FILAS EXCEL: ${items.length}`);
-  console.log(`BATCHES: ${batchCommits}`);
-  console.log(`OPERACIONES TOTALES: ${totalBatchOps}`);
+  console.log(`[PROFILE ${syncId}] ETAPA 3: Bucle items completo`);
+  console.log(`[PROFILE ${syncId}]   INICIO LOOP:             ${T_LOOP_START}`);
+  console.log(`[PROFILE ${syncId}]   FIN LOOP:                ${t5}`);
+  console.log(`[PROFILE ${syncId}]   ⏱️  LOOP TOTAL (t4→t5):  ${t5 - T_LOOP_START}ms`);
+  console.log(`[PROFILE ${syncId}]   ├── 🔄 Loop body items:  ${totalLoopBodyTime}ms  (${(totalLoopBodyTime / (t5 - T_LOOP_START) * 100).toFixed(1)}%)`);
+  console.log(`[PROFILE ${syncId}]   └── 🔥 Firestore writes: ${totalFirestoreWriteTime}ms  (${(totalFirestoreWriteTime / (t5 - T_LOOP_START) * 100).toFixed(1)}%)`);
+  console.log(`[PROFILE ${syncId}]   📊 FILAS EXCEL:   ${items.length}`);
+  console.log(`[PROFILE ${syncId}]   📊 BATCHES:       ${batchCommits}`);
+  console.log(`[PROFILE ${syncId}]   📊 OPS TOTALES:   ${totalBatchOps}`);
   console.log(`=========================`);
+
+  // ═══════════════════════════════════════════════
+  // ETAPA 4: return
+  // ═══════════════════════════════════════════════
+  const endTotal = Date.now()
+  PROFILING["total"] = endTotal - PROFILING_START
 
   console.log(`[SYNC ${syncId}] Excel rows: ${items.length}`)
   console.log(`[SYNC ${syncId}] Updated: ${result.updated}`)
   console.log(`[SYNC ${syncId}] Created: ${result.created}`)
   console.log(`[SYNC ${syncId}] Skipped: ${result.skipped}`)
+
+  // ─────────── INFORME FORENSE FINAL ───────────
+  console.log(`\n========================================`)
+  console.log(`📊 INFORME DE PROFILING [${syncId}]`)
+  console.log(`========================================`)
+  console.log(`  T0 (inicio real):          ${PROFILING_START}`)
+  console.log(`  T total syncItems:        ${PROFILING["total"]}ms`)
+  console.log(`  ──────────────────────────────────`)
+  console.log(`  Paso 1: collection.get()  ${PROFILING["collection_get"]}ms  (${(PROFILING["collection_get"] / PROFILING["total"] * 100).toFixed(1)}%)`)
+  console.log(`  Paso 2: build Map         ${PROFILING["build_map"]}ms  (${(PROFILING["build_map"] / PROFILING["total"] * 100).toFixed(1)}%)`)
+  console.log(`  Paso 3: Loop items        ${PROFILING["loop_total"]}ms  (${(PROFILING["loop_total"] / PROFILING["total"] * 100).toFixed(1)}%)`)
+  console.log(`    ├─ Loop body (CPU)      ${PROFILING["loop_body"]}ms  (${(PROFILING["loop_body"] / PROFILING["total"] * 100).toFixed(1)}%)`)
+  console.log(`    └─ Firestore writes     ${PROFILING["firestore_writes"]}ms  (${(PROFILING["firestore_writes"] / PROFILING["total"] * 100).toFixed(1)}%)`)
+  console.log(`  ──────────────────────────────────`)
+  console.log(`  📦 Documentos leídos:     ${performedReads}`)
+  console.log(`  📝 Items procesados:      ${items.length}`)
+  console.log(`  🔥 Batch commits:         ${batchCommits}`)
+  console.log(`  🔥 Ops totales escritas:  ${totalBatchOps}`)
+  console.log(`========================================\n`)
+
   console.log(`[SYNC ${syncId}] END`)
   console.log(`[SYNC ${syncId}] TOTAL: ${Date.now() - startTotal}ms`)
 
@@ -281,6 +357,7 @@ export async function syncRepairsToMaintenance(
     "fecha_ingreso",
     "fecha_entrega",
     "fecha_reparacion",
+    "fecha_entrega",
     "cliente",
     "razon_social",
     "estado",
