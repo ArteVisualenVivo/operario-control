@@ -1,22 +1,21 @@
 #!/usr/bin/env node
 
-import dotenv from "dotenv"
+import * as dotenv from "dotenv"
 
 dotenv.config({
-    path: fileURLToPath(new URL("../.env.local", import.meta.url)),
+    path: path.join(process.cwd(), ".env.local"),
 })
 import { Redis } from "@upstash/redis"
 import { spawn, execSync } from "child_process"
-import fs from "fs"
-import path from "path"
+import * as fs from "fs"
+import * as path from "path"
 import { fileURLToPath } from "url"
 import { parseExcel } from "../src/lib/sync-3c/parser"
 import { syncItems, syncRepairsToMaintenance } from "../src/lib/sync-3c/engine"
 import { parseScaffoldRentals, saveScaffoldRentalStats } from "../src/lib/sync-3c/scaffoldRentals"
 import type { Sync3CItem } from "../src/lib/sync-3c/types"
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
-const PROJECT_ROOT = path.resolve(__dirname, "..")
+const PROJECT_ROOT = process.cwd()
 const AHK_DIR = path.join(PROJECT_ROOT, "automation")
 const EXPORTS_DIR = path.resolve(PROJECT_ROOT, "automation-watcher", "3c_exports")
 const CACHE_DIR = path.resolve(PROJECT_ROOT, "automation-watcher", "cache")
@@ -24,8 +23,8 @@ const STOCK_CACHE_FILE = path.join(CACHE_DIR, "stock-cache.json")
 const MACHINES_CACHE_FILE = path.join(CACHE_DIR, "machines-cache.json")
 const SPARE_PARTS_CACHE_FILE = path.join(CACHE_DIR, "spare-parts-cache.json")
 
-const LOG_FILE = path.join(__dirname, "agent.log")
-const logStream = fs.createWriteStream(LOG_FILE, { flags: "a" })
+const LOG_FILE = path.join(PROJECT_ROOT, "sync-agent", "agent.log")
+const logStream: fs.WriteStream = fs.createWriteStream(LOG_FILE, { flags: "a" })
 const origLog = console.log
 const origError = console.error
 console.log = (...args) => {
@@ -100,7 +99,7 @@ function findAhkExe() {
     return null
 }
 
-function runAhk(scriptPath) {
+function runAhk(scriptPath: string): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         const exe = findAhkExe()
         if (!exe) {
@@ -147,7 +146,7 @@ async function waitForExport() {
     )
 }
 
-function findLatestExport() {
+function findLatestExport(): { name: string; mtime: number; fullPath: string } | null {
     if (!fs.existsSync(EXPORTS_DIR)) return null
 
     const files = fs.readdirSync(EXPORTS_DIR)
@@ -166,22 +165,22 @@ function findLatestExport() {
     return files[0] ?? null
 }
 
-function ensureCacheDir() {
+function ensureCacheDir(): void {
     if (!fs.existsSync(CACHE_DIR)) {
         fs.mkdirSync(CACHE_DIR, { recursive: true })
     }
 }
 
-function safeWriteJson(filePath, data) {
+function safeWriteJson(filePath: string, data: unknown): void {
     try {
         ensureCacheDir()
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
     } catch (err) {
-        console.warn(`[AGENT] No se pudo escribir cache ${path.basename(filePath)}:`, err?.message)
+        console.warn(`[AGENT] No se pudo escribir cache ${path.basename(filePath)}:`, err instanceof Error ? err.message : String(err))
     }
 }
 
-function buildMachineSeedFromStock(items) {
+function buildMachineSeedFromStock(items: Sync3CItem[]) {
     const scaffoldNames = new Set([
         "andamio tubular",
         "andamio modular",
@@ -211,7 +210,7 @@ function buildMachineSeedFromStock(items) {
         }))
 }
 
-function buildSparePartsSeedFromStock(items) {
+function buildSparePartsSeedFromStock(items: Sync3CItem[]) {
     return items
         .filter((item) => {
             const name = String(item.name ?? "").toLowerCase().trim()
