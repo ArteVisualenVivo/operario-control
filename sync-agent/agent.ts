@@ -99,13 +99,20 @@ function findAhkExe() {
     return null
 }
 
-function runAhk(scriptPath: string): Promise<void> {
+function runAhk(scriptPath: string, moduleName: string = "unknown"): Promise<void> {
     return new Promise<void>((resolve, reject) => {
         const exe = findAhkExe()
         if (!exe) {
+            console.log(`[PIPELINE] ERROR: AutoHotkey no encontrado`)
             reject(new Error("AutoHotkey no encontrado. Instalalo desde https://www.autohotkey.com/"))
             return
         }
+
+        // INSTRUMENTACIÓN: Verificar existencia del script
+        const scriptExists = fs.existsSync(scriptPath)
+        console.log(`[PIPELINE] Script existe: ${scriptExists}`)
+        console.log(`[PIPELINE] cwd: ${AHK_DIR}`)
+        console.log(`[PIPELINE] Ejecutando: "${exe}" "${scriptPath}"`)
 
         const child = spawn(exe, [scriptPath], {
             cwd: AHK_DIR,
@@ -113,22 +120,36 @@ function runAhk(scriptPath: string): Promise<void> {
             shell: false,
         })
 
+        const tStart = Date.now()
+        console.log(`[PIPELINE] Iniciando módulo: ${moduleName}`)
+        console.log(`[PIPELINE] Hora inicio: ${new Date().toISOString()}`)
+
         const timeout = setTimeout(() => {
             child.kill()
+            console.log(`[PIPELINE] ERROR: AHK timeout después de 120s`)
             reject(new Error("AHK timeout después de 120s — 3C puede no haber respondido"))
         }, AHK_TIMEOUT_MS)
 
-        child.stdout?.on("data", (d) => process.stdout.write(`[AHK] ${d}`))
-        child.stderr?.on("data", (d) => process.stderr.write(`[AHK:err] ${d}`))
+        child.stdout?.on("data", (d) => {
+            process.stdout.write(`[AHK] ${d}`)
+        })
+        child.stderr?.on("data", (d) => {
+            process.stderr.write(`[AHK:err] ${d}`)
+        })
 
         child.on("close", (code) => {
             clearTimeout(timeout)
+            const tEnd = Date.now()
+            console.log(`[PIPELINE] Hora fin: ${new Date().toISOString()}`)
+            console.log(`[PIPELINE] Duración: ${tEnd - tStart}ms`)
+            console.log(`[PIPELINE] Código de salida: ${code}`)
             if (code === 0) resolve()
             else reject(new Error(`AHK terminó con código ${code}`))
         })
 
         child.on("error", (err) => {
             clearTimeout(timeout)
+            console.log(`[PIPELINE] ERROR: ${err.message}`)
             reject(new Error(`Error al ejecutar AHK: ${err.message}`))
         })
     })
@@ -334,7 +355,7 @@ async function processCommand(redis: Redis, commandId: string, module: ModuleNam
 
         // ETAPA: AutoHotkey
         const tAhkStart = Date.now()
-        await runAhk(scriptPath)
+        await runAhk(scriptPath, module)
         const tAhkEnd = Date.now()
         console.log(`=========================`)
         console.log(`ETAPA: AutoHotkey`)
