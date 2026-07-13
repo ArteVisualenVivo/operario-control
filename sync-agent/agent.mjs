@@ -279,7 +279,8 @@ async function processCommand(redis, commandId, module) {
                 warnings: [],
             }
         } else {
-            const { items } = parseExcel(buffer)
+            const parsed = parseExcel(buffer)
+            const items = parsed.items
 
             if (items.length === 0) {
                 result = {

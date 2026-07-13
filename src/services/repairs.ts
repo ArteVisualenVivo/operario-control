@@ -161,41 +161,58 @@ function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRec
 }
 
 let getRepairsCalls = 0
+let repairsCache: MachineRepair[] | null = null
+let repairsPromise: Promise<MachineRepair[]> | null = null
+
+function clearRepairsCache() {
+  repairsCache = null
+  repairsPromise = null
+}
 
 export async function getRepairs(): Promise<MachineRepair[]> {
-  try {
-    const res = await fetch("/api/local/repairs", { cache: "no-store" })
-    if (res.ok) {
-      const data = await res.json()
-      if (Array.isArray(data)) {
-        return data.map((item) => ({
-          ...item,
-          entryDate: new Date(item.entryDate),
-          exitDate: new Date(item.exitDate),
-          warrantyUntil: new Date(item.warrantyUntil),
-          createdAt: new Date(item.createdAt),
-          updatedAt: new Date(item.updatedAt),
-          estimatedReturn: item.estimatedReturn ? new Date(item.estimatedReturn) : null,
-        })) as MachineRepair[]
+  if (repairsCache) return repairsCache
+  if (repairsPromise) return repairsPromise
+
+  repairsPromise = (async () => {
+    try {
+      const res = await fetch("/api/local/repairs", { cache: "no-store" })
+      if (res.ok) {
+        const data = await res.json()
+        if (Array.isArray(data)) {
+          const result = data.map((item) => ({
+            ...item,
+            entryDate: new Date(item.entryDate),
+            exitDate: new Date(item.exitDate),
+            warrantyUntil: new Date(item.warrantyUntil),
+            createdAt: new Date(item.createdAt),
+            updatedAt: new Date(item.updatedAt),
+            estimatedReturn: item.estimatedReturn ? new Date(item.estimatedReturn) : null,
+          })) as MachineRepair[]
+          repairsCache = result
+          return result
+        }
       }
+    } catch {
+      // fallback below
     }
-  } catch {
-    // fallback below
-  }
 
-  if (LOCAL_MODE) return []
+    if (LOCAL_MODE) return []
 
-  const start = Date.now()
-  const q = query(collection(db, COLLECTION), orderBy("entryDate", "desc"))
-  const snapshot = await getDocs(q)
-  getRepairsCalls++
-  console.log(`[SYNC] getRepairs() Call #${getRepairsCalls} docs=${snapshot.size} time=${(Date.now() - start).toFixed(1)}ms`)
-  const repairs = snapshot.docs.map(docToRepair)
-  const maintenance = await getMaintenanceRecords()
-  const imported = maintenance.map(maintenanceToRepair)
-  const merged = [...repairs, ...imported]
-  merged.sort((a, b) => b.entryDate.getTime() - a.entryDate.getTime())
-  return merged
+    const start = Date.now()
+    const q = query(collection(db, COLLECTION), orderBy("entryDate", "desc"))
+    const snapshot = await getDocs(q)
+    getRepairsCalls++
+    console.log(`[SYNC] getRepairs() Call #${getRepairsCalls} docs=${snapshot.size} time=${(Date.now() - start).toFixed(1)}ms`)
+    const repairs = snapshot.docs.map(docToRepair)
+    const maintenance = await getMaintenanceRecords()
+    const imported = maintenance.map(maintenanceToRepair)
+    const merged = [...repairs, ...imported]
+    merged.sort((a, b) => b.entryDate.getTime() - a.entryDate.getTime())
+    repairsCache = merged
+    return merged
+  })()
+
+  return repairsPromise
 }
 
 let getRepairsByMachineCalls = 0
@@ -270,6 +287,7 @@ export async function createRepair(input: CreateRepairInput): Promise<string> {
   }
 
   await createAuditLog("create", "machine_repair", docRef.id, null, docData)
+  clearRepairsCache()
   return docRef.id
 }
 

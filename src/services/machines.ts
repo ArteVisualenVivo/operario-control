@@ -11,6 +11,15 @@ import type { Machine, MachineRental, LocationInfo, CreateMachineInput, UpdateMa
 
 const COLLECTION = "machines"
 
+let getMachinesCalls = 0
+let machinesCache: Machine[] | null = null
+let machinesPromise: Promise<Machine[]> | null = null
+
+function clearMachinesCache() {
+  machinesCache = null
+  machinesPromise = null
+}
+
 function toDate(val: unknown): Date {
   if (val instanceof Timestamp) return val.toDate()
   if (val instanceof Date) return val
@@ -92,6 +101,7 @@ export async function createMachine(input: CreateMachineInput): Promise<string> 
   }
   const docRef = await addDoc(collection(db, COLLECTION), docData)
   await createAuditLog("create", "machine", docRef.id, null, docData)
+  clearMachinesCache()
   return docRef.id
 }
 
@@ -120,6 +130,7 @@ export async function rentMachine(id: string, rental: MachineRental): Promise<vo
   })
   const after = { ...before, status: "rented", rental: rentalData }
   await createAuditLog("update", "machine", id, before ?? null, after)
+  clearMachinesCache()
 }
 
 export async function returnMachine(id: string): Promise<void> {
@@ -145,6 +156,7 @@ export async function returnMachine(id: string): Promise<void> {
   })
   const after = { ...before, status: "available", rental: rentalData }
   await createAuditLog("update", "machine", id, before ?? null, after)
+  clearMachinesCache()
 }
 
 export async function updateMachine(id: string, data: UpdateMachineInput): Promise<void> {
@@ -157,6 +169,7 @@ export async function updateMachine(id: string, data: UpdateMachineInput): Promi
   await updateDoc(ref, updates)
   const after = { ...before, ...updates }
   await createAuditLog("update", "machine", id, before ?? null, after)
+  clearMachinesCache()
 }
 
 export async function deleteMachine(id: string): Promise<void> {
@@ -164,6 +177,7 @@ export async function deleteMachine(id: string): Promise<void> {
   const before = (await getDoc(ref)).data() as Record<string, unknown> | undefined
   await deleteDoc(ref)
   await createAuditLog("delete", "machine", id, before ?? null, null)
+  clearMachinesCache()
 }
 
 export async function getMachine(id: string): Promise<Machine | null> {
@@ -192,27 +206,36 @@ export async function deleteAllMachines(): Promise<number> {
     }
   }
 
+  clearMachinesCache()
   return total
 }
 
-let getMachinesCalls = 0
-
 export async function getMachines(): Promise<Machine[]> {
-  try {
-    const q = query(collection(db, COLLECTION), orderBy("name"))
-    const start = Date.now()
-    const snapshot = await getDocs(q)
-    getMachinesCalls++
-    console.log(`[SYNC] getMachines() Call #${getMachinesCalls} docs=${snapshot.size} time=${(Date.now() - start).toFixed(1)}ms`)
-    const data = snapshot.docs.map(docToMachine)
-    if (LOCAL_MODE && data.length === 0) {
-      return LOCAL_MACHINE_SEED
+  if (machinesCache) return machinesCache
+  if (machinesPromise) return machinesPromise
+
+  machinesPromise = (async () => {
+    try {
+      const q = query(collection(db, COLLECTION), orderBy("name"))
+      const start = Date.now()
+      const snapshot = await getDocs(q)
+      getMachinesCalls++
+      console.log(`[SYNC] getMachines() Call #${getMachinesCalls} docs=${snapshot.size} time=${(Date.now() - start).toFixed(1)}ms`)
+      const data = snapshot.docs.map(docToMachine)
+      if (LOCAL_MODE && data.length === 0) {
+        return LOCAL_MACHINE_SEED
+      }
+      machinesCache = data
+      return data
+    } catch {
+      if (LOCAL_MODE) {
+        return LOCAL_MACHINE_SEED
+      }
+      throw new Error("No se pudieron cargar las máquinas")
+    } finally {
+      machinesPromise = null
     }
-    return data
-  } catch {
-    if (LOCAL_MODE) {
-      return LOCAL_MACHINE_SEED
-    }
-    throw new Error("No se pudieron cargar las máquinas")
-  }
+  })()
+
+  return machinesPromise
 }

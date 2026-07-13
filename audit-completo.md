@@ -1,657 +1,569 @@
-# AUDITORÍA COMPLETA — OPERARIO CONTROL
+# Auditoría Completa del Proyecto Operario Control
 
-**Fecha:** 26/06/2026
-**Versión:** 0.1.0
-**Stack:** Next.js 16.2.9 + React 19.2.4 + TypeScript + Firebase + Tailwind CSS 4 + Base UI + shadcn/ui
-**Idioma:** Español (ES)
-**Firebase Project:** operario-control
+## 1. Arquitectura Completa
 
----
+El sistema Operario Control es una aplicación web (Next.js) que se integra con un sistema de gestión local (3C) a través de un agente de automatización (Node.js + AutoHotkey). Utiliza Firestore como base de datos principal y Redis para la gestión de colas de sincronización y estado del agente.
 
-## 1. ESTRUCTURA DEL PROYECTO
+### 1.1 Componentes Principales
 
-```
-operario-control/
-├── .env.local                    # Config Firebase (9 vars: 7 Firebase + 2 Cloudinary)
-├── .gitignore                    # Ignora node_modules, .next, .env*, service-account.json, local_exports/
-├── AGENTS.md                     # Reglas para Next.js v16
-├── CLAUDE.md                     # Apunta a AGENTS.md
-├── components.json               # Config shadcn/ui
-├── eslint.config.mjs             # ESLint flat config (Next.js core-web-vitals + typescript)
-├── next-env.d.ts                 # Tipos generados por Next
-├── next.config.ts                # Config Next.js vacía
-├── package.json                  # 23 dependencias prod, 8 dev, 8 scripts
-├── postcss.config.mjs            # @tailwindcss/postcss
-├── tsconfig.json                 # Strict, bundler, paths: @/ → src/
-├── README.md                     # Template create-next-app
-├── audit-completo.md             # Esta auditoría
-├── local_exports/logs/           # Directorio para exportación de logs
-├── public/                       # 5 SVGs (file, globe, next, vercel, window)
-├── scripts/
-│   ├── seed-machines.ts          # Seed 67 máquinas (firebase-admin)
-│   ├── export-logs.ts            # Exportar audit_logs a .txt
-│   ├── fix-rented-machines.ts    # Fix rented machines inconsistentes
-│   └── audit.ts                  # Auto-auditoría (legacy)
-├── docs/
-│   ├── auditoria-sistema.md      # Auditoría detallada del sistema
-│   └── chat-log.txt              # Log de conversaciones relevantes
-└── src/
-    ├── app/
-    │   ├── globals.css            # Tema OKLCH, Tailwind 4, animaciones
-    │   ├── layout.tsx             # Layout raíz: AuthProvider + Toaster
-    │   ├── page.tsx               # Redirige a /dashboard
-    │   ├── login/page.tsx         # Login email/password
-    │   ├── api/
-    │   │   └── cloudinary/
-    │   │       └── delete/route.ts  # Server: destroy en Cloudinary (Basic Auth)
-    │   └── (protected)/
-    │       ├── layout.tsx         # NavBar + redirect si no auth
-    │       ├── dashboard/page.tsx # KPIs, categories, alerts, machine grid, stock grid
-    │       ├── andamios/page.tsx  # Andamios: machine grid + stock grid
-    │       ├── inventory/
-    │       │   ├── page.tsx       # Listado de stock de materiales
-    │       │   ├── new/page.tsx   # Crear item de stock
-    │       │   └── [id]/page.tsx  # Detalle de item de stock
-    │       ├── stock/page.tsx     # Stock global unificado
-    │       ├── stock-movements/page.tsx  # Movimientos de stock (repuestos)
-    │       ├── inventory-movements/page.tsx  # Movimientos de materiales
-    │       ├── machines/
-    │       │   ├── page.tsx       # Listado de máquinas
-    │       │   ├── new/page.tsx   # Crear máquina (con quantity loop)
-    │       │   └── [id]/
-    │       │       ├── page.tsx   # Detalle + editar + rental + spare parts + blueprints
-    │       │       ├── parts/page.tsx   # Spare parts CRUD + blueprint import
-    │       │       └── blueprints/page.tsx  # Blueprint list + upload + delete
-    │       ├── rentals/
-    │       │   ├── page.tsx       # Listado (legacy)
-    │       │   ├── new/page.tsx   # Crear (legacy)
-    │       │   └── [id]/page.tsx  # Detalle (legacy)
-    │       └── repairs/
-    │           ├── page.tsx       # Listado (legacy)
-    │           ├── new/page.tsx   # Crear (legacy)
-    │           └── [id]/page.tsx  # Detalle (legacy)
-    ├── components/
-    │   ├── machines/
-    │   │   ├── MachineCard.tsx           # Card con 3 ramas (Alquilada/Disponible/En reparación)
-    │   │   ├── SparePartCard.tsx         # Card con partCode, badge categoría, stock, use/restock
-    │   │   ├── BlueprintUploader.tsx     # Drag & drop zone con preview PDF/imagen
-    │   │   ├── BlueprintImportPanel.tsx  # Split view: PDF left + draft form right
-    │   │   ├── ImportInventory.tsx       # Importar Excel .xlsx/.xls
-    │   │   └── SeedInventory.tsx         # Seed button en UI
-    │   ├── ui/
-    │   │   ├── ErrorState.tsx            # Renderiza error según tipo
-    │   │   ├── badge.tsx, button.tsx, card.tsx, dialog.tsx,
-    │   │   ├── input.tsx, label.tsx, select.tsx, separator.tsx,
-    │   │   ├── sonner.tsx, table.tsx
-    │   └── ui/[brand]/...               # Componentes de dominio adicionales
-    ├── hooks/
-    │   ├── useAuth.ts
-    │   ├── useMachines.ts
-    │   ├── useRentals.ts
-    │   ├── useRepairs.ts
-    │   ├── useSpareParts.ts
-    │   ├── useMachineBlueprints.ts
-    │   ├── useBlueprintDrafts.ts
-    │   └── useInventoryStock.ts
-    ├── lib/
-    │   ├── AuthContext.tsx
-    │   ├── categories.ts           # Subcategorías + colores + mapOldCategory
-    │   ├── firebase.ts             # Init Firebase client
-    │   ├── ui.ts                   # Funciones UI (formatDate, etc.)
-    │   └── utils.ts                # cn() con tailwind-merge
-    ├── services/
-    │   ├── auth.ts                 # signIn, signOut, onAuthStateChanged
-    │   ├── machines.ts             # CRUD + rent/maintenance lifecycle + scaffold middleware
-    │   ├── rentals.ts              # CRUD rentals + update machine status (legacy)
-    │   ├── repairs.ts              # CRUD repairs + update machine status (legacy)
-    │   ├── audit.ts                # createAuditLog + fetchAuditLogs
-    │   ├── inventoryStock.ts       # CRUD stock materiales + rentStockItem/returnStockItem + createMovement
-    │   ├── inventoryMovements.ts   # CRUD movimientos de inventario (ALQUILER/DEVOLUCION/AJUSTE)
-    │   ├── scaffoldRental.ts       # BOM andamios: rent/return scaffold components del stock
-    │   ├── spareParts.ts           # CRUD repuestos + usePart/restockPart + deleteBlueprintSpareParts
-    │   ├── machineBlueprints.ts    # Upload/get/delete despieces (Cloudinary + Firestore)
-    │   ├── blueprintDrafts.ts      # CRUD borradores + confirm → spare_parts
-    │   ├── pdfPartsExtractor.ts    # Extraer códigos Bosch de PDF con pdfjs-dist
-    │   ├── stockMovements.ts       # CRUD movimientos de stock de repuestos
-    │   ├── recommendationEngine.ts # Motor de recomendación (6 intents en español)
-    │   └── recommendationAudit.ts  # Auditoría de recomendaciones
-    └── types/
-        ├── index.ts                # Re-exporta todos
-        ├── machine.ts              # Machine, MachineStatus, MachineCategory, etc.
-        ├── rental.ts               # Rental, RentalStatus, RentalFormData
-        ├── repair.ts               # Repair, RepairStatus, RepairFormData
-        ├── audit.ts                # AuditLog, AuditAction, AuditEntity
-        ├── inventoryStock.ts       # InventoryStock, StockCategory, StockUnit, StockSize
-        ├── inventoryMovement.ts    # InventoryMovement, InventoryMovementType
-        ├── sparePart.ts            # SparePart, SparePartCategory, SparePartSource
-        ├── blueprint.ts            # MachineBlueprint
-        ├── blueprintDraft.ts       # BlueprintDraft
-        ├── stockMovement.ts        # StockMovement, StockMovementType
-        ├── recommendation.ts       # Recommendation, RecommendationIntent
-        └── errors.ts               # AppError
+*   **Interfaz de Usuario (UI) / Frontend:** Aplicación Next.js desplegada en Vercel, utilizando React, Tailwind CSS y shadcn/ui. Proporciona la interfaz para la gestión de máquinas, reparaciones, inventario, alquileres y el dashboard.
+*   **API Routes:** Funciones serverless de Next.js (Node.js runtime) desplegadas en Vercel. Gestionan la creación de comandos de sincronización con 3C, el estado del agente y la eliminación de archivos en Cloudinary.
+*   **Agente Local (`sync-agent/agent.mjs`):** Una aplicación Node.js que se ejecuta en una máquina local con Windows. Es el puente entre la aplicación web y el sistema 3C. Escucha comandos de sincronización, ejecuta scripts AutoHotkey, procesa archivos Excel y actualiza la base de datos.
+*   **Scripts AutoHotkey (AHK):** Un conjunto de scripts (`automation/*.ahk`) que automatizan la interacción con la aplicación de escritorio 3C. Realizan navegación, filtrado y exportación de datos a archivos Excel.
+*   **Redis (Upstash):** Una base de datos en memoria utilizada para la cola de comandos de sincronización, el almacenamiento de estado de comandos y el heartbeat del agente. Actúa como un componente crítico para la comunicación asíncrona y la resiliencia del agente local.
+*   **Firestore (Google Cloud Platform):** La base de datos NoSQL principal del sistema. Almacena todos los datos de la aplicación (máquinas, reparaciones, inventario, usuarios, logs de auditoría, etc.). Es la fuente de verdad para la mayoría de la información mostrada en la UI.
+*   **Cloudinary:** Servicio de gestión de medios para almacenar planos y despieces técnicos de las máquinas (archivos PDF e imágenes).
+*   **Automation Watcher (`automation-watcher/`):** Un módulo Node.js que trabaja en conjunto con el agente local para monitorear y procesar los archivos Excel exportados por 3C.
+
+### 1.2 Diagrama de Arquitectura General
+
+```mermaid
+graph TD
+     subgraph Cloud [Nube]
+        UI[UI Web - Next.js/Vercel] --> |1. POST /api/sync-3c| API[API Routes - Vercel Node.js]
+        UI -- |GET /api/sync-3c/status| API
+        UI -- |GET /api/sync-3c/agent-status| API
+        UI -- |Direct CRUD via SDK| Firestore[Firestore - Google Cloud]
+        UI -- |Upload files| Cloudinary[Cloudinary]
+
+        API --> |2. LPUSH cmd ID & HSET cmd status| Redis[Redis - Upstash]
+        API --> |2. Create command & Set agent heartbeat| Firestore
+
+        Firestore -- |Read/Write data & Audit logs| UI
+        Cloudinary -- |Delete files| API
+    end
+
+    subgraph Local [Máquina Local (Windows)]
+        Agent[Agente Local - Node.js] --> |3. RPOP cmd ID & HGETALL status| Redis
+        Agent --> |3. Poll commands & Read agent heartbeat| Firestore
+        Agent --> |4. Spawn AHK script| AHK[AutoHotkey Scripts]
+        AHK --> |5. Interact with 3C & Export Excel| ThreeC[Sistema 3C - Aplicación de Escritorio]
+        ThreeC --> |6. Save Excel files| LocalFS[Sistema de Archivos Local / Temp]
+        LocalFS --> |7. Read Excel & Parse| Agent
+        Agent --> |8. Sync data to inventory_stock & HSET result| Firestore
+        Agent --> |8. Set result & cmd status| Redis
+    end
+
+    style UI fill:#bde0fe,stroke:#333,stroke-width:2px
+    style API fill:#a2d2ff,stroke:#333,stroke-width:2px
+    style Firestore fill:#cdb4db,stroke:#333,stroke-width:2px
+    style Cloudinary fill:#ffc8dd,stroke:#333,stroke-width:2px
+    style Redis fill:#ffafcc,stroke:#333,stroke-width:2px
+    style Agent fill:#a2d2ff,stroke:#333,stroke-width:2px
+    style AHK fill:#bde0fe,stroke:#333,stroke-width:2px
+    style ThreeC fill:#cdb4db,stroke:#333,stroke-width:2px
+    style LocalFS fill:#ffc8dd,stroke:#333,stroke-width:2px
 ```
 
-**Total archivos fuente:** ~110+ (TSX + TS + CSS)
+### 1.3 Stack Tecnológico
 
----
+*   **Frontend Framework:** Next.js 16 (App Router), React 19.
+*   **Styling:** Tailwind CSS v4, @base-ui/react (shadcn style).
+*   **Backend (API Routes):** Next.js API routes (serverless en Vercel).
+*   **Base de Datos Principal:** Firestore (Google Cloud).
+*   **Base de Datos Adicional (Cola/Cache):** Redis (Upstash).
+*   **Autenticación:** Firebase Auth (email/password).
+*   **Almacenamiento de Archivos:** Cloudinary (para planos/despieces PDF).
+*   **SDKs:** `firebase-admin` (para API routes y agente), `firebase` (para el cliente web).
+*   **Procesamiento de Archivos:** `xlsx` (para Excel), `pdfjs-dist` (para PDF).
+*   **Notificaciones:** `sonner` (toasts).
+*   **Agente Local:** Node.js + `tsx` + AutoHotkey v2.
+*   **Despliegue:** Vercel (para la aplicación web y API routes).
 
-## 2. CONFIGURACIÓN
+### 1.4 Flujo de Sincronización 3C (Visión General)
 
-### 2.1 Firebase
-- **Client SDK:** `firebase` v12.14.0
-- **Admin SDK:** `firebase-admin` v14.0.0 (solo scripts)
-- **Colecciones Firestore (11):** `machines`, `rentals`, `repairs`, `audit_logs`, `inventory_stock`, `inventory_movements`, `machine_spare_parts`, `machine_blueprints`, `blueprint_drafts`, `recommendation_audit`, `stock_movements`
-- **Auth:** Email/password únicamente
-- **Variables .env.local:** 7 vars Firebase (`NEXT_PUBLIC_FIREBASE_*`) + 2 vars Cloudinary
-- **service-account.json:** Requerido en raíz para scripts, en .gitignore
+La sincronización con el sistema 3C se realiza de forma asíncrona y orquestada entre la UI, las API Routes, Redis/Firestore y el agente local:
 
-### 2.2 Cloudinary
-- **Cloud Name:** `dpcdsorty`
-- **Upload Preset:** `operario_blueprints` (unsigned, público)
-- **Carpeta:** `blueprints`
-- **Formatos:** `pdf, jpg, jpeg, png, gif, webp`
-- **Eliminación:** API route `/api/cloudinary/delete` (Basic Auth)
+1.  **Inicio desde UI:** El usuario desencadena una sincronización desde la interfaz web.
+2.  **Creación de Comando:** La UI llama a una API Route (`POST /api/sync-3c`), que crea un comando pendiente en Redis y/o Firestore.
+3.  **Polling del Agente:** El agente local, que corre en un bucle continuo, consulta periódicamente Redis y/o Firestore en busca de nuevos comandos pendientes.
+4.  **Ejecución AHK:** Al detectar un comando, el agente marca su estado como "running" y lanza el script AutoHotkey correspondiente.
+5.  **Interacción 3C:** El script AHK interactúa con la aplicación 3C, navegando menús y exportando datos a un archivo Excel temporal.
+6.  **Procesamiento de Datos:** El agente lee y parsea el archivo Excel. Luego, utiliza los datos para actualizar la colección `inventory_stock` en Firestore (o guarda el resultado en Redis si Firestore está inactivo).
+7.  **Actualización de Estado:** El agente actualiza el estado del comando en Redis y/o Firestore a "completed" o "failed", junto con un resultado o mensaje de error.
+8.  **Visualización en UI:** La UI, que ha estado haciendo polling para el estado del comando, muestra el resultado de la sincronización al usuario.
 
-### 2.3 Scripts npm
-| Script | Comando | Descripción |
-|--------|---------|-------------|
-| `dev` | `next dev --turbopack` | Servidor desarrollo con Turbopack |
-| `build` | `next build` | Build producción |
-| `start` | `next start` | Iniciar servidor producción |
-| `lint` | `next lint` | Linting |
-| `seed` | `tsx scripts/seed-machines.ts` | Seed 67 máquinas |
-| `export-logs` | `tsx scripts/export-logs.ts` | Exportar audit logs a Excel |
-| `fix:rented` | `tsx scripts/fix-rented-machines.ts` | Fix rented machines inconsistentes |
-| `audit` | `tsx scripts/audit.ts` | Auto-auditoría (legacy) |
+## 2. Flujo de Datos
 
-### 2.4 Dependencias clave
-- **UI:** `@base-ui/react` v1.5.0, `tailwindcss` v4, `shadcn` v2.0.0
-- **Firebase:** `firebase` v12.14.0, `firebase-admin` v14.0.0
-- **PDF:** `pdfjs-dist` v6.0.227
-- **Utilidades:** `lucide-react`, `sonner`, `xlsx`, `clsx`, `tailwind-merge`, `class-variance-authority`, `tw-animate-css`, `next-themes`
-- **Next.js v16.2.9** con Turbopack
+### 2.1 Flujo General del Cliente (UI)
 
-### 2.5 TypeScript
-- Strict mode, target ES2017
-- Path alias `@/` → `./src/*`
-- Bundler module resolution
+*   **Autenticación:**
+    *   `UI` -> `Firebase Auth` (email/password) para login y gestión de sesión.
+    *   `src/lib/AuthContext.tsx` y `src/hooks/useAuth.ts` manejan el estado de autenticación.
+*   **Lectura/Escritura Directa a Firestore:**
+    *   La mayoría de las operaciones CRUD para colecciones como `machines`, `repairs`, `inventory_stock`, `machine_spare_parts`, `machine_blueprints`, `blueprint_drafts`, `maintenance_settings`, `audit_logs` se realizan directamente desde el `UI` utilizando el `Firebase Client SDK`.
+    *   Los `services/*.ts` (e.g., `src/services/machines.ts`, `src/services/inventoryStock.ts`) encapsulan la lógica de acceso a Firestore.
+    *   Los `hooks/*.ts` (e.g., `src/hooks/useMachines.ts`, `src/hooks/useInventoryStock.ts`) proporcionan una interfaz React para consumir estos servicios y gestionar el estado local.
+*   **Subida de Archivos (Cloudinary):**
+    *   `UI` (`BlueprintUploader`) -> `Cloudinary auto/upload` (unsigned, preset `operario_blueprints`).
+    *   Cloudinary devuelve `public_id` y `secure_url`.
+    *   Estos metadatos se guardan en `Firestore` (`machine_blueprints`).
+    *   Si es PDF, `pdfjs-dist` extrae texto y detecta códigos Bosch para crear borradores de repuestos (`blueprint_drafts`).
+*   **Eliminación de Archivos (Cloudinary):**
+    *   `UI` -> `API Route` (`POST /api/cloudinary/delete`).
+    *   La `API Route` utiliza `Cloudinary SDK` con `API Key/Secret` para eliminar el archivo.
+    *   Luego, el documento correspondiente se elimina de `Firestore` (`machine_blueprints` y `machine_spare_parts` relacionados).
 
----
+### 2.2 Flujo de Sincronización con 3C
 
-## 3. MODELO DE DATOS (FIRESTORE)
+*   **Inicio de Sincronización:**
+    *   `UI` (`Sync3CButton.tsx`) -> `API Route` (`POST /api/sync-3c`).
+    *   `API Route` crea un comando en `Redis` (`LPUSH sync-3c:queue`, `HSET sync-3c:command:{id}`) y/o `Firestore` (`sync-3c-commands/{id}`).
+*   **Procesamiento por el Agente Local:**
+    *   `Agente Local` (`agent.mjs`) polls `Redis` (`RPOP sync-3c:queue`) o `Firestore` (`sync-3c-commands`) cada 5-30 segundos.
+    *   Al detectar un comando `pending`, actualiza su estado a `running` en `Redis` y/o `Firestore`.
+    *   `Agente Local` -> `AutoHotkey Scripts` (`automation/*.ahk`).
+    *   `AutoHotkey` interactúa con `Sistema 3C` -> exporta Excel a `%LOCALAPPDATA%\Temp\tresc\`.
+    *   `Agente Local` (vía `automation-watcher/excel-parser.js`) lee y parsea el Excel.
+    *   `Agente Local` (vía `src/lib/sync-3c/engine.ts`) -> `Firestore` (`inventory_stock`) para upsert de ítems.
+    *   **Fallback:** Si `Firestore` falla (e.g., por cuota), el agente genera un resultado `degraded: true` y lo guarda en `Redis` (`sync-3c:result:{id}`). Esto asegura que el agente no se detenga y que el usuario reciba un estado, aunque sea degradado.
+    *   `Agente Local` actualiza el estado del comando en `Redis` y/o `Firestore` a `completed` o `failed`, incluyendo `result` o `error`.
+*   **Monitoreo del Estado:**
+    *   `UI` (`Sync3CButton.tsx`) -> `API Route` (`GET /api/sync-3c/status?commandId=x`) para polling del estado del comando en `Redis` y/o `Firestore`.
+    *   `Agente Local` envía `heartbeat` a `Redis` (`SET sync-3c:agent:production`) y/o `Firestore` (`sync-3c-agent/production`).
+    *   `UI` (`Sync3CButton.tsx`) -> `API Route` (`GET /api/sync-3c/agent-status`) para verificar el estado online/offline del agente.
 
-### 3.1 Colección `machines` (11 campos)
-| Campo | Tipo | Descripción |
-|-------|------|-------------|
-| `name` | string | Nombre del equipo |
-| `model` | string | Modelo específico |
-| `category` | `"andamio" \| "maquinaria" \| "herramienta"` | Categoría principal |
-| `subcategory` | string \| null | Subcategoría (solo andamios) |
-| `status` | `"available" \| "rented" \| "maintenance"` | Estado actual |
-| `location` | `"taller" \| "deposito" \| "obra"` | Ubicación física |
-| `rental` | RentalInfo \| null | Datos del alquiler activo |
-| `maintenance` | MaintenanceInfo \| null | Datos del mantenimiento activo |
-| `metadata` | { priceAction: boolean } \| null | Metadatos varios |
-| `createdAt` | Timestamp | Fecha creación |
-| `updatedAt` | Timestamp | Fecha última modificación |
+### 2.3 Flujo de Movimientos de Inventario y Repuestos
 
-### 3.2 Colección `audit_logs`
-| Campo | Tipo |
-|-------|------|
-| `action` | `"create" \| "update" \| "delete"` |
-| `entity` | `"machine" \| "rental" \| "repair" \| "spare_part" \| "inventory_stock" \| "machine_blueprint" \| "blueprint_draft"` |
-| `entityId` | string |
-| `before` | Record \| null |
-| `after` | Record \| null |
-| `timestamp` | Timestamp |
-| `userId` | string |
+*   **Máquinas:**
+    *   `UI` (`useMachines().rentMachine()`) -> `src/services/machines.ts::rentMachine()`.
+    *   `machines.ts::rentMachine()` -> `src/services/scaffoldRental.ts::rentScaffoldComponents()` si es categoría "scaffold".
+    *   `scaffoldRental.ts::rentScaffoldComponents()` -> `src/services/inventoryStock.ts::rentStockItem()`.
+    *   `inventoryStock.ts::rentStockItem()` -> Decrementa `stockAvailable`, incrementa `stockRented` en `inventory_stock`.
+    *   `inventoryStock.ts::rentStockItem()` -> `src/services/inventoryMovements.ts::createInventoryMovement()` para registrar movimiento `ALQUILER`.
+*   **Reparaciones y Repuestos:**
+    *   `UI` (`RepairForm`) -> `src/services/repairs.ts::createRepair()`.
+    *   `repairs.ts::createRepair()` itera sobre `partsUsed[]`.
+    *   Por cada parte usada:
+        *   `repairs.ts` -> `src/services/spareParts.ts::usePart()`.
+        *   `spareParts.ts::usePart()` -> Decrementa `stockTotal` y `stockAvailable`, incrementa `stockUsed` en `machine_spare_parts`.
+        *   `spareParts.ts::usePart()` -> `src/services/stockMovements.ts::createStockMovement()` para registrar movimiento `EGRESO` con `source: "REPARACION"`.
 
-### 3.3 Colección `inventory_stock`
-| Campo | Tipo | Descripción |
-|-------|------|-------------|
-| `name` | string | Nombre del material |
-| `category` | `"puntales" \| "riendas" \| "andamio_accesorios" \| "consumibles"` | Categoría |
-| `size` | string \| null | Tamaño (ej. "1m", "2m", "3m") |
-| `unit` | `"unidad" \| "metro" \| "kg"` | Unidad de medida |
-| `stockTotal` | number | Stock total |
-| `stockRented` | number | Stock actualmente alquilado |
-| `createdAt` | Timestamp | |
-| `updatedAt` | Timestamp | |
+### 2.4 Flujo de Auditoría
 
-### 3.4 Colección `inventory_movements` (FASE 2)
-| Campo | Tipo | Descripción |
-|-------|------|-------------|
-| `materialId` | string | ID del material (inventory_stock) |
-| `type` | `"ALQUILER" \| "DEVOLUCION" \| "AJUSTE"` | Tipo de movimiento |
-| `quantity` | number | Cantidad |
-| `date` | Timestamp | Fecha del movimiento |
-| `clientName` | string \| null | Cliente asociado |
-| `projectName` | string \| null | Obra asociada |
-| `reference` | string \| null | ID de máquina/rental |
-| `rentalId` | string \| null | ID de rental (futuro) |
+*   Casi todas las operaciones CRUD en los `services/*.ts` (e.g., `machines`, `spareParts`, `inventoryStock`) llaman a `src/services/audit.ts::createAuditLog()`.
+*   `createAuditLog()` escribe un documento en la colección `audit_logs` con `action` (`create`/`update`/`delete`), `entity` (`EntityType`), `entityId`, `before` y `after` estados, y `timestamp`. El `userId` no se popula.
 
-### 3.5 Colección `machine_spare_parts`
-| Campo | Tipo |
-|-------|------|
-| `machineId` | string |
-| `machineName` | string |
-| `machineModel` | string |
-| `partName` | string |
-| `partCode` | string |
-| `category` | `"motor" \| "filtro" \| "electrico" \| "estructural" \| "consumible" \| "otro"` |
-| `unit` | string |
-| `stockTotal` | number |
-| `stockAvailable` | number |
-| `stockUsed` | number |
-| `source` | `"manual" \| "imported" \| "blueprint"` |
-| `blueprintId` | string \| null |
-| `createdAt` | Timestamp |
-| `updatedAt` | Timestamp |
+## 3. Flujo de Sincronización con 3C
 
-### 3.6 Colección `machine_blueprints`
-| Campo | Tipo |
-|-------|------|
-| `machineId` | string |
-| `fileUrl` | string |
-| `publicId` | string |
-| `fileName` | string |
-| `fileType` | `"pdf" \| "image"` |
-| `createdAt` | Timestamp |
+La sincronización con el sistema 3C es un proceso crítico que involucra varios componentes, orquestado para extraer datos del sistema de escritorio y actualizarlos en Firestore.
 
-### 3.7 Colección `blueprint_drafts`
-| Campo | Tipo |
-|-------|------|
-| `machineId` | string |
-| `blueprintId` | string |
-| `partCode` | string |
-| `partName` | string |
-| `createdAt` | Timestamp |
+#### 3.1 Componentes Involucrados
 
-### 3.8 Colecciones legacy: `rentals`, `repairs`, `stock_movements`, `recommendation_audit`
+*   **UI (`src/components/sync/Sync3CButton.tsx`):** Inicia la solicitud de sincronización y muestra el estado.
+*   **API Route (`src/app/api/sync-3c/route.ts`):** Recibe la solicitud de la UI y crea el comando de sincronización.
+*   **Redis (Upstash):** Actúa como cola de comandos (`sync-3c:queue`) y almacén de estado (`sync-3c:command:{id}`, `sync-3c:result:{id}`). También guarda el heartbeat del agente (`sync-3c:agent:production`).
+*   **Firestore:** Históricamente, también se usaba para la cola de comandos (`sync-3c-commands`) y el heartbeat (`sync-3c-agent`). Actualmente, Redis es el primario, pero el código aún soporta Firestore. Es el destino final de los datos sincronizados (`inventory_stock`).
+*   **Agente Local (`sync-agent/agent.mjs`):** El orquestador principal del lado local. Escucha la cola de comandos, ejecuta AHK, procesa el Excel y sincroniza los datos.
+*   **Scripts AutoHotkey (`automation/sync_3c.ahk`, `automation/sync_reparaciones.ahk`, etc.):** Automatizan la navegación y exportación en el sistema 3C.
+*   **Sistema 3C:** La aplicación de escritorio de la cual se extraen los datos.
+*   **Módulo Excel Parser (`automation-watcher/excel-parser.js`, `src/lib/sync-3c/parser.ts`):** Lee y transforma el contenido de los archivos Excel exportados a un formato estructurado.
+*   **Módulo Sync Engine (`src/lib/sync-3c/engine.ts`):** Realiza la lógica de upsert de los datos parseados en la colección `inventory_stock` de Firestore.
 
----
+#### 3.2 Flujo Detallado
 
-## 4. TIPOS (TypeScript)
+1.  **Inicio (UI):** El usuario hace clic en el botón de sincronización (`Sync3CButton.tsx`) en el Dashboard.
+2.  **Creación de Comando (API Route):**
+    *   La UI realiza un `POST` a `/api/sync-3c`.
+    *   Esta API crea un nuevo comando con un `commandId` único.
+    *   El comando se encola en `sync-3c:queue` (Redis `LPUSH`) y su estado inicial (`pending`) se guarda en `sync-3c:command:{id}` (Redis `HSET`). Opcionalmente, también se crea/actualiza un documento en `sync-3c-commands/{id}` en Firestore.
+    *   La API responde a la UI con el `commandId`.
+3.  **Polling del Agente Local:**
+    *   El `agent.mjs` (ejecutándose en un bucle cada 30 segundos) realiza un `RPOP` en `sync-3c:queue` de Redis.
+    *   Si encuentra un `commandId`, lo marca como `running` en `sync-3c:command:{id}` (Redis `HSET`) y/o `sync-3c-commands/{id}` (Firestore).
+    *   El agente también envía un heartbeat a `sync-3c:agent:production` (Redis `SET`) cada 30 segundos, indicando su estado (`idle` o `running`) y la hora del último latido.
+4.  **Ejecución de AutoHotkey:**
+    *   El agente ejecuta el script AHK correspondiente (ej. `automation/sync_3c.ahk`) utilizando `child_process.spawn()`.
+    *   El script AHK realiza los siguientes pasos (ejemplo para Stock - `sync_3c.ahk`):
+        *   Minimiza navegadores (Chrome/Edge).
+        *   Activa la ventana de 3C (`WinActivate("3C")`).
+        *   Envía `Ctrl+Home` para asegurar que 3C está en el menú principal.
+        *   Simula clics y entradas de teclado para navegar a la sección de existencias: "Almacenes" -> "Informes" -> "Existencias" -> "Depósitos" -> "Seleccionar Todos" -> "Consulta" -> "Aceptar" -> "Excel".
+        *   Después de hacer clic en "Excel", 3C genera el reporte y abre el archivo en Excel.
+        *   El script AHK espera a que la ventana de Excel (`ahk_class XLMAIN`) aparezca y luego el `WatchAndCopy()` (parte de `sync_common.ahk`) monitorea el directorio `%LOCALAPPDATA%\Temp\tresc\` para el archivo `tresc*.xls` recién creado.
+        *   Una vez que el archivo es detectado, lo copia a `automation-watcher/3c_exports/` y luego cierra la ventana de Excel (`WinClose("ahk_class XLMAIN")`).
+        *   El script AHK termina (`ExitApp`). **Importante:** 3C queda en la pantalla del reporte (no vuelve al menú principal), lo que podría causar problemas en ejecuciones consecutivas sin un reinicio o navegación adecuada.
+5.  **Procesamiento y Sincronización de Datos:**
+    *   El agente local (`agent.mjs`) utiliza `src/lib/sync-3c/parser.ts` y `automation-watcher/excel-parser.js` para leer el archivo Excel exportado y transformarlo en objetos `Sync3CItem[]`.
+    *   Luego, llama a `src/lib/sync-3c/engine.ts::syncItems()` para procesar estos ítems.
+    *   `syncItems()` intenta realizar un `upsert` (crear o actualizar) de los ítems en la colección `inventory_stock` de Firestore.
+    *   **Manejo de Fallos de Firestore:** Si la operación de `syncItems()` a Firestore falla (ej. por exceder la cuota del plan Spark), el agente lo atrapa. En lugar de fallar, genera un resultado `degraded: true` y lo guarda en `Redis` (`sync-3c:result:{id}`). Esto asegura que el agente no se detenga y que el usuario reciba un estado, aunque sea degradado.
+6.  **Actualización Final del Comando:**
+    *   Una vez completado el procesamiento (exitoso o degradado), el agente actualiza el estado del comando en `sync-3c:command:{id}` (Redis `HSET`) y/o `sync-3c-commands/{id}` (Firestore) a `completed` o `failed`, incluyendo los detalles del resultado o el mensaje de error.
+7.  **Actualización de la UI:**
+    *   La UI (`Sync3CButton.tsx`) realiza polling constante a `/api/sync-3c/status?commandId=x`.
+    *   Al detectar el estado `completed` o `failed`, la UI muestra el resultado al usuario (ej. con `sonner` toasts) y actualiza los datos en pantalla si es necesario.
 
-### 4.1 Tipos de máquina (`types/machine.ts`)
-```typescript
-MachineStatus     = "available" | "rented" | "maintenance"
-MachineLocation   = "taller" | "deposito" | "obra"
-MachineCategory   = "andamio" | "maquinaria" | "herramienta"
+#### 3.3 Módulos de Sincronización AHK (Ejemplos)
 
-Machine, MachineRental, MachineMetadata,
-CreateMachineInput, UpdateMachineInput
+*   **Stock (`sync_3c.ahk`):** Navega para exportar existencias de depósitos.
+    *   Pasos: Almacenes -> Informes -> Existencias -> Depósitos -> Seleccionar todos -> Consulta -> Aceptar -> Excel.
+*   **Reparaciones (`sync_reparaciones.ahk`):** Navega para exportar informes de reparaciones.
+    *   Pasos: Ventas -> Reparaciones -> ExcelItems -> PrintAll -> Imprimir -> ExcelFormat.
+    *   Este script tiene una lógica adicional para `WaitForExcel`, `WatchAndCopy`, cerrar Excel y volver a 3C a la opción "SalirRep".
+*   **`sync_common.ahk`:** Contiene funciones compartidas como `ClickAt`, `WaitForExcel`, `WatchAndCopy`, `ValidarFoco`, `FocusFix` y la carga de coordenadas desde `config.ini`.
+
+#### 3.4 Configuración de Coordenadas
+
+*   Las coordenadas de clic para AutoHotkey se almacenan en `automation/config.ini`.
+*   `sync_common.ahk` carga estas coordenadas en un mapa para su uso dinámico por `ClickAt(name)`.
+*   Un problema detectado previamente fue que `sync_common.ahk` no cargaba la coordenada "Ventas" para `sync_reparaciones.ahk`.
+
+## 4. Flujo del Agente Local (`sync-agent/agent.mjs`)
+
+El agente local es un componente crítico que orquesta la comunicación entre la nube y el sistema de escritorio 3C. Se ejecuta como un proceso de Node.js en una máquina Windows.
+
+#### 4.1 Ciclo de Operación
+
+El agente opera en un bucle de polling continuo, realizando varias tareas en intervalos definidos:
+
+1.  **Polling de Comandos (cada 30s):**
+    *   Realiza un `RPOP` en la lista `sync-3c:queue` de Redis para obtener un `commandId` pendiente.
+    *   Si hay un comando, cambia su estado a `running` en `sync-3c:command:{id}` (Redis `HSET`) y/o `sync-3c-commands/{id}` (Firestore).
+    *   **Recuperación de Comandos Stale:** El agente también escanea periódicamente (`SCAN`) en Redis para identificar comandos que tienen el estado `running` por más de 10 minutos. Estos comandos se consideran "stale" (colgados) y se re-encolan para su reprocesamiento, lo que proporciona resiliencia ante fallos inesperados del agente o de AHK.
+2.  **Heartbeat (cada 30s):**
+    *   Envía un `SET` a `sync-3c:agent:production` en Redis, actualizando un JSON con `lastHeartbeat` (timestamp), `status` (`idle` o `running`) y `machineName`.
+    *   Este heartbeat permite que la UI monitoree si el agente está online y activo.
+3.  **Ejecución de AHK:**
+    *   Al recibir un comando, el agente determina el script AHK a ejecutar basado en el módulo de sincronización solicitado (ej. `stock` -> `sync_3c.ahk`, `reparaciones` -> `sync_reparaciones.ahk`).
+    *   Lanza el script AHK utilizando `child_process.spawn()` con el directorio `automation/` como `cwd` y `windowsHide: true`.
+    *   Espera la finalización del script AHK por un tiempo límite (configurable, por ejemplo, 120 segundos). Si AHK falla (código de salida distinto de 0) o excede el timeout, el agente marca el comando como `failed`.
+    *   Los scripts AHK no reciben argumentos; su comportamiento se basa en coordenadas predefinidas en `config.ini`.
+4.  **Procesamiento de Excel:**
+    *   Una vez que el script AHK ha exportado un archivo Excel al directorio temporal (`%LOCALAPPDATA%\Temp\tresc\`) y el `WatchAndCopy()` lo ha movido a `automation-watcher/3c_exports/`, el agente lee y parsea este archivo.
+    *   Utiliza `automation-watcher/excel-parser.js` y `src/lib/sync-3c/parser.ts` para extraer los datos relevantes.
+5.  **Sincronización de Datos:**
+    *   El agente invoca `src/lib/sync-3c/engine.ts::syncItems()` para realizar operaciones `upsert` en la colección `inventory_stock` de Firestore.
+    *   **Manejo de Errores de Firestore:** En caso de que `syncItems()` falle (ej. por problemas de conexión, credenciales o cuota de Firestore), el agente tiene un bloque `try/catch` interno. Si falla, el resultado se marca como `{ degraded: true, skipped: items.length }` y se guarda en Redis (`sync-3c:result:{id}`). Esto evita que el agente se caiga y permite que la UI muestre un estado "degradado" en lugar de un fallo total.
+6.  **Actualización Final del Comando:**
+    *   Después de la sincronización (exitosa o degradada), el agente actualiza el estado del comando en Redis (`sync-3c:command:{id}`) y/o Firestore (`sync-3c-commands/{id}`) a `completed` o `failed`, incluyendo un hash `result` con la información detallada de la operación o un `error` si hubo problemas.
+
+#### 4.2 Configuración y Dependencias
+
+*   **Lanzamiento:** El agente se inicia oculto en Windows mediante `start-agent.vbs`.
+*   **Credenciales Firebase:** Utiliza `sync-agent/service-account.json` para autenticarse con `firebase-admin` al interactuar con Firestore.
+*   **Timeout AHK:** Tiene un timeout de 120s para la ejecución de los scripts AHK.
+*   **Module Mapping:** El agente tiene una lógica para mapear módulos como `stock` a `sync_3c.ahk` y `reparaciones` a `sync_reparaciones.ahk`.
+
+#### 4.3 Registros (Logs)
+
+*   El agente genera un archivo de log (`sync-agent/agent.log`) que registra sus operaciones, polling, ejecuciones de AHK, estados de comandos y errores.
+
+## 5. Firestore: Uso, Modelos de Datos y Colecciones
+
+Firestore es la base de datos principal de Operario Control, utilizada para almacenar la mayoría de los datos de la aplicación.
+
+#### 5.1 Colecciones Firestore y sus Esquemas
+
+A continuación, se detallan las colecciones de Firestore, sus campos principales y su propósito. Estas colecciones forman la columna vertebral del modelo de datos de la aplicación.
+
+##### 5.1.1 `machines` — Máquinas/Equipos
+
+*   **Propósito:** Almacena información sobre cada unidad física de máquina o equipo. (1 documento = 1 unidad física, no stock agregado).
+*   **Campos Clave:**
+    *   `id`: `string` (Firestore auto-ID)
+    *   `name`: `string`
+    *   `model`: `string`
+    *   `category`: `"machine" | "tool" | "scaffold" | null`
+    *   `status`: `"available" | "rented" | "maintenance"`
+    *   `locationType`: `"deposito" | "obra" | "taller"`
+    *   `location`: `{ client: { name, address }, project: { name, address } } | null`
+    *   `rental`: `{ clientName, clientAddress, projectName, projectAddress, startDate, expectedEndDate, isOpenEnded } | null`
+    *   `createdAt`: `Timestamp`
+    *   `updatedAt`: `Timestamp`
+*   **Reglas de Dominio:** 1 documento representa 1 unidad física.
+
+##### 5.1.2 `repairs` — Órdenes de Reparación
+
+*   **Propósito:** Registra el historial y estado de las órdenes de reparación para las máquinas.
+*   **Campos Clave:**
+    *   `id`: `string` (Firestore auto-ID)
+    *   `machineId`: `string` (FK -> machines.id)
+    *   `machineName`: `string` (Desnormalizado)
+    *   `machineModel`: `string | undefined` (Desnormalizado)
+    *   `internalNumber`: `string | undefined` (Nº interno)
+    *   `clientName`: `string` (Desnormalizado)
+    *   `reportedIssue`: `string`
+    *   `diagnosis`: `string | undefined`
+    *   `repairPerformed`: `string`
+    *   `technician`: `string`
+    *   `entryDate`: `Timestamp`
+    *   `exitDate`: `Timestamp`
+    *   `status`: `"EN_TALLER" | "FINALIZADO"`
+    *   `partsUsed`: `PartUsage[]` (objetos con `partId`, `code`, `description`, `quantity`)
+    *   Fechas de mantenimiento auto-calculadas: `warrantyUntil`, `oilChangeDueDate`, `bearingChangeDueDate`, `maintenanceDueDate`.
+
+##### 5.1.3 `machine_spare_parts` — Repuestos por Máquina
+
+*   **Propósito:** Catálogo de repuestos específicos asociados a modelos de máquina.
+*   **Campos Clave:**
+    *   `id`: `string` (Firestore auto-ID)
+    *   `machineId`: `string` (FK -> machines.id)
+    *   `partName`: `string`
+    *   `partCode`: `string`
+    *   `category`: `SparePartCategory`
+    *   `stockTotal`: `number`
+    *   `stockAvailable`: `number`
+    *   `stockUsed`: `number`
+    *   `source`: `"manual" | "imported" | "blueprint"`
+    *   `blueprintId`: `string | undefined` (FK -> machine_blueprints.id)
+
+##### 5.1.4 `inventory_stock` — Stock de Materiales (Andamios, Consumibles)
+
+*   **Propósito:** Almacena el stock agregado de materiales (andamios, consumibles). (1 documento = stock agregado, no unidades individuales).
+*   **Campos Clave:**
+    *   `id`: `string` (Firestore auto-ID)
+    *   `name`: `string`
+    *   `codigo`: `string | undefined` (Código externo 3C)
+    *   `category`: `StockCategory`
+    *   `unit`: `StockUnit`
+    *   `stockTotal`: `number`
+    *   `stockAvailable`: `number`
+    *   `stockRented`: `number`
+    *   `locationType`: `"deposito"` (Siempre "deposito")
+    *   `deposito`: `number | undefined` (Depósito 3C)
+    *   `source`: `"manual" | "3c" | undefined`
+
+##### 5.1.5 `inventory_movements` — Movimientos de Materiales
+
+*   **Propósito:** Registra la trazabilidad de los movimientos de materiales (alquiler, devolución, ajuste).
+*   **Campos Clave:**
+    *   `id`: `string` (Firestore auto-ID)
+    *   `materialId`: `string` (FK -> inventory_stock.id)
+    *   `date`: `Timestamp`
+    *   `type`: `"ALQUILER" | "DEVOLUCION" | "AJUSTE"`
+    *   `quantity`: `number`
+    *   `clientName`: `string | undefined`
+    *   `projectName`: `string | undefined`
+
+##### 5.1.6 `stock_movements` — Movimientos de Repuestos
+
+*   **Propósito:** Registra la trazabilidad de los movimientos de repuestos (ingreso, egreso).
+*   **Campos Clave:**
+    *   `id`: `string` (Firestore auto-ID)
+    *   `partId`: `string` (FK -> machine_spare_parts.id)
+    *   `date`: `Timestamp`
+    *   `type`: `"INGRESO" | "EGRESO"`
+    *   `source`: `"REPARACION" | "REPOSICION"`
+    *   `quantity`: `number`
+
+##### 5.1.7 `machine_blueprints` — Planos/Despieces
+
+*   **Propósito:** Almacena metadatos de planos técnicos (PDFs o imágenes) subidos a Cloudinary y asociados a máquinas.
+*   **Campos Clave:**
+    *   `id`: `string` (Firestore auto-ID)
+    *   `machineId`: `string` (FK -> machines.id)
+    *   `fileUrl`: `string` (URL Cloudinary)
+    *   `publicId`: `string` (Public ID Cloudinary)
+    *   `fileName`: `string`
+    *   `fileType`: `"pdf" | "image"`
+
+##### 5.1.8 `blueprint_drafts` — Borradores de Importación de Repuestos
+
+*   **Propósito:** Almacena repuestos extraídos automáticamente de PDFs o ingresados manualmente, antes de ser confirmados y movidos a `machine_spare_parts`.
+*   **Campos Clave:**
+    *   `id`: `string` (Firestore auto-ID)
+    *   `machineId`: `string` (FK -> machines.id)
+    *   `blueprintId`: `string` (FK -> machine_blueprints.id)
+    *   `partName`: `string`
+    *   `partCode`: `string`
+    *   `status`: `"draft" | "confirmed"`
+
+##### 5.1.9 `maintenance_settings` — Configuración de Mantenimiento (Singleton)
+
+*   **Propósito:** Documento único (`maintenance_settings/config`) que almacena configuraciones globales para el cálculo de fechas de mantenimiento y garantía.
+*   **Campos Clave:**
+    *   `oilChangeDays`: `number` (Default: 90)
+    *   `bearingChangeDays`: `number` (Default: 180)
+    *   `maintenanceDays`: `number` (Default: 365)
+    *   `warrantyDays`: `number` (Default: 90)
+
+##### 5.1.10 `audit_logs` — Log de Auditoría
+
+*   **Propósito:** Registra todas las acciones CRUD realizadas en entidades clave del sistema para trazabilidad.
+*   **Campos Clave:**
+    *   `id`: `string` (Firestore auto-ID)
+    *   `action`: `"create" | "update" | "delete"`
+    *   `entity`: `EntityType` (ej. "machine", "repair")
+    *   `entityId`: `string` (ID del documento afectado)
+    *   `before`: `object | null` (Estado previo del documento)
+    *   `after`: `object | null` (Estado posterior del documento)
+    *   `timestamp`: `Timestamp`
+    *   `userId`: `string` (**Nota:** Actualmente no se popula, un riesgo de seguridad/trazabilidad)
+
+##### 5.1.11 `sync-3c-commands` — Cola de Comandos de Sincronización (Firestore)
+
+*   **Propósito:** (Histórico/Secundario) Almacena el estado de los comandos de sincronización enviados al agente local. Redis es ahora la cola principal.
+*   **Campos Clave:**
+    *   `id`: `string` (Firestore auto-ID)
+    *   `status`: `"pending" | "running" | "completed" | "failed"`
+    *   `createdAt`: `Timestamp`
+    *   `result`: `object | null`
+    *   `error`: `string | null`
+
+##### 5.1.12 `sync-3c-agent` — Heartbeat del Agente (Firestore)
+
+*   **Propósito:** (Histórico/Secundario) Documento único (`sync-3c-agent/production`) para que el agente local reporte su estado y "latido" a la nube. Redis es ahora el primario.
+*   **Campos Clave:**
+    *   `lastHeartbeat`: `Timestamp`
+    *   `status`: `"idle" | "running"`
+    *   `machineName`: `string | null`
+
+##### 5.1.13 Colecciones Legacy
+
+*   `rentals`: Mencionada en `docs/auditoria-sistema.md` como "legacy" y en `docs/arquitectura.md` se indica que `rentals.ts` solo re-exporta funciones de `machines.ts` y no existe como colección. El tipo `LegacyRental` existe en `src/types/rental.ts`. Esto sugiere una colección que existió y ya no se usa o fue reemplazada por el campo `rental` embebido en `machines`.
+*   `repairs`: Mencionada en `docs/auditoria-sistema.md` como "legacy". Sin embargo, `src/services/repairs.ts` y `src/app/(protected)/repairs/page.tsx` están activos y usan esta colección. Parece que la etiqueta "legacy" podría referirse a una implementación anterior o a ciertos aspectos de su manejo.
+
+#### 5.2 Relaciones entre Colecciones
+
+```mermaid
+erDiagram
+    MACHINE ||--o{ REPAIR : "has"
+    MACHINE ||--o{ MACHINE_SPARE_PART : "has"
+    MACHINE ||--o{ MACHINE_BLUEPRINT : "has"
+    MACHINE ||--o{ BLUEPRINT_DRAFT : "has"
+    MACHINE_SPARE_PART ||--o{ STOCK_MOVEMENT : "has"
+    INVENTORY_STOCK ||--o{ INVENTORY_MOVEMENT : "has"
+
+    REPAIR }|--|| MACHINE_SPARE_PART : "uses parts from"
+    MACHINE_BLUEPRINT }|--o{ MACHINE_SPARE_PART : "generates"
+    MACHINE_BLUEPRINT }|--o{ BLUEPRINT_DRAFT : "generates drafts for"
+
+    MAINTENANCE_SETTING ||--o| REPAIR : "configures"
+    AUDIT_LOGS }|--o| ENTITY : "logs actions on"
+    SYNC_3C_COMMAND ||--o| AGENT : "controlled by"
+    SYNC_3C_AGENT ||--o| AGENT : "sends heartbeat from"
+
+    ENTITY {
+        string id
+    }
 ```
 
-### 4.2 Tipos de inventario (`types/inventoryStock.ts`)
-```typescript
-StockCategory   = "puntales" | "riendas" | "andamio_accesorios" | "consumibles"
-StockUnit       = "unidad" | "metro" | "kg"
-StockSize       = string
-
-InventoryStock {
-  id, name, category, size?, unit,
-  stockTotal: number,
-  stockRented: number,
-  createdAt, updatedAt
-}
-
-CreateStockInput
-```
-
-### 4.3 Tipos de movimiento de inventario (`types/inventoryMovement.ts`)
-```typescript
-InventoryMovementType = "ALQUILER" | "DEVOLUCION" | "AJUSTE"
-
-InventoryMovement {
-  id, materialId, type, quantity, date,
-  clientName?, projectName?, reference?, rentalId?
-}
-```
-
-### 4.4 Tipos de repuesto (`types/sparePart.ts`)
-```typescript
-SparePartCategory = "motor" | "filtro" | "electrico" | "estructural" | "consumible" | "otro"
-SparePartSource   = "manual" | "imported" | "blueprint"
-
-SparePart {
-  id, machineId, machineName, machineModel,
-  partName, partCode, category, unit,
-  stockTotal, stockAvailable, stockUsed,
-  source, blueprintId?,
-  createdAt, updatedAt
-}
-
-CreateSparePartInput
-```
-
-### 4.5 Otros tipos
-```typescript
-RentalStatus         = "active" | "closed"
-RepairStatus         = "pending" | "repairing" | "done"
-AuditAction          = "create" | "update" | "delete"
-AuditEntity          = "machine" | "rental" | "repair" | "spare_part" | ...
-StockMovementType    = "ENTRADA" | "SALIDA" | "AJUSTE"
-RecommendationIntent = "comprar" | "alquilar" | "reparar" | "vender" | "mantener" | "reevaluar"
-```
-
----
-
-## 5. CATEGORÍAS Y SUBCATEGORÍAS
-
-### 5.1 Categorías
-| Clave | Label | Color | Icono |
-|-------|-------|-------|-------|
-| `andamio` | Andamio | naranja | `<Building2 />` |
-| `maquinaria` | Maquinaria | gris | `<Cog />` |
-| `herramienta` | Herramienta | teal | `<Wrench />` |
-
-### 5.2 Subcategorías (solo `andamio`)
-1. `base`
-2. `rienda corta`
-3. `rienda larga`
-4. `pasillero`
-5. `reforzado`
-6. `caballetes`
-7. `tablón`
-8. `puntales`
-
-### 5.3 Migración (`mapOldCategory`)
-| Valor antiguo (DB) | Nuevo valor |
-|--------------------|-------------|
-| `machine` | `maquinaria` |
-| `maquina` | `maquinaria` |
-| `scaffold` | `andamio` |
-| `tool` | `herramienta` |
-
----
-
-## 6. SERVICIOS (Firebase)
-
-### 6.1 `machines.ts` — CRUD + ciclo de vida + scaffold middleware
-- `createMachine(input)` → Crea doc + audit log
-- `getMachine(id)` / `getMachines()` → Lectura con `docToMachine`
-- `updateMachine(id, data)` → Actualiza campos + audit log
-- `deleteMachine(id)` → Elimina + audit log
-- `deleteAllMachines()` → Batch delete
-- `rentMachine(id, rental)` → Status `rented` + embebe rental + audit + si scaffold: consume BOM del inventory_stock (pasa contexto clientName/projectName a scaffoldRental)
-- `returnMachine(id)` → Status `available` + limpia rental + audit + si scaffold: devuelve BOM al stock (lee contexto del rental embebido)
-- `startMaintenance(id, maintenance)` → Status `maintenance` + embebe maintenance + audit
-- `completeMaintenance(id)` → Status `available` + limpia maintenance + audit
-
-### 6.2 `inventoryStock.ts` — Stock de materiales (andamios)
-- `getStockItems()` / `getStockItem(id)` → Lectura
-- `createStockItem(input)` → Crea item + previene duplicados por (name + size) + audit
-- `updateStockItem(id, data)` → Actualiza + valida stockTotal >= stockRented + audit
-- `deleteStockItem(id)` → Elimina + audit
-- `rentStockItem(id, quantity, options?)` → Incrementa stockRented + crea movimiento ALQUILER en inventory_movements
-- `returnStockItem(id, quantity, options?)` → Decrementa stockRented + crea movimiento DEVOLUCION en inventory_movements
-
-### 6.3 `inventoryMovements.ts` — Trazabilidad de materiales (FASE 2)
-- `createInventoryMovement(data)` → Inserta movimiento en inventory_movements
-- `getAllInventoryMovements()` → Todos ordenados por date desc
-- `getInventoryMovementsByMaterial(materialId)` → Filtrados por material
-
-### 6.4 `scaffoldRental.ts` — BOM de andamios
-- Receta: 2 Riendas largas + 2 Riendas cortas + 1 Tablón 3m por cuerpo
-- `rentScaffoldComponents(options?)` → Consume del stock (mayor cantidad disponible primero). Acepta parámetros de contexto (clientName, projectName, reference).
-- `returnScaffoldComponents(options?)` → Devuelve al stock (al de mayor rented primero). Acepta contexto.
-
-### 6.5 `spareParts.ts` — Repuestos de máquinas
-- `getSparePartsByMachine(machineId)` → Lista por máquina (sin orderBy para evitar índice)
-- `getSparePartById(id)` → Busca por ID
-- `createSparePart(input)` → Crea + previene duplicados por (machineId + partCode) + audit
-- `updateSparePart(id, data)` → Actualiza + audit
-- `deleteSparePart(id)` → Elimina + audit
-- `deleteBlueprintSpareParts(machineId)` → Batch delete source="blueprint"
-- `usePart(id, quantity)` → Decrementa stockTotal y stockAvailable, incrementa stockUsed
-- `restockPart(id, quantity)` → Incrementa stockTotal y stockAvailable
-
-### 6.6 `machineBlueprints.ts` — Despieces técnicos
-- `uploadBlueprint(machineId, file)` → Sube a Cloudinary → Firestore → extrae repuestos del PDF (pdfjs-dist). Antes de extraer, limpia repuestos `source="blueprint"`.
-- `getBlueprints(machineId)` → Lista despieces de una máquina
-- `deleteBlueprint(id)` → Cloudinary destroy → elimina repuestos asociados → elimina doc Firestore
-
-### 6.7 `blueprintDrafts.ts` — Borradores
-- `createDraft(input)` → Crea borrador temporal
-- `getDrafts(machineId, blueprintId?)` → Lista borradores
-- `updateDraft(id, data)` → Actualiza
-- `deleteDraft(id)` → Elimina
-- `confirmDrafts(machineId, blueprintId, machineName, machineModel)` → Migra todos a machine_spare_parts
-
-### 6.8 `pdfPartsExtractor.ts` — Extracción de códigos Bosch
-- `extractPartsFromPdf(fileUrl)` → Descarga PDF, extrae texto con pdfjs-dist, parsea códigos Bosch (formato `1 619 P10 958`) + descripciones
-
-### 6.9 `stockMovements.ts` — Movimientos de stock de repuestos
-- `createStockMovement(data)` → Inserta en stock_movements
-- `getStockMovements()` → Todos ordenados por date desc
-- `getStockMovementsBySparePart(sparePartId)` → Filtrados por repuesto
-
-### 6.10 `recommendationEngine.ts` — Motor de recomendación
-- 6 intents: `comprar`, `alquilar`, `reparar`, `vender`, `mantener`, `reevaluar`
-- `detectIntent(input)` → Clasifica texto libre del usuario
-- `scoreMachine(machine, intent)` → Puntúa según estado, ubicación, días alquilado
-- `rankMachines(machines, intent)` → Ranking descendente por score
-- `recommendMachine(machines, input)` → Detecta intent + ranking
-
-### 6.11 Otros servicios
-| Servicio | Funciones |
-|----------|-----------|
-| `auth.ts` | `login()`, `logout()`, `onAuthChange()` |
-| `audit.ts` | `createAuditLog()`, `fetchAuditLogs()` |
-| `rentals.ts` | CRUD básico legacy |
-| `repairs.ts` | CRUD básico legacy |
-| `recommendationAudit.ts` | `logRecommendation()` |
-
----
-
-## 7. HOOKS (React)
-
-| Hook | Parámetros | Expone | Descripción |
-|------|-----------|--------|-------------|
-| `useAuth` | — | `user`, `loading`, `login`, `logout` | Autenticación |
-| `useMachines` | — | `machines`, `loading`, `error`, `create`, `update`, `rent`, `returnMachine`, `setMaintenance`, `completeMaintenance`, `remove` | CRUD + ciclo de vida |
-| `useSpareParts` | `machineId` | `spareParts`, `loading`, `error`, `create`, `update`, `remove`, `usePart`, `restockPart`, `deleteBlueprintParts` | CRUD + use/restock. Sort in-memory con localeCompare("es") |
-| `useMachineBlueprints` | `machineId` | `blueprints`, `loading`, `error`, `upload`, `remove` | CRUD + upload Cloudinary |
-| `useBlueprintDrafts` | `machineId`, `blueprintId?` | `drafts`, `create`, `update`, `remove`, `confirm` | Drafts + confirm → spare_parts |
-| `useInventoryStock` | — | `items`, `loading`, `error`, `create`, `update`, `remove`, `rent`, `return` | CRUD + rent/return stock materiales |
-| `useRentals` | — | `items`, `loading`, `error` | Legacy |
-| `useRepairs` | — | `items`, `loading`, `error` | Legacy |
-
----
-
-## 8. PÁGINAS (App Router)
-
-### 8.1 Rutas
-| Ruta | Archivo | Tipo | Protegida |
-|------|---------|------|-----------|
-| `/` | `page.tsx` | Redirige a /dashboard | No |
-| `/login` | `login/page.tsx` | Login form | No |
-| **API:** `/api/cloudinary/delete` | `api/cloudinary/delete/route.ts` | Server | No |
-| `/dashboard` | `(protected)/dashboard/page.tsx` | Dashboard con KPIs, categorías, alertas | Sí |
-| `/machines` | `(protected)/machines/page.tsx` | Listado con filtros + bulk delete | Sí |
-| `/machines/new` | `(protected)/machines/new/page.tsx` | Crear con quantity loop | Sí |
-| `/machines/[id]` | `(protected)/machines/[id]/page.tsx` | Detalle + editar + rental + spare parts + blueprints | Sí |
-| `/machines/[id]/parts` | `(protected)/machines/[id]/parts/page.tsx` | Spare parts CRUD + blueprint import | Sí |
-| `/machines/[id]/blueprints` | `(protected)/machines/[id]/blueprints/page.tsx` | Blueprint list + upload + delete | Sí |
-| `/andamios` | `(protected)/andamios/page.tsx` | Andamios: machine grid + stock grid | Sí |
-| `/inventory` | `(protected)/inventory/page.tsx` | Listado stock materiales + cards resumen + filtros | Sí |
-| `/inventory/new` | `(protected)/inventory/new/page.tsx` | Crear item stock | Sí |
-| `/inventory/[id]` | `(protected)/inventory/[id]/page.tsx` | Detalle stock + rent/return + historial | Sí |
-| `/stock` | `(protected)/stock/page.tsx` | Stock global unificado (machines, scaffolds, spare parts) | Sí |
-| `/stock-movements` | `(protected)/stock-movements/page.tsx` | Movimientos stock repuestos + cards + filtros | Sí |
-| `/inventory-movements` | `(protected)/inventory-movements/page.tsx` | Movimientos materiales + cards + filtros | Sí |
-| `/rentals` | `(protected)/rentals/page.tsx` | Listado (legacy) | Sí |
-| `/rentals/new` | `(protected)/rentals/new/page.tsx` | Crear (legacy) | Sí |
-| `/rentals/[id]` | `(protected)/rentals/[id]/page.tsx` | Detalle (legacy) | Sí |
-| `/repairs` | `(protected)/repairs/page.tsx` | Listado (legacy) | Sí |
-| `/repairs/new` | `(protected)/repairs/new/page.tsx` | Crear (legacy) | Sí |
-| `/repairs/[id]` | `(protected)/repairs/[id]/page.tsx` | Detalle (legacy) | Sí |
-
-**Total:** 21 rutas (20 páginas + 1 API endpoint). 100% `"use client"`.
-
-### 8.2 Layouts
-- **Root:** AuthProvider + Toaster + html lang=es
-- **Protected:** NavBar con 10 items: Dashboard, Máquinas, Andamios, Inventario, Stock, Alquileres, Reparaciones, Mov. Stock, Mov. Materiales, Mantenimiento + user email + logout. Redirige a /login si no autenticado.
-
-### 8.3 Dashboard
-- 4 tarjetas resumen: Disponibles, Alquiladas, Mantenimiento, Total
-- Grid de categorías con íconos y contadores
-- Sección de alertas (máquinas en mantenimiento > 7 días)
-- Grid de máquinas con buscador y filtro por estado
-- Grid de stock con items con poco stock (stockRented >= stockTotal)
-- SeedInventory si colección vacía
-
-### 8.4 Máquinas (listado)
-- Botón "Importar inventario" (Excel)
-- Botón "Nueva máquina"
-- Grid de tarjetas con nombre, modelo, ubicación, categoría, badge estado
-- Filtros por estado + búsqueda por nombre/modelo
-- Modo bulk delete
-
-### 8.5 Máquina (detalle)
-- Header: nombre, modelo, categoría > subcategoría, badge estado
-- Modo edición: nombre, modelo, categoría + subcategoría condicional, ubicación
-- Card alquiler activo: cliente, fechas, botón devolver
-- Card mantenimiento activo: motivo, fechas, botón completar
-- Formulario alquiler: cliente, inicio, retorno
-- Formulario mantenimiento: motivo, inicio, fin estimado
-- Sección de repuestos (SparePartCard + botón agregar)
-- Sección de despieces (BlueprintUploader + lista + delete)
-- Botón eliminar
-
-### 8.6 Andamios
-- Grid de máquinas categoría "andamio" con cards
-- Grid de stock de materiales (inventory_stock) con cards
-
-### 8.7 Inventario (materiales)
-- 5 cards resumen: Total items, Stock total, Alquilado, Disponible, Categorías
-- Tabla con nombre, tamaño, categoría, stock total, alquilado, disponible, badge estado (completo/parcial/sin_stock)
-- Filtros por categoría + búsqueda por nombre + rango stock alquilado
-- Acciones: Ver detalle
-
-### 8.8 Stock Global
-- 4 secciones: Máquinas, Andamios (stock materiales), Repuestos, Stock crítico
-- Cada sección con su tabla y resumen numérico
-- Badges de estado para stock (completo/parcial/sin_stock)
-
-### 8.9 Mov. Stock (repuestos)
-- 4 cards resumen: Total movimientos, Entradas, Salidas, Ajustes
-- Tabla con fecha, tipo, repuesto, cantidad, referencia
-- Filtros por tipo + rango fecha + búsqueda
-- Botón registrar movimiento (ENTRADA/SALIDA/AJUSTE)
-
-### 8.10 Mov. Materiales (FASE 2)
-- 4 cards resumen: Total movimientos, Alquileres, Devoluciones, Materiales afectados
-- Tabla con fecha, tipo, material, cantidad, cliente, obra, referencia
-- Filtros por tipo + rango fecha + búsqueda (material/cliente/obra)
-- Link a detalle de material y a máquina
-
-### 8.11 Login
-- Formulario email + password
-- Redirige a /dashboard si ya autenticado
-
----
-
-## 9. COMPONENTES UI (shadcn/ui + Base UI)
-
-13 componentes, todos en `src/components/ui/`:
-
-| Componente | Líneas | Librería Base |
-|------------|--------|---------------|
-| `ErrorState.tsx` | ~50 | Nativo |
-| `badge.tsx` | 52 | `@base-ui/react/useRender` |
-| `button.tsx` | 58 | `@base-ui/react/button` |
-| `card.tsx` | 103 | Nativo |
-| `dialog.tsx` | 160 | `@base-ui/react/dialog` |
-| `input.tsx` | 20 | `@base-ui/react/input` |
-| `label.tsx` | 20 | Nativo |
-| `select.tsx` | 201 | `@base-ui/react/select` |
-| `separator.tsx` | 25 | `@base-ui/react/separator` |
-| `sonner.tsx` | 49 | `sonner` + `next-themes` |
-| `table.tsx` | 116 | Nativo |
-
----
-
-## 10. COMPONENTES DE NEGOCIO
-
-### 10.1 `MachineCard.tsx`
-- 3 ramas visuales según estado: Alquilada (azul), Disponible (verde), En reparación (ámbar)
-- Muestra nombre, modelo, ubicación, cliente si alquilado
-
-### 10.2 `SparePartCard.tsx`
-- partCode destacado, badge de categoría
-- Stock: total, disponible, usado
-- Botones use/restock
-
-### 10.3 `BlueprintUploader.tsx`
-- Drag & drop zone
-- Preview PDF/imagen
-- Subida asíncrona a Cloudinary
-
-### 10.4 `BlueprintImportPanel.tsx`
-- Split view: PDF izquierda + formulario draft derecha
-- Extracción automática de códigos Bosch
-
-### 10.5 `SeedInventory.tsx`
-- 67 ítems precargados del catálogo Cocrear + mercado
-- Andamios (15), Maquinaria (22), Herramientas (11) + stock inicial + repuestos
-- Verifica duplicados por name+model antes de insertar
-- Solo visible si colección vacía
-
-### 10.6 `ImportInventory.tsx`
-- Acepta `.xlsx`/`.xls`
-- Normaliza headers español/inglés
-- Mapeo flexible: columnas → campos
-- Deduplicación por name+model
-- Vista previa + resumen
-
----
-
-## 11. SCRIPTS
-
-### 11.1 `scripts/seed-machines.ts`
-- Runtime: `npx tsx`, SDK: `firebase-admin`
-- Requiere: `service-account.json` en raíz
-- Inserta 67 máquinas, stock inicial y repuestos
-- Deduplica por name+model
-
-### 11.2 `scripts/export-logs.ts`
-- Exporta `audit_logs` a `local_exports/logs/` como .txt
-
-### 11.3 `scripts/fix-rented-machines.ts`
-- Detecta y corrige máquinas con estado inconsistente (rented pero sin rental data)
-
-### 11.4 `scripts/audit.ts`
-- Auto-auditoría de colecciones Firestore (legacy)
-
----
-
-## 12. SEGURIDAD Y BUENAS PRÁCTICAS
-
-- **Sin secrets en código:** Firebase config via env vars
-- **service-account.json** en `.gitignore`
-- **Audit logging** en cada operación CRUD
-- **Client SDK** en frontend (nunca admin SDK)
-- **Sin `router.push` en render** — redirects en `useEffect`
-- **Deduplicación** en seed, importación, creación de stock y repuestos
-- **Categorías con migración** — `mapOldCategory` para datos legacy
-- **API route protegida** con Basic Auth (Cloudinary delete)
-- **Validación stock** — stockTotal >= stockRented en updates
-- **Índices evitados** — sort in-memory con localeCompare para evitar compuestos innecesarios
-- **Backward compatibility** — options object opcional en rentStockItem/returnStockItem (FASE 2)
-
----
-
-## 13. OBSERVACIONES
-
-- Todas las páginas usan `"use client"` — 100% CSR, sin Server Components
-- El sistema de `rentals` y `repairs` como colecciones separadas es legacy; la data actual se embebe en `machines`
-- Las operaciones de andamio (scaffold) son un middleware dentro de machines.ts que consume/devuelve del inventory_stock
-- La trazabilidad de materiales (FASE 2) conecta machines.ts → scaffoldRental.ts → inventoryStock.ts → inventory_movements
-- No hay reglas de seguridad de Firestore definidas (seguridad a nivel de app)
-- Base UI v1.5.0 reemplaza a Radix UI como capa headless
-- El build produce ~21 rutas (20 estáticas, 1 dinámica API) sin errores TS
-- Sin tests unitarios ni de integración
-- Sin CI/CD pipeline
-- Sin variables de entorno configuradas en Vercel (solo `.env.local`)
+#### 5.3 Modelos de Datos (Interfaces TypeScript)
+
+Los tipos TypeScript (`src/types/`) definen la estructura de los datos utilizados en la aplicación, asegurando la consistencia y facilitando el desarrollo.
+
+*   [`src/types/machine.ts`](src/types/machine.ts): `Machine`, `MachineStatus`, `MachineLocation`, `MachineCategory`, `MachineRental`, etc.
+*   [`src/types/repair.ts`](src/types/repair.ts): `MachineRepair`, `CreateRepairInput`, `PartUsage`, `RepairStatus`, `RepairSource`, etc.
+*   [`src/types/sparePart.ts`](src/types/sparePart.ts): `SparePart`, `CreateSparePartInput`, `SparePartCategory`, `SparePartSource`, etc.
+*   [`src/types/inventoryStock.ts`](src/types/inventoryStock.ts): `InventoryStock`, `CreateStockInput`, `StockCategory`, `StockUnit`, `StockSubtype`, `StockSize`, etc.
+*   [`src/types/inventoryMovement.ts`](src/types/inventoryMovement.ts): `InventoryMovement`, `CreateInventoryMovementInput`, `InventoryMovementType`, etc.
+*   [`src/types/stockMovement.ts`](src/types/stockMovement.ts): `StockMovement`, `StockMovementType`, `StockMovementSource`, etc.
+*   [`src/types/machineBlueprint.ts`](src/types/machineBlueprint.ts) (implícito via `docs/auditoria-sistema.md`): `MachineBlueprint`.
+*   [`src/types/blueprintDraft.ts`](src/types/blueprintDraft.ts) (implícito via `docs/auditoria-sistema.md`): `BlueprintDraft`.
+*   [`src/types/audit.ts`](src/types/audit.ts): `AuditLog`, `AuditAction`, `AuditEntity`, etc.
+*   [`src/types/errors.ts`](src/types/errors.ts): `AppError`.
+*   [`src/types/rental.ts`](src/types/rental.ts): `LegacyRental` (tipo para colección legacy/campo embebido).
+*   [`src/types/stockAlert.ts`](src/types/stockAlert.ts): `StockAlert`, `StockAlertType`, `StockHealthScore`, `ConsumptionTrend`, `StockIntelligence`, etc. (para el motor de recomendación).
+
+#### 5.4 Índices Firestore
+
+Los documentos mencionan la necesidad de varios índices compuestos para optimizar las consultas. Es crucial verificar que estos índices existan en Firestore para evitar problemas de rendimiento y errores de consulta.
+
+*   `repairs`: `machineId` (ASC) + `entryDate` (DESC)
+*   `machine_spare_parts`: `machineId` (ASC) + `partCode` (ASC)
+*   `machine_spare_parts`: `machineId` (ASC) + `source` (ASC)
+*   `inventory_movements`: `materialId` (ASC) + `date` (DESC)
+*   `inventory_movements`: `date` (ASC) (range) + `date` (DESC) (order)
+*   `stock_movements`: `partId` (ASC) + `date` (DESC)
+*   `machine_blueprints`: `machineId` (ASC) + `createdAt` (DESC)
+*   `blueprint_drafts`: `machineId` + `partCode` + `status`
+*   `inventory_stock`: `name` (ASC) + `size` (ASC)
+
+**Nota Importante:** `docs/auditoria-sistema.md` indica "Reglas versionadas: ❌ No (solo en consola Firebase)" y "No existe `firestore.indexes.json`". Esto representa un riesgo significativo de gestión de la infraestructura, ya que los índices y las reglas no están versionados con el código, lo que puede llevar a inconsistencias y dificultades en el despliegue.
+
+## 6. Redis: Uso y Estructuras de Datos
+
+Redis (Upstash) se ha integrado recientemente para mejorar la resiliencia y escalabilidad del sistema, especialmente en la gestión de comandos de sincronización y el estado del agente, sirviendo como un fallback cuando Firestore excede sus cuotas.
+
+#### 6.1 Componentes que Interactúan con Redis
+
+*   **API Routes (Vercel Node.js runtime):** Utilizan Redis para encolar comandos y establecer el estado.
+*   **Agente Local (`sync-agent/agent.mjs`):** Es el principal consumidor de la cola de Redis, procesando comandos y actualizando estados/resultados. También utiliza Redis para su heartbeat.
+*   **UI (Dashboard):** Pollea las API Routes que, a su vez, consultan Redis para el estado de los comandos y del agente.
+
+#### 6.2 Claves y Tipos de Datos en Redis
+
+Redis almacena información crucial para la operación asíncrona y la resiliencia.
+
+| Key | Tipo Redis | Propósito | Operaciones |
+|---|---|---|---|
+| `sync-3c:queue` | `List` | Cola FIFO de IDs de comandos de sincronización pendientes para el agente local. | `LPUSH` (API Route para encolar), `RPOP` (Agente para consumir). |
+| `sync-3c:command:{id}` | `Hash` | Almacena el estado detallado de un comando de sincronización específico. `{id}` es el `commandId` único. | `HSET` (API Route y Agente para actualizar el estado, ej. `pending`, `running`, `completed`, `failed`), `HGETALL` (API Route para leer el estado y enviarlo a la UI). |
+| `sync-3c:result:{id}` | `Hash` (v2) | Almacena el resultado completo de una operación de sincronización. Este hash se agregó como parte de la solución temporal ante fallos de Firestore, permitiendo guardar resultados degradados. | `HSET` (Agente para guardar el resultado de la sincronización, especialmente cuando Firestore falla). |
+| `sync-3c:agent:production` | `String` | Contiene un JSON con el heartbeat del agente local. | `SET` (Agente para enviar el heartbeat periódicamente), `GET` (API Route para leer el heartbeat y enviarlo a la UI). |
+
+#### 6.3 Flujo con Redis
+
+1.  **Inicio de Sync (UI -> API):** Cuando el usuario inicia una sincronización, la `API Route` (`POST /api/sync-3c`) genera un `commandId`.
+2.  **Encuesta de Comando (API -> Redis):** La API utiliza `LPUSH sync-3c:queue` para añadir el `commandId` a la cola y `HSET sync-3c:command:{id}` para inicializar su estado.
+3.  **Polling del Agente (Agente -> Redis):** El `Agente Local` (`sync-agent/agent.mjs`) realiza `RPOP` en `sync-3c:queue` en busca de nuevos comandos.
+4.  **Actualización de Estado (Agente -> Redis):** Al tomar un comando, el agente actualiza su estado a `running` usando `HSET sync-3c:command:{id}`.
+5.  **Heartbeat (Agente -> Redis):** Periódicamente, el agente usa `SET sync-3c:agent:production` para actualizar su estado de actividad.
+6.  **Guardado de Resultados (Agente -> Redis):** Una vez que la sincronización con 3C y el procesamiento del Excel terminan, el agente guarda el resultado completo (incluyendo si fue degradado o no) usando `HSET sync-3c:result:{id}` y el estado final del comando con `HSET sync-3c:command:{id}`.
+7.  **Consulta de Estado (UI -> API -> Redis):** La UI pollea la `API Route` (`GET /api/sync-3c/status?commandId=x`), la cual realiza un `HGETALL` en `sync-3c:command:{id}` para obtener el estado actual y un `GET` en `sync-3c:result:{id}` para obtener los resultados.
+8.  **Consulta de Heartbeat (UI -> API -> Redis):** La UI pollea la `API Route` (`GET /api/sync-3c/agent-status`), la cual realiza un `GET` en `sync-3c:agent:production` para verificar si el agente está online.
+
+#### 6.4 Resiliencia y Fallback de Firestore
+
+La integración de Redis es un punto clave para la resiliencia del sistema:
+
+*   **Firestore Fallback:** Si Firestore falla o excede su cuota (como se menciona en `auditoria-migracion-redis`), el `syncItems()` en el agente local tiene un bloque `try/catch`. En este escenario, el agente no se detiene, sino que genera un resultado `degraded: true` y lo guarda en `sync-3c:result:{id}` en Redis. Esto asegura que la UI siga recibiendo actualizaciones de estado y resultados, aunque los datos no se persistan completamente en Firestore.
+*   **Recuperación de Comandos Stale:** La capacidad del agente para escanear y re-encolar comandos `running` por mucho tiempo en Redis (`SCAN`) contribuye a la robustez, asegurando que los comandos no se queden atascados indefinidamente.
+
+## 7. Dashboard: Funcionalidad y Dependencias
+
+El Dashboard es la página principal de la aplicación (`/dashboard`), diseñada para proporcionar una visión general rápida del estado operativo, métricas clave y alertas.
+
+#### 7.1 Métricas y Secciones Principales
+
+El Dashboard consolida información de varias colecciones de Firestore para presentar un resumen ejecutivo:
+
+*   **Cards de Resumen:**
+    *   Muestra el total de equipos, equipos disponibles, alquilados y en mantenimiento.
+    *   **Fuente de Datos:** Colección `machines` (filtrado por `status`).
+*   **Cards por Categoría:**
+    *   Desglosa el total de máquinas por categorías como "Maquinaria", "Andamios" y "Herramientas".
+    *   **Fuente de Datos:** Colección `machines` (filtrado por `category`).
+*   **Alertas de Alquiler:**
+    *   Destaca máquinas con alquileres próximos a vencer o sin fecha de devolución definida.
+    *   **Fuente de Datos:** Colección `machines` (con `rental` activo).
+*   **Workshop Summary:**
+    *   Resume el estado del taller: máquinas "En taller", reparaciones "Finalizadas hoy", mantenimientos "Vencidos" y "Próximos 7 días".
+    *   **Fuente de Datos:** Colección `repairs` (con cálculos en memoria para las estadísticas).
+*   **Smart Alerts Panel:**
+    *   Genera alertas inteligentes sobre fallas repetitivas, máquinas sobrecargadas y mantenimiento ignorado.
+    *   **Fuente de Datos:** Colecciones `repairs` y el servicio `stockIntelligenceService`.
+*   **Stock Materials:**
+    *   Muestra cards de materiales con su stock actual.
+    *   **Fuente de Datos:** Colección `inventory_stock`.
+*   **Stock Intelligence:**
+    *   Ofrece un "health score" del stock, identifica ítems críticos, los más consumidos y tendencias.
+    *   **Fuente de Datos:** Principalmente el servicio `stockIntelligenceService`, que a su vez combina datos de hasta cinco colecciones (posiblemente `inventory_stock`, `machine_spare_parts`, `stock_movements`, `inventory_movements`, `machines`).
+
+#### 7.2 Componentes UI Utilizados
+
+El Dashboard se construye utilizando una combinación de componentes genéricos (shadcn/ui) y componentes específicos del dominio:
+
+*   **Componentes de Dominio:**
+    *   `src/components/dashboard/GlobalSearchResults.tsx`: Probablemente para una funcionalidad de búsqueda global en el dashboard.
+    *   `src/components/dashboard/SmartAlertsPanel.tsx`: Muestra las alertas inteligentes de mantenimiento y stock.
+    *   `src/components/dashboard/WorkshopSummary.tsx`: Presenta el resumen del estado del taller.
+    *   `src/components/sync/Sync3CButton.tsx`: Permite iniciar y monitorear la sincronización con 3C.
+*   **Componentes Shadcn/ui (Genéricos):**
+    *   `Card`, `CardHeader`, `CardTitle`, `CardContent`: Para la organización visual de las métricas y paneles.
+    *   `Table`, `TableHeader`, `TableBody`, `TableRow`, `TableCell`: Para mostrar listados de datos.
+    *   `Input`, `Select`, `Button`, `Badge`, `Separator`: Elementos de interacción y visualización.
+    *   `Toaster` (`sonner`): Para notificaciones al usuario.
+
+#### 7.3 Dependencias Clave
+
+*   **Servicios:** Depende fuertemente de los `services/*.ts` para acceder y manipular datos de Firestore (ej. `machines.ts`, `repairs.ts`, `inventoryStock.ts`, `stockIntelligence.ts`).
+*   **Hooks:** Utiliza varios `hooks/*.ts` para gestionar el estado y los datos de forma reactiva (ej. `useMachines()`, `useRepairs()`, `useInventoryStock()`, `useStockIntelligence()`).
+*   **API Routes:** Indirectamente, para el estado del agente y los comandos de sincronización con 3C (`/api/sync-3c/status`, `/api/sync-3c/agent-status`).
+*   **Firebase Client SDK:** Para la lectura y escucha en tiempo real de los datos de Firestore.
+
+#### 7.4 Observaciones
+
+*   La página del Dashboard es 100% "use client", lo que significa que la renderización inicial y la lógica de fetching de datos ocurren en el lado del cliente. Esto podría tener implicaciones en el rendimiento de carga inicial y SEO.
+*   La lógica de `stockIntelligenceService` es un componente central para las alertas y recomendaciones, lo que sugiere una complejidad considerable en la agregación y análisis de datos de múltiples fuentes.

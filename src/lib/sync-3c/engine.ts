@@ -77,27 +77,35 @@ export async function syncItems(
   const startTotal = Date.now()
   console.log(`[SYNC ${syncId}] START`)
 
-  const start = Date.now()
-  const snapshot = await collection.get()
-  console.log(`[SYNC ${syncId}] Firestore docs: ${snapshot.size}`)
+  const expectedReads = items.length
+  let performedReads = 0
+  console.log(`[SYNC ${syncId}] inventory_stock reads expected: ${expectedReads}`)
 
-  const stockMap = new Map<string, { id: string;[key: string]: unknown }>()
-  const codeMap = new Map<string, { id: string;[key: string]: unknown }>()
-
-  for (const doc of snapshot.docs) {
-    const data = doc.data() as Record<string, unknown>
-    const key = ((data.name as string) ?? "").toLowerCase().trim()
-    stockMap.set(key, { id: doc.id, ...data })
-    if (data.codigo) {
-      codeMap.set(data.codigo.toString().trim(), { id: doc.id, ...data })
+  async function findInventoryDoc(item: Sync3CItem) {
+    if (item.codigo) {
+      const querySnapshot = await collection.where("codigo", "==", item.codigo).get()
+      performedReads += querySnapshot.size
+      if (!querySnapshot.empty) {
+        return querySnapshot.docs[0]
+      }
     }
+
+    const nameSnapshot = await collection.where("name", "==", item.name).get()
+    performedReads += nameSnapshot.size
+    if (!nameSnapshot.empty) {
+      return nameSnapshot.docs[0]
+    }
+
+    return null
   }
 
   for (const item of items) {
     const scaffold = classifyScaffoldStock(item.name)
-    let match = item.codigo ? (codeMap.get(item.codigo) ?? null) : null
-    if (!match) {
-      match = stockMap.get(item.normalizedName) ?? null
+    const matchDoc = await findInventoryDoc(item)
+    let match: { id: string; [key: string]: unknown } | null = null
+    if (matchDoc) {
+      const data = matchDoc.data() as Record<string, unknown>
+      match = { id: matchDoc.id, ...data }
     }
 
     const payload: Record<string, unknown> = {
@@ -143,6 +151,7 @@ export async function syncItems(
     }
   }
 
+  console.log(`[SYNC ${syncId}] inventory_stock reads performed: ${performedReads}`)
   console.log(`[SYNC ${syncId}] Excel rows: ${items.length}`)
   console.log(`[SYNC ${syncId}] Updated: ${result.updated}`)
   console.log(`[SYNC ${syncId}] Created: ${result.created}`)

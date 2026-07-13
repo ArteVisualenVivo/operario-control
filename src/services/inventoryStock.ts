@@ -45,25 +45,42 @@ function docToStock(docSnap: { id: string; data: () => Record<string, unknown> }
 }
 
 let getStockItemsCalls = 0
+let stockItemsCache: InventoryStock[] | null = null
+let stockItemsPromise: Promise<InventoryStock[]> | null = null
+
+function clearStockItemsCache() {
+  stockItemsCache = null
+  stockItemsPromise = null
+}
 
 export async function getStockItems(): Promise<InventoryStock[]> {
-  try {
-    const q = query(collection(db, COLLECTION), orderBy("name"))
-    const start = Date.now()
-    const snapshot = await getDocs(q)
-    getStockItemsCalls++
-    console.log(`[SYNC] getStockItems() Call #${getStockItemsCalls} docs=${snapshot.size} time=${(Date.now() - start).toFixed(1)}ms`)
-    const data = snapshot.docs.map(docToStock)
-    if (LOCAL_MODE && data.length === 0) {
-      return LOCAL_STOCK_SEED
+  if (stockItemsCache) return stockItemsCache
+  if (stockItemsPromise) return stockItemsPromise
+
+  stockItemsPromise = (async () => {
+    try {
+      const q = query(collection(db, COLLECTION), orderBy("name"))
+      const start = Date.now()
+      const snapshot = await getDocs(q)
+      getStockItemsCalls++
+      console.log(`[SYNC] getStockItems() Call #${getStockItemsCalls} docs=${snapshot.size} time=${(Date.now() - start).toFixed(1)}ms`)
+      const data = snapshot.docs.map(docToStock)
+      if (LOCAL_MODE && data.length === 0) {
+        return LOCAL_STOCK_SEED
+      }
+      stockItemsCache = data
+      return data
+    } catch {
+      if (LOCAL_MODE) {
+        return LOCAL_STOCK_SEED
+      }
+      throw new Error("No se pudieron cargar los materiales")
+    } finally {
+      stockItemsPromise = null
     }
-    return data
-  } catch {
-    if (LOCAL_MODE) {
-      return LOCAL_STOCK_SEED
-    }
-    throw new Error("No se pudieron cargar los materiales")
-  }
+  })()
+
+  return stockItemsPromise
 }
 
 export async function getStockItem(id: string): Promise<InventoryStock | null> {
@@ -89,6 +106,7 @@ export async function createStockItem(input: CreateStockInput): Promise<string> 
   }
   const docRef = await addDoc(collection(db, COLLECTION), docData)
   await createAuditLog("create", "inventory_stock", docRef.id, null, docData)
+  clearStockItemsCache()
   return docRef.id
 }
 
@@ -121,6 +139,8 @@ export async function updateStockItem(
   await updateDoc(ref, updates)
   const after = { ...before, ...updates }
   await createAuditLog("update", "inventory_stock", id, before ?? null, after)
+  clearStockItemsCache()
+  clearStockItemsCache()
 }
 
 export async function rentStockItem(
@@ -167,6 +187,7 @@ export async function deleteStockItem(id: string): Promise<void> {
   if (!before) throw new Error("Material no encontrado")
   await deleteDoc(ref)
   await createAuditLog("delete", "inventory_stock", id, before ?? null, null)
+  clearStockItemsCache()
 }
 
 export async function returnStockItem(
@@ -205,4 +226,5 @@ export async function returnStockItem(
     projectName: options?.projectName,
     reference: options?.reference,
   })
+  clearStockItemsCache()
 }
