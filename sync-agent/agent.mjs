@@ -12,6 +12,7 @@ import path from "path"
 import { fileURLToPath } from "url"
 import { parseExcel } from "../src/lib/sync-3c/parser.js"
 import { syncItems, syncRepairsToMaintenance } from "../src/lib/sync-3c/engine.js"
+import { trace as forensicTrace, flush } from "./tracer.js"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PROJECT_ROOT = path.resolve(__dirname, "..")
@@ -54,6 +55,7 @@ const MODULE_SCRIPTS = {
     stock: "sync_3c.ahk",
     reparaciones: "sync_reparaciones.ahk",
     articulos: "sync_articulos.ahk",
+    alquileres: "sync_alquileres.ahk",
 }
 
 const CANDIDATE_PATHS = [
@@ -234,10 +236,34 @@ function buildSparePartsSeedFromStock(items) {
 }
 
 async function processCommand(redis, commandId, module) {
+    const startTime = Date.now()
     isProcessing = true
 
+    forensicTrace("PROCESS_COMMAND", "ENTRÓ A processCommand()", {
+        commandId,
+        module,
+        isProcessing: true,
+        timestamp: startTime,
+    })
+
     try {
+        const beforeStatus = await redis.hgetall(`sync-3c:command:${commandId}`)
+        forensicTrace("REDIS", "HGETALL antes de marcar running", {
+            key: `sync-3c:command:${commandId}`,
+            status: beforeStatus?.status,
+            module: beforeStatus?.module,
+            createdAt: beforeStatus?.createdAt,
+            startedAt: beforeStatus?.startedAt,
+            completedAt: beforeStatus?.completedAt,
+        })
+
         await redis.hset(`sync-3c:command:${commandId}`, {
+            status: "running",
+            startedAt: Date.now(),
+            agent: MACHINE_NAME,
+        })
+        forensicTrace("REDIS", "HSET marcó running", {
+            key: `sync-3c:command:${commandId}`,
             status: "running",
             startedAt: Date.now(),
             agent: MACHINE_NAME,
@@ -248,6 +274,11 @@ async function processCommand(redis, commandId, module) {
             lastHeartbeat: Date.now(),
             machineName: MACHINE_NAME,
         }), { ex: 120 })
+        forensicTrace("REDIS", "SET heartbeat", {
+            key: "sync-3c:agent:production",
+            status: "running",
+            ex: 120,
+        })
 
         console.log(`[AGENT] Processing command ${commandId} [module: ${module}]`)
         if (module === "reparaciones") {
@@ -260,11 +291,35 @@ async function processCommand(redis, commandId, module) {
         }
         const scriptPath = path.join(AHK_DIR, scriptName)
         console.log(`[AGENT] Module: ${module} → ${scriptName}`)
+        forensicTrace("AHK", "Script elegido", {
+            module,
+            scriptName,
+            scriptPath,
+            exists: fs.existsSync(scriptPath),
+        })
 
+        const ahkStart = Date.now()
         await runAhk(scriptPath)
+        const ahkEnd = Date.now()
+        forensicTrace("AHK", "Ejecución completada", {
+            module,
+            scriptName,
+            durationMs: ahkEnd - ahkStart,
+            startTime: ahkStart,
+            endTime: ahkEnd,
+        })
 
+        const exportStart = Date.now()
         const latest = await waitForExport()
+        const exportEnd = Date.now()
         console.log(`[AGENT] Export found: ${latest.name}`)
+        forensicTrace("EXCEL", "Archivo encontrado", {
+            name: latest.name,
+            path: latest.fullPath,
+            sizeBytes: fs.statSync(latest.fullPath).size,
+            mtime: new Date(latest.mtime).toISOString(),
+            waitDurationMs: exportEnd - exportStart,
+        })
 
         const buffer = fs.readFileSync(latest.fullPath).buffer
 
@@ -282,6 +337,11 @@ async function processCommand(redis, commandId, module) {
         } else {
             const parsed = parseExcel(buffer)
             items = parsed.items
+            forensicTrace("EXCEL", "Parseo completado", {
+                module,
+                rowsRead: items.length,
+                firstItem: items[0] ? { code: items[0].codigo, name: items[0].name } : null,
+            })
 
             if (items.length === 0) {
                 result = {
@@ -295,7 +355,17 @@ async function processCommand(redis, commandId, module) {
                 }
             } else {
                 try {
+                    const firestoreStart = Date.now()
                     result = await syncItems(items)
+                    const firestoreEnd = Date.now()
+                    forensicTrace("FIRESTORE", "Sincronización completada", {
+                        module,
+                        collection: "inventory_stock",
+                        created: result.created,
+                        updated: result.updated,
+                        skipped: result.skipped,
+                        durationMs: firestoreEnd - firestoreStart,
+                    })
                 } catch (err) {
                     console.error("========== FIREBASE ERROR ==========")
                     console.error(err)
@@ -317,6 +387,11 @@ async function processCommand(redis, commandId, module) {
                         ],
                         degraded: true,
                     }
+                    forensicTrace("FIRESTORE", "Sincronización falló (degradado)", {
+                        module,
+                        error: err?.message,
+                        skipped: items.length,
+                    })
                 }
             }
         }
@@ -339,12 +414,20 @@ async function processCommand(redis, commandId, module) {
                     maintenanceSkipped: maintenanceResult.skipped,
                     maintenanceWarnings: maintenanceResult.warnings,
                 }
+                forensicTrace("FIRESTORE", "Mantenimiento sincronizado", {
+                    created: maintenanceResult.created,
+                    updated: maintenanceResult.updated,
+                    skipped: maintenanceResult.skipped,
+                })
             } catch (maintErr) {
                 console.error(`[AGENT] Maintenance sync failed:`, maintErr instanceof Error ? maintErr.message : String(maintErr))
                 result = {
                     ...result,
                     maintenanceError: maintErr instanceof Error ? maintErr.message : String(maintErr),
                 }
+                forensicTrace("FIRESTORE", "Mantenimiento falló", {
+                    error: maintErr instanceof Error ? maintErr.message : String(maintErr),
+                })
             }
         }
 
@@ -361,14 +444,31 @@ async function processCommand(redis, commandId, module) {
             result: JSON.stringify(result),
             updatedAt: Date.now(),
         })
+        forensicTrace("REDIS", "HSET resultado", {
+            key: `sync-3c:result:${commandId}`,
+            status: "completed",
+            module,
+            resultSize: JSON.stringify(result).length,
+        })
 
         await redis.hset(`sync-3c:command:${commandId}`, {
             status: "completed",
             completedAt: Date.now(),
             result: JSON.stringify(result),
         })
+        forensicTrace("REDIS", "HSET comando completado", {
+            key: `sync-3c:command:${commandId}`,
+            status: "completed",
+            completedAt: Date.now(),
+        })
 
         console.log(`[AGENT] Command ${commandId} completed: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`)
+        forensicTrace("PROCESS_COMMAND", "FIN MODULO", {
+            commandId,
+            module,
+            durationMs: Date.now() - startTime,
+            resultado: `${result.created} created, ${result.updated} updated, ${result.skipped} skipped`,
+        })
     } catch (err) {
         const message = err instanceof Error ? err.message : "Error desconocido"
         console.error(`[AGENT] Command ${commandId} failed: ${message}`)
@@ -378,37 +478,109 @@ async function processCommand(redis, commandId, module) {
             error: message,
             completedAt: Date.now(),
         })
+        forensicTrace("PROCESS_COMMAND", "ERROR en módulo", {
+            commandId,
+            module,
+            error: message,
+            durationMs: Date.now() - startTime,
+        })
     } finally {
         isProcessing = false
+        forensicTrace("PROCESS_COMMAND", "finally - isProcessing = false", {
+            commandId,
+            module,
+            isProcessing: false,
+        })
     }
 }
 
 async function pollQueue(redis) {
     console.log("[AGENT] Redis polling started (5s)")
+    forensicTrace("POLL_QUEUE", "Inicio de pollQueue()", {
+        machineName: MACHINE_NAME,
+        pollIntervalMs: POLL_INTERVAL_MS,
+    })
 
     while (true) {
         try {
             if (isProcessing) {
+                forensicTrace("POLL_QUEUE", "isProcessing = true, esperando", {
+                    isProcessing: true,
+                })
                 await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
                 continue
             }
 
+            forensicTrace("POLL_QUEUE", "Entró nuevamente a pollQueue()", {
+                isProcessing: false,
+                timestamp: Date.now(),
+            })
+
+            // Leer tamaño y contenido de la cola antes del RPOP
+            const queueBefore = await redis.lrange("sync-3c:queue", 0, -1)
+            forensicTrace("REDIS", "LRANGE cola antes de RPOP", {
+                key: "sync-3c:queue",
+                size: queueBefore.length,
+                content: queueBefore,
+            })
+
+            const rpopStart = Date.now()
             const commandId = await redis.rpop("sync-3c:queue")
+            const rpopEnd = Date.now()
+            forensicTrace("REDIS", "RPOP ejecutado", {
+                key: "sync-3c:queue",
+                commandIdObtenido: commandId,
+                devolvioNull: commandId === null,
+                durationMs: rpopEnd - rpopStart,
+            })
+
             if (!commandId) {
+                forensicTrace("POLL_QUEUE", "RPOP devolvió NULL - cola vacía", {
+                    timestamp: Date.now(),
+                })
                 await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
                 continue
             }
 
             const raw = await redis.hgetall(`sync-3c:command:${commandId}`)
+            forensicTrace("REDIS", "HGETALL comando", {
+                key: `sync-3c:command:${commandId}`,
+                status: raw?.status,
+                module: raw?.module,
+                createdAt: raw?.createdAt,
+                startedAt: raw?.startedAt,
+                completedAt: raw?.completedAt,
+            })
+
             if (!raw || raw.status !== "pending") {
+                forensicTrace("POLL_QUEUE", "Comando descartado", {
+                    commandId,
+                    razon: !raw ? "hash no existe" : `status = ${raw.status} (no es pending)`,
+                })
                 console.log(`[AGENT] Command ${commandId} skipped (not pending)`)
                 continue
             }
 
             const module = raw.module || "stock"
+            forensicTrace("POLL_QUEUE", "Entrando a processCommand()", {
+                commandId,
+                module,
+                status: raw.status,
+            })
+
             await processCommand(redis, commandId, module)
+
+            forensicTrace("POLL_QUEUE", "processCommand() terminó, esperando siguiente comando", {
+                commandId,
+                module,
+                timestamp: Date.now(),
+            })
         } catch (err) {
             console.error("[AGENT] Polling error:", err.message)
+            forensicTrace("POLL_QUEUE", "ERROR en pollQueue", {
+                error: err.message,
+                stack: err.stack,
+            })
         }
 
         await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
@@ -470,13 +642,25 @@ function startHeartbeat(redis) {
 
 async function main() {
     console.log(`[AGENT] Starting — Machine: ${MACHINE_NAME}`)
+    forensicTrace("MAIN", "Inicio del agente", {
+        machineName: MACHINE_NAME,
+        timestamp: Date.now(),
+        nodeVersion: process.version,
+    })
+
     const redis = getRedis()
+    forensicTrace("MAIN", "Redis conectado", {
+        url: process.env.UPSTASH_REDIS_REST_URL ? "configurado" : "FALTANTE",
+    })
 
     await recoverStaleCommands(redis)
     startHeartbeat(redis)
     void pollQueue(redis)
 
     console.log("[AGENT] Initial sweep complete, waiting for commands...")
+    forensicTrace("MAIN", "Agente listo, esperando comandos", {
+        timestamp: Date.now(),
+    })
 }
 
 main().catch((err) => {
