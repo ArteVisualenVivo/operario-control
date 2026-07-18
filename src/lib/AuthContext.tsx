@@ -27,7 +27,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(user)
       setLoading(false)
     })
-    return unsub
+    // Timeout de seguridad: si onAuthStateChanged no llama al callback en 5s, asumir no hay usuario
+    const timeout = setTimeout(() => {
+      setLoading(false)
+    }, 5000)
+    return () => {
+      clearTimeout(timeout)
+      unsub()
+    }
   }, [])
 
   return (
