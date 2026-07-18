@@ -178,8 +178,27 @@ export async function syncItems(
     }
 
     if (match) {
-      batch.set(collection.doc(match.id), payload, { merge: true })
-      result.updated++
+      // Comparar payload contra documento existente (ignorando updatedAt)
+      const fieldsToCompare = Object.keys(payload).filter((k) => k !== "updatedAt")
+      const normalizeForCompare = (v: unknown): unknown => {
+        if (v instanceof Date) return v.toISOString()
+        if (v && typeof v === "object" && "toDate" in v && typeof (v as { toDate: () => Date }).toDate === "function") {
+          return (v as { toDate: () => Date }).toDate().toISOString()
+        }
+        return v
+      }
+      const hasChanges = fieldsToCompare.some((key) => {
+        const newVal = normalizeForCompare(payload[key])
+        const oldVal = normalizeForCompare(match[key])
+        return newVal !== oldVal
+      })
+      if (hasChanges) {
+        batch.set(collection.doc(match.id), payload, { merge: true })
+        result.updated++
+        counter++
+      } else {
+        result.skipped++
+      }
     } else if (!config.strictMode) {
       const newDocRef = collection.doc()
       batch.set(newDocRef, {
@@ -192,6 +211,7 @@ export async function syncItems(
         createdAt: new Date(),
       })
       result.created++
+      counter++
     } else {
       result.skipped++
       result.warnings.push(
@@ -199,7 +219,6 @@ export async function syncItems(
       )
     }
 
-    counter++
     if (counter >= BATCH_LIMIT) {
       // ═══════════════════════════════════════════
       // ETAPA 3a: batch.commit() #N

@@ -35,6 +35,23 @@ export async function POST(request: Request) {
     const startIndex = SYNC_PIPELINE.indexOf(module)
     const modulesToEnqueue = SYNC_PIPELINE.slice(startIndex)
 
+    // Verificar si ya existen comandos pending para los módulos solicitados
+    const keys = await redis.keys("sync-3c:command:*")
+    for (const key of keys) {
+      const data = await redis.hgetall<Record<string, unknown>>(key)
+      if (data && data.status === "pending") {
+        const existingModule = data.module as string
+        if (modulesToEnqueue.includes(existingModule)) {
+          const existingCommandId = key.replace("sync-3c:command:", "")
+          return NextResponse.json({
+            commandId: existingCommandId,
+            alreadyPending: true,
+            pipeline: modulesToEnqueue,
+          })
+        }
+      }
+    }
+
     // Crear comandos para todos los módulos del pipeline desde el punto de inicio
     const commandIds: string[] = []
     for (const mod of modulesToEnqueue) {
