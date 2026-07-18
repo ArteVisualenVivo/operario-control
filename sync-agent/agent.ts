@@ -12,8 +12,7 @@ import path from "path"
 import { fileURLToPath } from "url"
 import { parseExcel } from "../src/lib/sync-3c/parser"
 import { syncItems, syncRepairsToMaintenance } from "../src/lib/sync-3c/engine"
-import { parseScaffoldRentals, saveScaffoldRentalStats } from "../src/lib/sync-3c/scaffoldRentals"
-import type { Sync3CItem } from "../src/lib/sync-3c/types"
+import type { Sync3CItem, Sync3CResult } from "../src/lib/sync-3c/types"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PROJECT_ROOT = path.resolve(__dirname, "..")
@@ -84,7 +83,8 @@ function acquireSingletonLock() {
         fs.writeFileSync(LOCK_FILE, JSON.stringify(lockData, null, 2))
         console.log(`[AGENT] Lock acquired (PID ${process.pid})`)
     } catch (err) {
-        console.error("[AGENT] Failed to acquire singleton lock:", err.message)
+        const message = err instanceof Error ? err.message : String(err)
+        console.error("[AGENT] Failed to acquire singleton lock:", message)
         process.exit(1)
     }
 }
@@ -96,7 +96,8 @@ function releaseSingletonLock() {
             console.log(`[AGENT] Lock released (PID ${process.pid})`)
         }
     } catch (err) {
-        console.error("[AGENT] Failed to release singleton lock:", err.message)
+        const message = err instanceof Error ? err.message : String(err)
+        console.error("[AGENT] Failed to release singleton lock:", message)
     }
 }
 
@@ -159,7 +160,7 @@ function findAhkExe() {
     return null
 }
 
-function runAhk(scriptPath) {
+function runAhk(scriptPath: string): Promise<void> {
     return new Promise((resolve, reject) => {
         const exe = findAhkExe()
         if (!exe) {
@@ -237,16 +238,17 @@ function ensureCacheDir() {
     }
 }
 
-function safeWriteJson(filePath, data) {
+function safeWriteJson(filePath: string, data: unknown) {
     try {
         ensureCacheDir()
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
     } catch (err) {
-        console.warn(`[AGENT] No se pudo escribir cache ${path.basename(filePath)}:`, err?.message)
+        const message = err instanceof Error ? err.message : String(err)
+        console.warn(`[AGENT] No se pudo escribir cache ${path.basename(filePath)}:`, message)
     }
 }
 
-function buildMachineSeedFromStock(items) {
+function buildMachineSeedFromStock(items: Sync3CItem[]) {
     const scaffoldNames = new Set([
         "andamio tubular",
         "andamio modular",
@@ -276,7 +278,7 @@ function buildMachineSeedFromStock(items) {
         }))
 }
 
-function buildSparePartsSeedFromStock(items) {
+function buildSparePartsSeedFromStock(items: Sync3CItem[]) {
     return items
         .filter((item) => {
             const name = String(item.name ?? "").toLowerCase().trim()
@@ -304,7 +306,9 @@ function buildSparePartsSeedFromStock(items) {
 // ============================================================================
 // PROCESS SINGLE MODULE
 // ============================================================================
-async function processModule(redis, commandId, module) {
+type ModuleName = "stock" | "reparaciones" | "articulos" | "alquileres"
+
+async function processModule(redis: Redis, commandId: string, module: ModuleName) {
     try {
         await redis.hset(`sync-3c:command:${commandId}`, {
             status: "running",
@@ -338,8 +342,8 @@ async function processModule(redis, commandId, module) {
 
         const buffer = fs.readFileSync(latest.fullPath).buffer
 
-        let result
-        let items = []
+        let result: Sync3CResult
+        let items: Sync3CItem[] = []
 
         if (module === "reparaciones") {
             result = {
@@ -367,13 +371,14 @@ async function processModule(redis, commandId, module) {
                 try {
                     result = await syncItems(items)
                 } catch (err) {
+                    const errMsg = err instanceof Error ? err.message : String(err)
+                    const errCode = err && typeof err === "object" && "code" in err ? String((err as { code: unknown }).code) : "unknown"
+                    const errStack = err instanceof Error ? err.stack : undefined
                     console.error("========== FIREBASE ERROR ==========")
                     console.error(err)
-                    console.error("message:", err?.message)
-                    console.error("code:", err?.code)
-                    console.error("details:", err?.details)
-                    console.error("stack:", err?.stack)
-                    console.error("metadata:", err?.metadata)
+                    console.error("message:", errMsg)
+                    console.error("code:", errCode)
+                    console.error("stack:", errStack)
                     console.error("===================================")
 
                     result = {
@@ -481,11 +486,11 @@ async function main() {
     const redis = getRedis()
 
     // Pipeline: primer commandId con su módulo, luego los auto-enqueued
-    const pipeline: { commandId: string; module: string }[] = [
-        { commandId, module },
+    const pipeline: { commandId: string; module: ModuleName }[] = [
+        { commandId, module: module as ModuleName },
         ...autoEnqueued.map((cid, idx) => ({
             commandId: cid,
-            module: ["articulos", "alquileres", "reparaciones"][idx] || "stock"
+            module: (["articulos", "alquileres", "reparaciones"][idx] || "stock") as ModuleName
         }))
     ]
 

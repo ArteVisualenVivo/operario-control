@@ -70,11 +70,12 @@ export async function getStockItems(): Promise<InventoryStock[]> {
       }
       stockItemsCache = data
       return data
-    } catch {
+    } catch (err) {
       if (LOCAL_MODE) {
         return LOCAL_STOCK_SEED
       }
-      throw new Error("No se pudieron cargar los materiales")
+      const message = err instanceof Error ? err.message : "Error desconocido"
+      throw new Error(`Error al cargar materiales: ${message}`)
     } finally {
       stockItemsPromise = null
     }

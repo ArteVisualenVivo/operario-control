@@ -227,11 +227,12 @@ export async function getMachines(): Promise<Machine[]> {
       }
       machinesCache = data
       return data
-    } catch {
+    } catch (err) {
       if (LOCAL_MODE) {
         return LOCAL_MACHINE_SEED
       }
-      throw new Error("No se pudieron cargar las máquinas")
+      const message = err instanceof Error ? err.message : String(err)
+      throw new Error(`Error al cargar máquinas: ${message}`)
     } finally {
       machinesPromise = null
     }

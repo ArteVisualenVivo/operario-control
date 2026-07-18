@@ -1,19 +1,35 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { useAuth } from "@/lib/AuthContext"
 import type { Machine, MachineRental, CreateMachineInput, UpdateMachineInput } from "@/types"
 import * as machineService from "@/services/machines"
 
 export function useMachines() {
+  const { user, loading: authLoading } = useAuth()
   const [machines, setMachines] = useState<Machine[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    if (!user) {
+      setMachines([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
-    const data = await machineService.getMachines()
-    setMachines(data)
-    setLoading(false)
-  }, [])
+    setError(null)
+    try {
+      const data = await machineService.getMachines()
+      setMachines(data)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Error desconocido"
+      setError(message)
+      setMachines([])
+    } finally {
+      setLoading(false)
+    }
+  }, [user])
 
   useEffect(() => { load() }, [load])
 

@@ -25,6 +25,7 @@ export interface Sync3CResult {
   updated: number
   skipped: number
   warnings: string[]
+  degraded?: boolean
   maintenanceCreated?: number
   maintenanceUpdated?: number
   maintenanceSkipped?: number

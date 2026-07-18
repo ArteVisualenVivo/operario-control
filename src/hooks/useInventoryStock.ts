@@ -9,19 +9,35 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
+import { useAuth } from "@/lib/AuthContext"
 import type { InventoryStock, CreateStockInput } from "@/types"
 import * as inventoryStockService from "@/services/inventoryStock"
 
 export function useInventoryStock() {
+  const { user } = useAuth()
   const [items, setItems] = useState<InventoryStock[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   const load = useCallback(async () => {
+    if (!user) {
+      setItems([])
+      setLoading(false)
+      return
+    }
     setLoading(true)
-    const data = await inventoryStockService.getStockItems()
-    setItems(data)
-    setLoading(false)
-  }, [])
+    setError(null)
+    try {
+      const data = await inventoryStockService.getStockItems()
+      setItems(data)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Error desconocido"
+      setError(message)
+      setItems([])
+    } finally {
+      setLoading(false)
+    }
+  }, [user])
 
   useEffect(() => { load() }, [load])
 
