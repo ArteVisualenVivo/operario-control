@@ -1,0 +1,58 @@
+[2026-07-15 21:00:20] === INICIO STOCK ===
+[2026-07-15 21:00:20] === INICIO ARTICULOS ===
+[2026-07-15 21:00:21] Ventana '3C' detectada y activada
+[2026-07-15 21:00:21] Resync: enviando Ctrl+Home
+[2026-07-15 21:00:21] Ventana '3C' detectada y activada
+[2026-07-15 21:00:21] Resync: enviando Ctrl+Home
+[2026-07-15 21:00:22] Click en Almacenes (888,189)
+[2026-07-15 21:00:22] Click en ServiciosArt (1145,186)
+[2026-07-15 21:00:22] Click en Informes (921,370)
+[2026-07-15 21:00:23] Click en ArticulosMenu (1181,219)
+[2026-07-15 21:00:23] [ERROR] (32) El proceso no tiene acceso al archivo porque está siendo utilizado por otro proceso.
+[2026-07-15 21:00:23] === FIN STOCK ===
+[2026-07-15 21:00:24] Click en ArticulosLista (1288,220)
+[2026-07-15 21:00:24] Click en ImprimirArt (898,253)
+[2026-07-15 21:00:26] Click en Generar (948,761)
+[2026-07-15 21:00:27] Click en ExcelArt (951,574)
+[2026-07-15 21:00:32] Exportacion de articulos completada. Esperando Excel...
+[2026-07-15 21:00:32] Esperando Excel (timeout: 30s)...
+[2026-07-15 21:00:39] === INICIO ALQUILERES ===
+[2026-07-15 21:00:41] Ventana '3C' detectada y activada
+[2026-07-15 21:00:41] Resync: enviando Ctrl+Home
+[2026-07-15 21:00:41] Click en Ventas (413,188)
+[2026-07-15 21:00:42] Click en Informes (921,370)
+[2026-07-15 21:00:42] Click en Remitos (680,531)
+[2026-07-15 21:00:43] Click en AlquileresPendientes (915,559)
+[2026-07-15 21:00:43] Click en Aceptar (1196,902)
+[2026-07-15 21:00:45] Click en ExcelFormat (936,577)
+[2026-07-15 21:00:50] Exportación de alquileres completada. Esperando Excel...
+[2026-07-15 21:00:50] Esperando Excel (timeout: 30s)...
+[2026-07-15 21:01:02] WARNING: Excel no detectado tras 30s
+[2026-07-15 21:01:02] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-07-15 21:01:20] WARNING: Excel no detectado tras 30s
+[2026-07-15 21:01:20] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-07-15 21:02:02] [WATCHER] TIMEOUT — no se detectaron archivos tresc*.xls en Temp	resc
+[2026-07-15 21:02:03] Click en SalirArt2 (949,762)
+[2026-07-15 21:02:03] Click en SalirArt (944,253)
+[2026-07-15 21:02:04] [NAV] Main menu restored (Articulos)
+[2026-07-15 21:02:04] === FIN ARTICULOS ===
+[2026-07-15 21:02:19] === INICIO REPARACIONES ===
+[2026-07-15 21:02:20] [WATCHER] TIMEOUT — no se detectaron archivos tresc*.xls en Temp	resc
+[2026-07-15 21:02:21] Ventana '3C' detectada y activada
+[2026-07-15 21:02:21] Resync: enviando Ctrl+Home
+[2026-07-15 21:02:21] Click en Ventas (413,188)
+[2026-07-15 21:02:21] Click en Salir (946,250)
+[2026-07-15 21:02:22] [NAV] Main menu restored (Alquileres)
+[2026-07-15 21:02:22] === FIN ALQUILERES ===
+[2026-07-15 21:02:23] Click en Reparaciones (448,346)
+[2026-07-15 21:02:25] Click en PrintAll (1450,829)
+[2026-07-15 21:02:25] Click en Imprimir (896,254)
+[2026-07-15 21:02:26] Click en ExcelFormat (936,577)
+[2026-07-15 21:02:31] Exportación de reparaciones completada. Esperando Excel...
+[2026-07-15 21:02:31] Esperando Excel (timeout: 30s)...
+[2026-07-15 21:03:01] WARNING: Excel no detectado tras 30s
+[2026-07-15 21:03:01] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-07-15 21:04:01] [WATCHER] TIMEOUT — no se detectaron archivos tresc*.xls en Temp	resc
+[2026-07-15 21:04:02] Click en SalirRep (942,254)
+[2026-07-15 21:04:03] [NAV] Main menu restored (Reparaciones)
+[2026-07-15 21:04:03] === FIN REPARACIONES ===

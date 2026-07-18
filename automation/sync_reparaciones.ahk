@@ -21,10 +21,6 @@ NavigateReparaciones() {
     Sleep(afterClick)
     ValidarFoco()
 
-    ; 2 — DEBUG: verificar posición del mouse antes de click
-    MouseMove 448, 346
-    Sleep(2000)
-
     ; 2 — Click Reparaciones
     ClickAt("Reparaciones")
     Sleep(afterSubmenu)

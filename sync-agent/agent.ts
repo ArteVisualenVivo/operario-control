@@ -1,21 +1,22 @@
 #!/usr/bin/env node
 
-import * as dotenv from "dotenv"
+import dotenv from "dotenv"
 
 dotenv.config({
-    path: path.join(process.cwd(), ".env.local"),
+    path: fileURLToPath(new URL("../.env.local", import.meta.url)),
 })
 import { Redis } from "@upstash/redis"
 import { spawn, execSync } from "child_process"
-import * as fs from "fs"
-import * as path from "path"
+import fs from "fs"
+import path from "path"
 import { fileURLToPath } from "url"
 import { parseExcel } from "../src/lib/sync-3c/parser"
 import { syncItems, syncRepairsToMaintenance } from "../src/lib/sync-3c/engine"
 import { parseScaffoldRentals, saveScaffoldRentalStats } from "../src/lib/sync-3c/scaffoldRentals"
 import type { Sync3CItem } from "../src/lib/sync-3c/types"
 
-const PROJECT_ROOT = process.cwd()
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const PROJECT_ROOT = path.resolve(__dirname, "..")
 const AHK_DIR = path.join(PROJECT_ROOT, "automation")
 const EXPORTS_DIR = path.resolve(PROJECT_ROOT, "automation-watcher", "3c_exports")
 const CACHE_DIR = path.resolve(PROJECT_ROOT, "automation-watcher", "cache")
@@ -23,8 +24,8 @@ const STOCK_CACHE_FILE = path.join(CACHE_DIR, "stock-cache.json")
 const MACHINES_CACHE_FILE = path.join(CACHE_DIR, "machines-cache.json")
 const SPARE_PARTS_CACHE_FILE = path.join(CACHE_DIR, "spare-parts-cache.json")
 
-const LOG_FILE = path.join(PROJECT_ROOT, "sync-agent", "agent.log")
-const logStream: fs.WriteStream = fs.createWriteStream(LOG_FILE, { flags: "a" })
+const LOG_FILE = path.join(__dirname, "agent.log")
+const logStream = fs.createWriteStream(LOG_FILE, { flags: "a" })
 const origLog = console.log
 const origError = console.error
 console.log = (...args) => {
@@ -44,12 +45,67 @@ process.on("SIGTERM", () => { logStream.end(); process.exit(0) })
 
 const MACHINE_NAME = process.env.COMPUTERNAME || process.env.HOSTNAME || "unknown-pc"
 
+const LOCK_FILE = "C:\\Users\\Cesar\\Desktop\\operario-control\\sync-agent\\.agent.lock"
+
+// ============================================================================
+// LOCK MANAGEMENT - SOLO ON-DEMAND
+// ============================================================================
+function acquireSingletonLock() {
+    try {
+        if (fs.existsSync(LOCK_FILE)) {
+            const lockData = JSON.parse(fs.readFileSync(LOCK_FILE, "utf-8"))
+            const lockPid = lockData.pid
+            const lockTime = lockData.timestamp
+            const now = Date.now()
+            
+            // Si el lock expiró (más de 60 segundos), eliminarlo
+            if (lockTime && now - lockTime > 60000) {
+                console.log(`[AGENT] Lock expired (${now - lockTime}ms old), removing stale lock`)
+                fs.unlinkSync(LOCK_FILE)
+            } else {
+                // Verificar si el proceso del lock está vivo
+                try {
+                    process.kill(lockPid, 0)
+                    console.error(`[AGENT] Another instance is already running (PID ${lockPid})`)
+                    process.exit(1)
+                } catch (e) {
+                    // El proceso está muerto, eliminar el lock
+                    console.log(`[AGENT] Lock process (PID ${lockPid}) is dead, removing stale lock`)
+                    fs.unlinkSync(LOCK_FILE)
+                }
+            }
+        }
+        
+        const lockData = {
+            pid: process.pid,
+            timestamp: Date.now(),
+            machineName: MACHINE_NAME,
+        }
+        fs.writeFileSync(LOCK_FILE, JSON.stringify(lockData, null, 2))
+        console.log(`[AGENT] Lock acquired (PID ${process.pid})`)
+    } catch (err) {
+        console.error("[AGENT] Failed to acquire singleton lock:", err.message)
+        process.exit(1)
+    }
+}
+
+function releaseSingletonLock() {
+    try {
+        if (fs.existsSync(LOCK_FILE)) {
+            fs.unlinkSync(LOCK_FILE)
+            console.log(`[AGENT] Lock released (PID ${process.pid})`)
+        }
+    } catch (err) {
+        console.error("[AGENT] Failed to release singleton lock:", err.message)
+    }
+}
+
+// ============================================================================
+// CONFIG
+// ============================================================================
 const AHK_TIMEOUT_MS = 120_000
-const POLL_INTERVAL_MS = 5_000
-const HEARTBEAT_INTERVAL_MS = 30_000
 const EXPORT_RETRIES = 10
 const EXPORT_RETRY_DELAY_MS = 1000
-const STALE_THRESHOLD_MINUTES = 10
 
 const MODULE_SCRIPTS = {
     stock: "sync_3c.ahk",
@@ -67,8 +123,9 @@ const CANDIDATE_PATHS = [
     path.join("C:", "Program Files", "AutoHotkey", "v2", "AutoHotkey64.exe"),
 ]
 
-let isProcessing = false
-
+// ============================================================================
+// REDIS
+// ============================================================================
 function getRedis() {
     const url = process.env.UPSTASH_REDIS_REST_URL
     const token = process.env.UPSTASH_REDIS_REST_TOKEN
@@ -82,6 +139,9 @@ function getRedis() {
     return new Redis({ url, token })
 }
 
+// ============================================================================
+// AHK
+// ============================================================================
 function findAhkExe() {
     for (const p of CANDIDATE_PATHS) {
         try {
@@ -99,20 +159,13 @@ function findAhkExe() {
     return null
 }
 
-function runAhk(scriptPath: string, moduleName: string = "unknown"): Promise<void> {
-    return new Promise<void>((resolve, reject) => {
+function runAhk(scriptPath) {
+    return new Promise((resolve, reject) => {
         const exe = findAhkExe()
         if (!exe) {
-            console.log(`[PIPELINE] ERROR: AutoHotkey no encontrado`)
             reject(new Error("AutoHotkey no encontrado. Instalalo desde https://www.autohotkey.com/"))
             return
         }
-
-        // INSTRUMENTACIÓN: Verificar existencia del script
-        const scriptExists = fs.existsSync(scriptPath)
-        console.log(`[PIPELINE] Script existe: ${scriptExists}`)
-        console.log(`[PIPELINE] cwd: ${AHK_DIR}`)
-        console.log(`[PIPELINE] Ejecutando: "${exe}" "${scriptPath}"`)
 
         const child = spawn(exe, [scriptPath], {
             cwd: AHK_DIR,
@@ -120,41 +173,30 @@ function runAhk(scriptPath: string, moduleName: string = "unknown"): Promise<voi
             shell: false,
         })
 
-        const tStart = Date.now()
-        console.log(`[PIPELINE] Iniciando módulo: ${moduleName}`)
-        console.log(`[PIPELINE] Hora inicio: ${new Date().toISOString()}`)
-
         const timeout = setTimeout(() => {
             child.kill()
-            console.log(`[PIPELINE] ERROR: AHK timeout después de 120s`)
             reject(new Error("AHK timeout después de 120s — 3C puede no haber respondido"))
         }, AHK_TIMEOUT_MS)
 
-        child.stdout?.on("data", (d) => {
-            process.stdout.write(`[AHK] ${d}`)
-        })
-        child.stderr?.on("data", (d) => {
-            process.stderr.write(`[AHK:err] ${d}`)
-        })
+        child.stdout?.on("data", (d) => process.stdout.write(`[AHK] ${d}`))
+        child.stderr?.on("data", (d) => process.stderr.write(`[AHK:err] ${d}`))
 
         child.on("close", (code) => {
             clearTimeout(timeout)
-            const tEnd = Date.now()
-            console.log(`[PIPELINE] Hora fin: ${new Date().toISOString()}`)
-            console.log(`[PIPELINE] Duración: ${tEnd - tStart}ms`)
-            console.log(`[PIPELINE] Código de salida: ${code}`)
             if (code === 0) resolve()
             else reject(new Error(`AHK terminó con código ${code}`))
         })
 
         child.on("error", (err) => {
             clearTimeout(timeout)
-            console.log(`[PIPELINE] ERROR: ${err.message}`)
             reject(new Error(`Error al ejecutar AHK: ${err.message}`))
         })
     })
 }
 
+// ============================================================================
+// EXCEL
+// ============================================================================
 async function waitForExport() {
     for (let attempt = 0; attempt < EXPORT_RETRIES; attempt++) {
         const latest = findLatestExport()
@@ -167,7 +209,7 @@ async function waitForExport() {
     )
 }
 
-function findLatestExport(): { name: string; mtime: number; fullPath: string } | null {
+function findLatestExport() {
     if (!fs.existsSync(EXPORTS_DIR)) return null
 
     const files = fs.readdirSync(EXPORTS_DIR)
@@ -186,22 +228,25 @@ function findLatestExport(): { name: string; mtime: number; fullPath: string } |
     return files[0] ?? null
 }
 
-function ensureCacheDir(): void {
+// ============================================================================
+// CACHE
+// ============================================================================
+function ensureCacheDir() {
     if (!fs.existsSync(CACHE_DIR)) {
         fs.mkdirSync(CACHE_DIR, { recursive: true })
     }
 }
 
-function safeWriteJson(filePath: string, data: unknown): void {
+function safeWriteJson(filePath, data) {
     try {
         ensureCacheDir()
         fs.writeFileSync(filePath, JSON.stringify(data, null, 2))
     } catch (err) {
-        console.warn(`[AGENT] No se pudo escribir cache ${path.basename(filePath)}:`, err instanceof Error ? err.message : String(err))
+        console.warn(`[AGENT] No se pudo escribir cache ${path.basename(filePath)}:`, err?.message)
     }
 }
 
-function buildMachineSeedFromStock(items: Sync3CItem[]) {
+function buildMachineSeedFromStock(items) {
     const scaffoldNames = new Set([
         "andamio tubular",
         "andamio modular",
@@ -231,7 +276,7 @@ function buildMachineSeedFromStock(items: Sync3CItem[]) {
         }))
 }
 
-function buildSparePartsSeedFromStock(items: Sync3CItem[]) {
+function buildSparePartsSeedFromStock(items) {
     return items
         .filter((item) => {
             const name = String(item.name ?? "").toLowerCase().trim()
@@ -256,78 +301,10 @@ function buildSparePartsSeedFromStock(items: Sync3CItem[]) {
         }))
 }
 
-type ModuleName = "stock" | "reparaciones" | "articulos" | "alquileres"
-
-// =============================================================================
-// PIPELINE INSTRUMENTATION
-// =============================================================================
-let pipelineId: string | null = null
-let pipelineModules: string[] = []
-let pipelineStepIndex = 0
-let pipelineStartTime = 0
-let processedCommandIds = new Set<string>()
-
-function logPipelineStart(modules: string[]) {
-    pipelineId = Date.now().toString().slice(-6)
-    pipelineModules = modules
-    pipelineStepIndex = 0
-    pipelineStartTime = Date.now()
-    processedCommandIds = new Set<string>()
-
-    console.log("================================================")
-    console.log(`PIPELINE START`)
-    console.log(`Pipeline ID: ${pipelineId}`)
-    console.log(`Módulos:`)
-    modules.forEach((mod, idx) => {
-        console.log(`${idx + 1}. ${mod}`)
-    })
-    console.log("================================================")
-}
-
-function logPipelineStep(step: number, total: number, module: string, commandId: string) {
-    console.log("================================================")
-    console.log(`PIPELINE STEP ${step}/${total}`)
-    console.log(`Module: ${module}`)
-    console.log(`CommandId: ${commandId}`)
-    console.log("================================================")
-}
-
-function logPipelineStepCompleted(step: number, total: number, module: string, duration: number, result: any) {
-    console.log("================================================")
-    console.log(`PIPELINE STEP ${step}/${total} COMPLETED`)
-    console.log(`Duration: ${duration}ms`)
-    console.log(`Created: ${result.created || 0}`)
-    console.log(`Updated: ${result.updated || 0}`)
-    console.log(`Skipped: ${result.skipped || 0}`)
-    if (result.warnings && result.warnings.length > 0) {
-        console.log(`Warnings: ${result.warnings.length}`)
-    }
-    console.log("================================================")
-}
-
-function logPipelineFinished(success: boolean, errors: string[]) {
-    const totalDuration = Date.now() - pipelineStartTime
-    console.log("================================================")
-    console.log(`PIPELINE FINISHED`)
-    console.log(`Tiempo total: ${totalDuration}ms`)
-    console.log(`Módulos ejecutados: ${pipelineStepIndex}/${pipelineModules.length}`)
-    console.log(`Errores: ${errors.length > 0 ? errors.join(", ") : "Ninguno"}`)
-    console.log("================================================")
-}
-
-// =============================================================================
-// END PIPELINE INSTRUMENTATION
-// =============================================================================
-
-async function processCommand(redis: Redis, commandId: string, module: ModuleName): Promise<any> {
-    isProcessing = true
-
-    const tStart = Date.now()
-    console.log(`=========================`)
-    console.log(`ETAPA: Inicio proceso command ${commandId}`)
-    console.log(`INICIO: ${tStart}`)
-    console.log(`=========================`)
-
+// ============================================================================
+// PROCESS SINGLE MODULE
+// ============================================================================
+async function processModule(redis, commandId, module) {
     try {
         await redis.hset(`sync-3c:command:${commandId}`, {
             status: "running",
@@ -335,6 +312,7 @@ async function processCommand(redis: Redis, commandId: string, module: ModuleNam
             agent: MACHINE_NAME,
         })
 
+        // Heartbeat running
         await redis.set("sync-3c:agent:production", JSON.stringify({
             status: "running",
             lastHeartbeat: Date.now(),
@@ -342,9 +320,6 @@ async function processCommand(redis: Redis, commandId: string, module: ModuleNam
         }), { ex: 120 })
 
         console.log(`[AGENT] Processing command ${commandId} [module: ${module}]`)
-        if (module === "reparaciones") {
-            console.log("[AGENT] Reparaciones module recibido")
-        }
 
         const scriptName = MODULE_SCRIPTS[module]
         if (!scriptName) {
@@ -353,42 +328,18 @@ async function processCommand(redis: Redis, commandId: string, module: ModuleNam
         const scriptPath = path.join(AHK_DIR, scriptName)
         console.log(`[AGENT] Module: ${module} → ${scriptName}`)
 
-        // ETAPA: AutoHotkey
-        const tAhkStart = Date.now()
-        await runAhk(scriptPath, module)
-        const tAhkEnd = Date.now()
-        console.log(`=========================`)
-        console.log(`ETAPA: AutoHotkey`)
-        console.log(`INICIO: ${tAhkStart}`)
-        console.log(`FIN: ${tAhkEnd}`)
-        console.log(`DURACIÓN: ${tAhkEnd - tAhkStart}ms`)
-        console.log(`=========================`)
+        const ahkStart = Date.now()
+        await runAhk(scriptPath)
+        const ahkEnd = Date.now()
+        console.log(`[AGENT] AHK completed in ${ahkEnd - ahkStart}ms`)
 
-        // ETAPA: waitForExport
-        const tExportStart = Date.now()
         const latest = await waitForExport()
-        const tExportEnd = Date.now()
-        console.log(`=========================`)
-        console.log(`ETAPA: waitForExport`)
-        console.log(`INICIO: ${tExportStart}`)
-        console.log(`FIN: ${tExportEnd}`)
-        console.log(`DURACIÓN: ${tExportEnd - tExportStart}ms`)
-        console.log(`ARCHIVO: ${latest.name}`)
-        console.log(`=========================`)
+        console.log(`[AGENT] Export found: ${latest.name}`)
 
-        // ETAPA: readFileSync
-        const tReadStart = Date.now()
         const buffer = fs.readFileSync(latest.fullPath).buffer
-        const tReadEnd = Date.now()
-        console.log(`=========================`)
-        console.log(`ETAPA: readFileSync`)
-        console.log(`INICIO: ${tReadStart}`)
-        console.log(`FIN: ${tReadEnd}`)
-        console.log(`DURACIÓN: ${tReadEnd - tReadStart}ms`)
-        console.log(`=========================`)
 
         let result
-        let items: Sync3CItem[] = []
+        let items = []
 
         if (module === "reparaciones") {
             result = {
@@ -399,18 +350,8 @@ async function processCommand(redis: Redis, commandId: string, module: ModuleNam
                 warnings: [],
             }
         } else {
-            // ETAPA: parseExcel
-            const tParseStart = Date.now()
             const parsed = parseExcel(buffer)
             items = parsed.items
-            const tParseEnd = Date.now()
-            console.log(`=========================`)
-            console.log(`ETAPA: parseExcel`)
-            console.log(`INICIO: ${tParseStart}`)
-            console.log(`FIN: ${tParseEnd}`)
-            console.log(`DURACIÓN: ${tParseEnd - tParseStart}ms`)
-            console.log(`FILAS EXCEL: ${items.length}`)
-            console.log(`=========================`)
 
             if (items.length === 0) {
                 result = {
@@ -424,22 +365,15 @@ async function processCommand(redis: Redis, commandId: string, module: ModuleNam
                 }
             } else {
                 try {
-                    // ETAPA: syncItems
-                    const tSyncStart = Date.now()
                     result = await syncItems(items)
-                    const tSyncEnd = Date.now()
-                    console.log(`=========================`)
-                    console.log(`ETAPA: syncItems`)
-                    console.log(`INICIO: ${tSyncStart}`)
-                    console.log(`FIN: ${tSyncEnd}`)
-                    console.log(`DURACIÓN: ${tSyncEnd - tSyncStart}ms`)
-                    console.log(`=========================`)
                 } catch (err) {
-                    const error = err instanceof Error ? err : new Error(String(err))
                     console.error("========== FIREBASE ERROR ==========")
-                    console.error(error)
-                    console.error("message:", error.message)
-                    console.error("stack:", error.stack)
+                    console.error(err)
+                    console.error("message:", err?.message)
+                    console.error("code:", err?.code)
+                    console.error("details:", err?.details)
+                    console.error("stack:", err?.stack)
+                    console.error("metadata:", err?.metadata)
                     console.error("===================================")
 
                     result = {
@@ -456,38 +390,6 @@ async function processCommand(redis: Redis, commandId: string, module: ModuleNam
                 }
             }
         }
-
-        // ETAPA: Redis hset result
-        const tRedisStart = Date.now()
-        await redis.hset(`sync-3c:result:${commandId}`, {
-            status: "completed",
-            module,
-            result: JSON.stringify(result),
-            updatedAt: Date.now(),
-        })
-
-        await redis.hset(`sync-3c:command:${commandId}`, {
-            status: "completed",
-            completedAt: Date.now(),
-            result: JSON.stringify(result),
-        })
-        const tRedisEnd = Date.now()
-        console.log(`=========================`)
-        console.log(`ETAPA: Redis hset result`)
-        console.log(`INICIO: ${tRedisStart}`)
-        console.log(`FIN: ${tRedisEnd}`)
-        console.log(`DURACIÓN: ${tRedisEnd - tRedisStart}ms`)
-        console.log(`=========================`)
-
-        const tEnd = Date.now()
-        console.log(`=========================`)
-        console.log(`ETAPA: Fin proceso command ${commandId}`)
-        console.log(`INICIO: ${tStart}`)
-        console.log(`FIN: ${tEnd}`)
-        console.log(`DURACIÓN TOTAL: ${tEnd - tStart}ms`)
-        console.log(`=========================`)
-
-        console.log(`[AGENT] Command ${commandId} completed: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`)
 
         if (module === "reparaciones") {
             try {
@@ -523,33 +425,7 @@ async function processCommand(redis: Redis, commandId: string, module: ModuleNam
             console.log("[AGENT] Local stock cache actualizado")
         }
 
-        if (module === "alquileres") {
-            try {
-                console.log("[AGENT] SCAFFOLD RENTALS SYNC START")
-                const stats = parseScaffoldRentals(buffer)
-                console.log(`[AGENT] Cuerpos alquilados calculados: ${stats.cuerposAlquilados} (${stats.detalle.length} renglones)`)
-                try {
-                    await saveScaffoldRentalStats(stats)
-                    console.log("[AGENT] SCAFFOLD RENTALS guardado en Firestore (dashboard_stats/scaffold_rentals)")
-                } catch (fbErr) {
-                    const error = fbErr instanceof Error ? fbErr : new Error(String(fbErr))
-                    console.error("[AGENT] Firebase bloqueado para scaffold_rentals:", error.message)
-                    console.warn("[AGENT] Datos de alquileres calculados pero no persistidos (cuota Firebase)")
-                }
-                result = {
-                    ...result,
-                    scaffoldRentalBodies: stats.cuerposAlquilados,
-                    scaffoldRentalDetailCount: stats.detalle.length,
-                }
-            } catch (rentErr) {
-                console.error(`[AGENT] Scaffold rentals parse failed:`, rentErr instanceof Error ? rentErr.message : String(rentErr))
-                result = {
-                    ...result,
-                    scaffoldRentalError: rentErr instanceof Error ? rentErr.message : String(rentErr),
-                }
-            }
-        }
-
+        // Guardar resultado en Redis
         await redis.hset(`sync-3c:result:${commandId}`, {
             status: "completed",
             module,
@@ -557,6 +433,7 @@ async function processCommand(redis: Redis, commandId: string, module: ModuleNam
             updatedAt: Date.now(),
         })
 
+        // Actualizar estado del comando
         await redis.hset(`sync-3c:command:${commandId}`, {
             status: "completed",
             completedAt: Date.now(),
@@ -564,11 +441,6 @@ async function processCommand(redis: Redis, commandId: string, module: ModuleNam
         })
 
         console.log(`[AGENT] Command ${commandId} completed: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`)
-        
-        // Log de finalización del paso del pipeline
-        const stepDuration = Date.now() - tStart
-        logPipelineStepCompleted(pipelineStepIndex, pipelineModules.length, module, stepDuration, result)
-        
         return result
     } catch (err) {
         const message = err instanceof Error ? err.message : "Error desconocido"
@@ -579,162 +451,76 @@ async function processCommand(redis: Redis, commandId: string, module: ModuleNam
             error: message,
             completedAt: Date.now(),
         })
-        
-        // Log de fallo del paso
-        const stepDuration = Date.now() - tStart
-        logPipelineStepCompleted(pipelineStepIndex, pipelineModules.length, module, stepDuration, {
-            created: 0,
-            updated: 0,
-            skipped: 0,
-            warnings: [message]
-        })
-        
-        return { success: false, error: message }
-    } finally {
-        isProcessing = false
+        throw err
     }
 }
 
-async function pollQueue(redis: Redis) {
-    console.log("[AGENT] Redis polling started (5s)")
-
-    while (true) {
-        try {
-            if (isProcessing) {
-                await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
-                continue
-            }
-
-            const commandId = await redis.rpop("sync-3c:queue")
-            if (!commandId) {
-                await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
-                continue
-            }
-
-            // =============================================================================
-            // PIPELINE INSTRUMENTATION: Detectar nuevo pipeline
-            // =============================================================================
-            const raw = await redis.hgetall(`sync-3c:command:${commandId}`)
-            if (!raw || raw.status !== "pending") {
-                console.log(`[AGENT] Command ${commandId} skipped (not pending)`)
-                continue
-            }
-
-            const module = (raw.module || "stock") as ModuleName
-
-            // Si es el primer comando de un pipeline, iniciar log
-            if (!processedCommandIds.has(commandId)) {
-                // Obtener todos los comandos pendientes para determinar el pipeline completo
-                // Esto es una aproximación: usamos el módulo actual para inferir el orden
-                const pipelineOrder = ["stock", "articulos", "alquileres", "reparaciones"]
-                const currentIndex = pipelineOrder.indexOf(module)
-                const remainingModules = currentIndex >= 0 ? pipelineOrder.slice(currentIndex) : [module]
-                
-                logPipelineStart(remainingModules)
-            }
-
-            // Log del paso actual
-            pipelineStepIndex++
-            logPipelineStep(pipelineStepIndex, pipelineModules.length, module, commandId)
-            processedCommandIds.add(commandId)
-
-            // =============================================================================
-            // END PIPELINE INSTRUMENTATION
-            // =============================================================================
-
-            const commandResult = await processCommand(redis, commandId, module)
-            
-            // Si el comando falló, detener el pipeline
-            if (commandResult && commandResult.success === false) {
-                logPipelineFinished(false, [commandResult.error || "Error en módulo"])
-                // Reiniciar el pipeline para el próximo ciclo
-                pipelineId = null
-                pipelineModules = []
-                pipelineStepIndex = 0
-                processedCommandIds = new Set<string>()
-            } else if (pipelineStepIndex >= pipelineModules.length) {
-                // Todos los módulos completados exitosamente
-                logPipelineFinished(true, [])
-                // Reiniciar el pipeline para el próximo ciclo
-                pipelineId = null
-                pipelineModules = []
-                pipelineStepIndex = 0
-                processedCommandIds = new Set<string>()
-            }
-        } catch (err) {
-            const error = err instanceof Error ? err : new Error(String(err))
-            console.error("[AGENT] Polling error:", error.message)
-        }
-
-        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS))
-    }
-}
-
-async function recoverStaleCommands(redis: Redis) {
-    console.log("[AGENT] Checking for stale running commands...")
-    let cursor = 0
-    let recovered = 0
-    const cutoff = Date.now() - STALE_THRESHOLD_MINUTES * 60 * 1000
-
-    try {
-        do {
-            const result = await redis.scan(cursor, { match: "sync-3c:command:*" })
-            const nextCursor = result[0]
-            const keys = result[1]
-            cursor = parseInt(nextCursor, 10)
-
-            for (const key of keys) {
-                const data = await redis.hgetall(key)
-                if (data?.status !== "running") continue
-
-                const startedAt = parseInt((data.startedAt as string) ?? "0", 10)
-                if (startedAt > 0 && startedAt >= cutoff) continue
-
-                const id = key.replace("sync-3c:command:", "")
-                await redis.hset(key, { status: "pending", startedAt: "", agent: "" })
-                await redis.lpush("sync-3c:queue", id)
-                recovered++
-                console.log(`[AGENT] Recovered stale command ${id}`)
-            }
-        } while (cursor !== 0)
-    } catch (err) {
-        console.error("[AGENT] Recovery scan error:", err instanceof Error ? err.message : String(err))
-    }
-
-    if (recovered > 0) console.log(`[AGENT] Recovered ${recovered} stale command(s)`)
-    else console.log("[AGENT] No stale commands found")
-}
-
-function startHeartbeat(redis: Redis) {
-    const beat = async () => {
-        try {
-            await redis.set("sync-3c:agent:production", JSON.stringify({
-                status: isProcessing ? "running" : "idle",
-                lastHeartbeat: Date.now(),
-                machineName: MACHINE_NAME,
-            }))
-        } catch (err) {
-            console.error("[AGENT] Heartbeat error:", err instanceof Error ? err.message : String(err))
-        }
-    }
-
-    beat()
-    setInterval(beat, HEARTBEAT_INTERVAL_MS)
-    console.log("[AGENT] Heartbeat started (Redis)")
-}
-
+// ============================================================================
+// MAIN - ON-DEMAND ONLY (PIPELINE)
+// ============================================================================
 async function main() {
-    console.log(`[AGENT] Starting — Machine: ${MACHINE_NAME}`)
+    // El agente acepta: commandId, module, [autoEnqueued...]
+    // El primer argumento es el commandId principal, el segundo es el módulo inicial
+    // Los siguientes argumentos son commandIds adicionales del pipeline
+    const commandId = process.argv[2]
+    const module = process.argv[3] || "stock"
+    const autoEnqueued: string[] = process.argv.slice(4)
+
+    if (!commandId) {
+        console.error("[AGENT] ERROR: commandId es requerido. El agente solo funciona en modo on-demand.")
+        console.error("[AGENT] Uso: npx tsx sync-agent/agent.ts <commandId> <module> [autoEnqueued...]")
+        process.exit(1)
+    }
+
+    acquireSingletonLock()
+
+    console.log(`[AGENT] ON-DEMAND MODE: commandId=${commandId}, module=${module}`)
+    console.log(`[AGENT] Auto-enqueued commands: ${autoEnqueued.length}`)
+    console.log(`[AGENT] Machine: ${MACHINE_NAME}`)
+
     const redis = getRedis()
 
-    await recoverStaleCommands(redis)
-    startHeartbeat(redis)
-    void pollQueue(redis)
+    // Pipeline: primer commandId con su módulo, luego los auto-enqueued
+    const pipeline: { commandId: string; module: string }[] = [
+        { commandId, module },
+        ...autoEnqueued.map((cid, idx) => ({
+            commandId: cid,
+            module: ["articulos", "alquileres", "reparaciones"][idx] || "stock"
+        }))
+    ]
 
-    console.log("[AGENT] Initial sweep complete, waiting for commands...")
+    try {
+        // Heartbeat inicial
+        await redis.set("sync-3c:agent:production", JSON.stringify({
+            status: "running",
+            lastHeartbeat: Date.now(),
+            machineName: MACHINE_NAME,
+        }), { ex: 120 })
+
+        // Procesar cada módulo del pipeline
+        for (const { commandId: cmdId, module: mod } of pipeline) {
+            console.log(`[AGENT] === Processing pipeline step: ${mod} (${cmdId}) ===`)
+            await processModule(redis, cmdId, mod)
+        }
+
+        // Heartbeat final (idle)
+        await redis.set("sync-3c:agent:production", JSON.stringify({
+            status: "idle",
+            lastHeartbeat: Date.now(),
+            machineName: MACHINE_NAME,
+        }), { ex: 120 })
+
+        console.log(`[AGENT] ON-DEMAND: Pipeline completed, exiting`)
+    } catch (err) {
+        console.error("[AGENT] Fatal error:", err)
+    } finally {
+        releaseSingletonLock()
+        process.exit(0)
+    }
 }
 
 main().catch((err) => {
     console.error("[AGENT] Fatal error:", err)
+    releaseSingletonLock()
     process.exit(1)
 })

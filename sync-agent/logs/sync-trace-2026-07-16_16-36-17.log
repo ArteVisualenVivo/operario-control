@@ -1,0 +1,436 @@
+{"timestamp":1784219777551,"category":"MAIN","message":"Inicio del agente","machineName":"DESKTOP-PR6KLH9","nodeVersion":"v24.17.0"}
+{"timestamp":"2026-07-16T16:36:17.553Z","category":"MAIN","message":"Redis conectado","url":"configurado"}
+{"timestamp":"2026-07-16T16:36:19.850Z","category":"POLL_QUEUE","message":"Inicio de pollQueue()","machineName":"DESKTOP-PR6KLH9","pollIntervalMs":5000}
+{"timestamp":1784219779850,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":1784219779851,"category":"MAIN","message":"Agente listo, esperando comandos"}
+{"timestamp":"2026-07-16T16:36:20.011Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:36:20.175Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":164}
+{"timestamp":1784219780175,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219785213,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:36:25.471Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:36:25.738Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":267}
+{"timestamp":1784219785738,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219790738,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:36:31.000Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:36:31.247Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":247}
+{"timestamp":1784219791247,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219796260,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:36:36.508Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:36:36.757Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":249}
+{"timestamp":1784219796757,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219801764,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:36:42.033Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:36:42.309Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":276}
+{"timestamp":1784219802309,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219807311,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:36:47.574Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:36:47.829Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":255}
+{"timestamp":1784219807829,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219812829,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:36:53.000Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:36:53.253Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":253}
+{"timestamp":1784219813253,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219818319,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:36:58.660Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:36:58.910Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":250}
+{"timestamp":1784219818910,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219823914,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:37:04.209Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:37:04.484Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":275}
+{"timestamp":1784219824484,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219829486,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:37:09.732Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:37:09.984Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":252}
+{"timestamp":1784219829984,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219834989,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:37:15.258Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:37:15.503Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":245}
+{"timestamp":1784219835503,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219840502,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:37:20.675Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:37:20.916Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":241}
+{"timestamp":1784219840916,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219845983,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:37:26.266Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:37:26.511Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":245}
+{"timestamp":1784219846511,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219851523,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:37:31.795Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:37:32.050Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":255}
+{"timestamp":1784219852050,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219857054,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:37:37.294Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:37:37.545Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":251}
+{"timestamp":1784219857545,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219862548,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:37:42.795Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:37:43.043Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":248}
+{"timestamp":1784219863043,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219868051,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:37:48.369Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:37:48.620Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":251}
+{"timestamp":1784219868620,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219873622,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:37:53.792Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:37:54.033Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":241}
+{"timestamp":1784219874033,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219879044,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:37:59.290Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:37:59.547Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":257}
+{"timestamp":1784219879547,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219884561,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:38:04.830Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:38:05.086Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":256}
+{"timestamp":1784219885086,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219890089,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:38:10.344Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:38:10.606Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":262}
+{"timestamp":1784219890606,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219895617,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:38:15.863Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:38:16.116Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":253}
+{"timestamp":1784219896116,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219901127,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:38:21.284Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:38:21.531Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":247}
+{"timestamp":1784219901531,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219906576,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:38:26.975Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:38:27.320Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":345}
+{"timestamp":1784219907320,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219912323,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:38:32.580Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:38:32.835Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":255}
+{"timestamp":1784219912835,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219917847,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:38:38.108Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:38:38.348Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":240}
+{"timestamp":1784219918348,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219923350,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:38:43.601Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:38:43.847Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":246}
+{"timestamp":1784219923847,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219928849,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:38:49.116Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:38:49.367Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":251}
+{"timestamp":1784219929367,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219934375,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:38:54.658Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:38:54.910Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":252}
+{"timestamp":1784219934910,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219939924,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:39:00.177Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:39:00.431Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":254}
+{"timestamp":1784219940431,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219945437,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:39:05.711Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:39:05.970Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":259}
+{"timestamp":1784219945970,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219950970,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:39:11.231Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:39:11.475Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":244}
+{"timestamp":1784219951475,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219956483,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:39:16.731Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:39:16.980Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":249}
+{"timestamp":1784219956980,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219961981,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:39:22.149Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:39:22.448Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":299}
+{"timestamp":1784219962448,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219967458,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:39:27.717Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:39:27.976Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":259}
+{"timestamp":1784219967976,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219972982,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:39:33.245Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:39:33.488Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":243}
+{"timestamp":1784219973488,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219978489,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:39:38.767Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:39:39.013Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":246}
+{"timestamp":1784219979013,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219984017,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:39:44.269Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:39:44.508Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":239}
+{"timestamp":1784219984508,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219989518,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:39:49.767Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:39:50.012Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":245}
+{"timestamp":1784219990012,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784219995014,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:39:55.621Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:39:55.901Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":280}
+{"timestamp":1784219995901,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220000905,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:40:01.148Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:40:01.399Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":251}
+{"timestamp":1784220001399,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220006402,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:40:06.650Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:40:06.901Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":251}
+{"timestamp":1784220006901,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220011920,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:40:12.412Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:40:12.699Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":287}
+{"timestamp":1784220012699,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220017700,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:40:17.959Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:40:18.194Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":235}
+{"timestamp":1784220018194,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220023194,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:40:23.364Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:40:23.612Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":248}
+{"timestamp":1784220023612,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220028625,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:40:29.038Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:40:29.274Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":236}
+{"timestamp":1784220029274,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220034279,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:40:34.531Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:40:34.773Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":242}
+{"timestamp":1784220034773,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220039784,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:40:40.038Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:40:40.284Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":246}
+{"timestamp":1784220040284,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220045300,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:40:45.576Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:40:45.825Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":249}
+{"timestamp":1784220045825,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220050839,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:40:51.012Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:40:51.257Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":245}
+{"timestamp":1784220051257,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220056267,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:40:56.553Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:40:56.801Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":248}
+{"timestamp":1784220056801,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220061801,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:41:02.064Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:41:02.299Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":235}
+{"timestamp":1784220062299,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220067303,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:41:07.580Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:41:07.840Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":260}
+{"timestamp":1784220067840,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220072839,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:41:13.328Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:41:13.959Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":631}
+{"timestamp":1784220073959,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220078961,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:41:19.256Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:41:19.519Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":263}
+{"timestamp":1784220079519,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220084528,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:41:24.789Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:41:25.043Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":254}
+{"timestamp":1784220085043,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220090045,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:41:30.323Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:41:30.562Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":239}
+{"timestamp":1784220090562,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220095566,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:41:35.823Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:41:36.072Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":249}
+{"timestamp":1784220096072,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220101086,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:41:41.334Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:41:41.579Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":245}
+{"timestamp":1784220101579,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220106588,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:41:46.853Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:41:47.104Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":251}
+{"timestamp":1784220107104,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220112110,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:41:52.282Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:41:52.528Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":246}
+{"timestamp":1784220112528,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220117539,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:41:57.783Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:41:58.033Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":250}
+{"timestamp":1784220118034,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220123037,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:42:03.340Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:42:03.591Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":251}
+{"timestamp":1784220123591,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220128597,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:42:08.842Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:42:09.092Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":250}
+{"timestamp":1784220129092,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220134102,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:42:14.355Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:42:14.599Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":244}
+{"timestamp":1784220134599,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220139613,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:42:19.891Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:42:20.137Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":246}
+{"timestamp":1784220140137,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220145142,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:42:25.391Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:42:25.634Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":243}
+{"timestamp":1784220145634,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220150645,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:42:30.896Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:42:31.139Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":243}
+{"timestamp":1784220151139,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220156147,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:42:36.447Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:42:36.689Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":242}
+{"timestamp":1784220156689,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220161690,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:42:41.956Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:42:42.204Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":248}
+{"timestamp":1784220162204,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220167209,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:42:47.467Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:42:47.707Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":240}
+{"timestamp":1784220167707,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220172715,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:42:52.892Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:42:53.200Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":308}
+{"timestamp":1784220173200,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220178201,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:42:58.477Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:42:58.734Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":257}
+{"timestamp":1784220178734,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220183737,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:43:03.990Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:43:04.234Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":244}
+{"timestamp":1784220184234,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220189244,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:43:09.509Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:43:09.755Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":246}
+{"timestamp":1784220189755,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220194772,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:43:15.035Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:43:15.285Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":250}
+{"timestamp":1784220195285,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220200285,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:43:20.457Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:43:20.712Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":255}
+{"timestamp":1784220200712,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220205717,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:43:26.037Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:43:26.289Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":252}
+{"timestamp":1784220206289,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220211299,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:43:31.560Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:43:31.837Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":277}
+{"timestamp":1784220211837,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220216850,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:43:37.095Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:43:37.351Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":256}
+{"timestamp":1784220217351,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220222365,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:43:42.644Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:43:42.884Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":240}
+{"timestamp":1784220222884,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220227896,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:43:48.148Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:43:48.396Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":248}
+{"timestamp":1784220228396,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220233406,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:43:53.576Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:43:53.824Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":248}
+{"timestamp":1784220233824,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220238833,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:43:59.105Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:43:59.353Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":248}
+{"timestamp":1784220239353,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220244357,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:44:04.611Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:44:04.853Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":242}
+{"timestamp":1784220244853,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220249863,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:44:10.112Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:44:10.376Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":264}
+{"timestamp":1784220250376,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220255385,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:44:15.713Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:44:15.964Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":251}
+{"timestamp":1784220255964,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220260977,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:44:21.223Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:44:21.472Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":249}
+{"timestamp":1784220261472,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220266483,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:44:26.774Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:44:27.060Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":286}
+{"timestamp":1784220267060,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220272065,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:44:32.462Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:44:32.713Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":251}
+{"timestamp":1784220272713,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220277725,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:44:38.035Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:44:38.332Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":297}
+{"timestamp":1784220278332,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220283335,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:44:43.591Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:44:43.857Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":266}
+{"timestamp":1784220283857,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220288862,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:44:49.327Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:44:49.571Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":244}
+{"timestamp":1784220289571,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220294576,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:44:54.816Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:44:55.066Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":250}
+{"timestamp":1784220295066,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220300076,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:45:00.318Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:45:00.560Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":242}
+{"timestamp":1784220300560,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220305570,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:45:05.837Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:45:06.071Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":234}
+{"timestamp":1784220306071,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220311075,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:45:11.324Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:45:11.573Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":249}
+{"timestamp":1784220311573,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220316581,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:45:16.828Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:45:17.080Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":252}
+{"timestamp":1784220317080,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220322086,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:45:22.258Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:45:22.503Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":245}
+{"timestamp":1784220322503,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220327504,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:45:27.763Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:45:28.010Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":247}
+{"timestamp":1784220328010,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220333017,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:45:33.265Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:45:33.516Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":251}
+{"timestamp":1784220333517,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220338531,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:45:38.955Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:45:39.209Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":254}
+{"timestamp":1784220339209,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220344222,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:45:44.488Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:45:44.739Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":251}
+{"timestamp":1784220344739,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220349747,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:45:50.061Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:45:50.398Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":337}
+{"timestamp":1784220350398,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220355410,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:45:55.658Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:45:55.915Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":257}
+{"timestamp":1784220355915,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220360928,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:46:01.177Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:46:01.420Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":243}
+{"timestamp":1784220361420,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220366439,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:46:06.695Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:46:06.947Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":252}
+{"timestamp":1784220366948,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}
+{"timestamp":1784220371957,"category":"POLL_QUEUE","message":"Entró nuevamente a pollQueue()","isProcessing":false}
+{"timestamp":"2026-07-16T16:46:12.211Z","category":"REDIS","message":"LRANGE cola antes de RPOP","key":"sync-3c:queue","size":0,"content":[]}
+{"timestamp":"2026-07-16T16:46:12.451Z","category":"REDIS","message":"RPOP ejecutado","key":"sync-3c:queue","commandIdObtenido":null,"devolvioNull":true,"durationMs":240}
+{"timestamp":1784220372451,"category":"POLL_QUEUE","message":"RPOP devolvió NULL - cola vacía"}

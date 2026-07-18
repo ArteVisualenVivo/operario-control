@@ -49,7 +49,6 @@ export async function POST(request: Request) {
         result: "",
         error: "",
       })
-      await redis.lpush("sync-3c:queue", commandId)
       commandIds.push(commandId)
     }
 

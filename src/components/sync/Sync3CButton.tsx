@@ -215,6 +215,7 @@ export default function Sync3CButton({
     commandIdsRef.current = []
 
     try {
+      // 1. Crear el comando en Redis
       const res = await fetch("/api/sync-3c", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -232,9 +233,30 @@ export default function Sync3CButton({
       setPipeline(data.pipeline || [module])
       commandIdsRef.current = [data.commandId, ...(data.autoEnqueued || [])]
 
+       // 2. Iniciar el agente (solo en desarrollo local)
+       try {
+         const startRes = await fetch("/api/sync-3c/start-agent", {
+           method: "POST",
+           headers: { "Content-Type": "application/json" },
+           body: JSON.stringify({ 
+             commandId: data.commandId, 
+             module,
+             autoEnqueued: data.autoEnqueued || []
+           }),
+         })
+        const startData = await startRes.json()
+        if (startData.success) {
+          console.log("[SYNC] Agent started:", startData.message)
+        } else {
+          console.warn("[SYNC] Agent start failed:", startData.error)
+        }
+      } catch (startErr) {
+        console.warn("[SYNC] Could not start agent (may be running):", startErr)
+      }
+
       setState("running")
 
-      // Iniciar polling del primer comando
+      // 3. Iniciar polling del primer comando
       pollingRef.current = setInterval(() => {
         pollStatus(data.commandId)
       }, STATUS_POLL_INTERVAL)
