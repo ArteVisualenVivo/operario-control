@@ -39,6 +39,7 @@ console.error = (...args) => {
 }
 
 process.on("exit", () => logStream.end())
+
 process.on("SIGINT", () => { logStream.end(); process.exit(0) })
 process.on("SIGTERM", () => { logStream.end(); process.exit(0) })
 
@@ -47,7 +48,7 @@ const MACHINE_NAME = process.env.COMPUTERNAME || process.env.HOSTNAME || "unknow
 const LOCK_FILE = "C:\\Users\\Cesar\\Desktop\\operario-control\\sync-agent\\.agent.lock"
 
 // ============================================================================
-// LOCK MANAGEMENT - SOLO ON-DEMAND
+// LOCK MANAGEMENT
 // ============================================================================
 function acquireSingletonLock() {
     try {
@@ -461,21 +462,124 @@ async function processModule(redis: Redis, commandId: string, module: ModuleName
 }
 
 // ============================================================================
-// MAIN - ON-DEMAND ONLY (PIPELINE)
+// LISTENER MODE (SERVICE) — corre permanentemente, escucha comandos pending
+// ============================================================================
+const HEARTBEAT_INTERVAL_MS = 30_000   // cada 30s
+const POLL_INTERVAL_MS = 5_000         // cada 5s
+
+async function startAgentListener() {
+    acquireSingletonLock()
+
+    console.log(`[AGENT] ============================================`)
+    console.log(`[AGENT] LISTENER MODE: Agent service started`)
+    console.log(`[AGENT] Machine: ${MACHINE_NAME}`)
+    console.log(`[AGENT] Polling Redis every ${POLL_INTERVAL_MS / 1000}s for pending commands`)
+    console.log(`[AGENT] Heartbeat every ${HEARTBEAT_INTERVAL_MS / 1000}s`)
+    console.log(`[AGENT] Press Ctrl+C to stop`)
+    console.log(`[AGENT] ============================================`)
+
+    const redis = getRedis()
+    let running = true
+
+    // === Manejo de señales para cierre limpio ===
+    const shutdown = () => {
+        if (!running) return
+        running = false
+        console.log(`[AGENT] Shutting down listener...`)
+
+        // Heartbeat idle antes de salir
+        try {
+            redis.set("sync-3c:agent:production", JSON.stringify({
+                status: "idle",
+                lastHeartbeat: Date.now(),
+                machineName: MACHINE_NAME,
+            }), { ex: 120 }).catch(() => {})
+        } catch {
+            // ignore
+        }
+
+        releaseSingletonLock()
+        logStream.end()
+        process.exit(0)
+    }
+
+    // Remover handlers por defecto y poner los del listener
+    process.removeAllListeners("SIGINT")
+    process.removeAllListeners("SIGTERM")
+    process.on("SIGINT", shutdown)
+    process.on("SIGTERM", shutdown)
+
+    // === Heartbeat periódico (cada 30s) ===
+    setInterval(async () => {
+        if (!running) return
+        try {
+            await redis.set("sync-3c:agent:production", JSON.stringify({
+                status: "listening",
+                lastHeartbeat: Date.now(),
+                machineName: MACHINE_NAME,
+            }), { ex: 120 })
+        } catch (err) {
+            console.error(`[AGENT] Heartbeat error:`, err)
+        }
+    }, HEARTBEAT_INTERVAL_MS)
+
+    // === Bucle principal de escucha ===
+    while (running) {
+        try {
+            // Buscar todas las claves de comandos
+            const keys = await redis.keys("sync-3c:command:*")
+
+            const pendingCommands: { commandId: string; module: string }[] = []
+
+            for (const key of keys) {
+                const data = await redis.hgetall<Record<string, unknown>>(key)
+                if (data && data.status === "pending") {
+                    const commandId = key.replace("sync-3c:command:", "")
+                    const module = (data.module as string) || "stock"
+                    pendingCommands.push({ commandId, module })
+                }
+            }
+
+            if (pendingCommands.length > 0) {
+                console.log(`[AGENT] Found ${pendingCommands.length} pending command(s)`)
+
+                for (const cmd of pendingCommands) {
+                    if (!running) break
+                    console.log(`[AGENT] === Processing pending command: ${cmd.commandId} [module: ${cmd.module}] ===`)
+                    try {
+                        await processModule(redis, cmd.commandId, cmd.module as ModuleName)
+                        console.log(`[AGENT] Command ${cmd.commandId} processed successfully`)
+                    } catch (err) {
+                        console.error(`[AGENT] Command ${cmd.commandId} failed:`, err)
+                    }
+                }
+            }
+        } catch (err) {
+            console.error(`[AGENT] Listener error:`, err)
+        }
+
+        // Esperar 5 segundos antes de la próxima búsqueda
+        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+    }
+}
+
+// ============================================================================
+// MAIN - ON-DEMAND (PIPELINE) o LISTENER (SERVICE)
 // ============================================================================
 async function main() {
-    // El agente acepta: commandId, module, [autoEnqueued...]
-    // El primer argumento es el commandId principal, el segundo es el módulo inicial
-    // Los siguientes argumentos son commandIds adicionales del pipeline
     const commandId = process.argv[2]
+
+    // Si no hay commandId → modo listener (servicio permanente)
+    if (!commandId) {
+        await startAgentListener()
+        return
+    }
+
+    // ============================================================
+    // MODO ON-DEMAND (compatibilidad hacia atrás)
+    // ============================================================
     const module = process.argv[3] || "stock"
     const autoEnqueued: string[] = process.argv.slice(4)
-
-    if (!commandId) {
-        console.error("[AGENT] ERROR: commandId es requerido. El agente solo funciona en modo on-demand.")
-        console.error("[AGENT] Uso: npx tsx sync-agent/agent.ts <commandId> <module> [autoEnqueued...]")
-        process.exit(1)
-    }
 
     acquireSingletonLock()
 
