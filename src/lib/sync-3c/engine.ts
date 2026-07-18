@@ -179,7 +179,11 @@ export async function syncItems(
 
     if (match) {
       // Comparar payload contra documento existente (ignorando updatedAt)
-      const fieldsToCompare = Object.keys(payload).filter((k) => k !== "updatedAt")
+      const fieldsToCompare = Object.keys(payload).filter(
+        (k) =>
+          k !== "updatedAt" &&
+          k !== "lastSync"
+      )
       const normalizeForCompare = (v: unknown): unknown => {
         if (v instanceof Date) return v.toISOString()
         if (v && typeof v === "object" && "toDate" in v && typeof (v as { toDate: () => Date }).toDate === "function") {
@@ -192,6 +196,23 @@ export async function syncItems(
         const oldVal = normalizeForCompare(match[key])
         return newVal !== oldVal
       })
+      if (hasChanges && result.updated < 10) {
+        console.log("========== DIFF ==========")
+        console.log("codigo:", payload.codigo)
+
+        for (const key of fieldsToCompare) {
+          const newVal = normalizeForCompare(payload[key])
+          const oldVal = normalizeForCompare(match[key])
+
+          if (newVal !== oldVal) {
+            console.log(`Campo: ${key}`)
+            console.log("Firestore:", oldVal)
+            console.log("Nuevo:    ", newVal)
+          }
+        }
+
+        console.log("==========================")
+      }
       if (hasChanges) {
         batch.set(collection.doc(match.id), payload, { merge: true })
         result.updated++
