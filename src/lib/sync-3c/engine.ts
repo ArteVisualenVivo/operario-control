@@ -53,9 +53,36 @@ export interface SyncEngineOptions {
   config?: Partial<Sync3CConfig>
 }
 
+export async function loadInventoryIndex(): Promise<Map<string, { id: string; data: Record<string, unknown> }>> {
+  const admin = getFirebaseAdmin()
+  const { getFirestore } = require("firebase-admin/firestore")
+  const db = getFirestore()
+  const collection = db.collection("inventory_stock")
+
+  console.log(`[SYNC] Loading inventoryIndex from Firestore`)
+  const t0 = Date.now()
+  const snapshot = await collection.get()
+  const t1 = Date.now()
+
+  const inventoryIndex = new Map<string, { id: string; data: Record<string, unknown> }>()
+  for (const doc of snapshot.docs) {
+    const data = doc.data() as Record<string, unknown>
+    if (data.codigo) {
+      inventoryIndex.set(String(data.codigo), { id: doc.id, data })
+    }
+    if (data.name) {
+      inventoryIndex.set(String(data.name), { id: doc.id, data })
+    }
+  }
+
+  console.log(`[SYNC] inventoryIndex loaded: ${inventoryIndex.size} entries (${t1 - t0}ms)`)
+  return inventoryIndex
+}
+
 export async function syncItems(
   items: Sync3CItem[],
   options?: SyncEngineOptions,
+  externalInventoryIndex?: Map<string, { id: string; data: Record<string, unknown> }>,
 ): Promise<Sync3CResult> {
   const config = { ...DEFAULTS, ...options?.config }
 
@@ -87,44 +114,51 @@ export async function syncItems(
   console.log(`=========================`)
 
   // ═══════════════════════════════════════════════
-  // ETAPA 1: collection.get()
+  // ETAPA 1: Cargar índice (externo o propio)
   // ═══════════════════════════════════════════════
-  const t0 = Date.now()
-  const allDocsSnapshot = await collection.get()
-  const t1 = Date.now()
-  const performedReads = allDocsSnapshot.size
-  PROFILING["collection_get"] = t1 - t0
-  console.log(`=========================`);
-  console.log(`[PROFILE ${syncId}] ETAPA 1: collection.get()`);
-  console.log(`[PROFILE ${syncId}]   INICIO: ${t0}`);
-  console.log(`[PROFILE ${syncId}]   FIN:    ${t1}`);
-  console.log(`[PROFILE ${syncId}]   ⏱️  DURACIÓN: ${t1 - t0}ms`);
-  console.log(`[PROFILE ${syncId}]   📄 DOCUMENTOS: ${performedReads}`);
-  console.log(`=========================`);
+  let inventoryIndex: Map<string, { id: string; data: Record<string, unknown> }>
+  let performedReads = 0
 
-  // ═══════════════════════════════════════════════
-  // ETAPA 2: Construir Map en memoria
-  // ═══════════════════════════════════════════════
-  const t2 = Date.now()
-  const inventoryIndex = new Map<string, { id: string; data: Record<string, unknown> }>()
-  for (const doc of allDocsSnapshot.docs) {
-    const data = doc.data() as Record<string, unknown>
-    if (data.codigo) {
-      inventoryIndex.set(String(data.codigo), { id: doc.id, data })
+  if (externalInventoryIndex) {
+    inventoryIndex = externalInventoryIndex
+    performedReads = inventoryIndex.size
+    console.log(`[SYNC] Using shared inventoryIndex (${performedReads} entries)`)
+  } else {
+    console.log(`[SYNC] Loading inventoryIndex from Firestore (standalone mode)`)
+    const t0 = Date.now()
+    const allDocsSnapshot = await collection.get()
+    const t1 = Date.now()
+    performedReads = allDocsSnapshot.size
+    PROFILING["collection_get"] = t1 - t0
+    console.log(`=========================`);
+    console.log(`[PROFILE ${syncId}] ETAPA 1: collection.get()`);
+    console.log(`[PROFILE ${syncId}]   INICIO: ${t0}`);
+    console.log(`[PROFILE ${syncId}]   FIN:    ${t1}`);
+    console.log(`[PROFILE ${syncId}]   ⏱️  DURACIÓN: ${t1 - t0}ms`);
+    console.log(`[PROFILE ${syncId}]   📄 DOCUMENTOS: ${performedReads}`);
+    console.log(`=========================`);
+
+    const t2 = Date.now()
+    inventoryIndex = new Map<string, { id: string; data: Record<string, unknown> }>()
+    for (const doc of allDocsSnapshot.docs) {
+      const data = doc.data() as Record<string, unknown>
+      if (data.codigo) {
+        inventoryIndex.set(String(data.codigo), { id: doc.id, data })
+      }
+      if (data.name) {
+        inventoryIndex.set(String(data.name), { id: doc.id, data })
+      }
     }
-    if (data.name) {
-      inventoryIndex.set(String(data.name), { id: doc.id, data })
-    }
+    const t3 = Date.now()
+    PROFILING["build_map"] = t3 - t2
+    console.log(`=========================`);
+    console.log(`[PROFILE ${syncId}] ETAPA 2: Construir Map`);
+    console.log(`[PROFILE ${syncId}]   INICIO: ${t2}`);
+    console.log(`[PROFILE ${syncId}]   FIN:    ${t3}`);
+    console.log(`[PROFILE ${syncId}]   ⏱️  DURACIÓN: ${t3 - t2}ms`);
+    console.log(`[PROFILE ${syncId}]   📦 ENTRADAS MAP: ${inventoryIndex.size}`);
+    console.log(`=========================`);
   }
-  const t3 = Date.now()
-  PROFILING["build_map"] = t3 - t2
-  console.log(`=========================`);
-  console.log(`[PROFILE ${syncId}] ETAPA 2: Construir Map`);
-  console.log(`[PROFILE ${syncId}]   INICIO: ${t2}`);
-  console.log(`[PROFILE ${syncId}]   FIN:    ${t3}`);
-  console.log(`[PROFILE ${syncId}]   ⏱️  DURACIÓN: ${t3 - t2}ms`);
-  console.log(`[PROFILE ${syncId}]   📦 ENTRADAS MAP: ${inventoryIndex.size}`);
-  console.log(`=========================`);
 
   // ═══════════════════════════════════════════════
   // ETAPA 3: Bucle items (procesamiento + batch commits)
@@ -196,23 +230,6 @@ export async function syncItems(
         const oldVal = normalizeForCompare(match[key])
         return newVal !== oldVal
       })
-      if (hasChanges && result.updated < 10) {
-        console.log("========== DIFF ==========")
-        console.log("codigo:", payload.codigo)
-
-        for (const key of fieldsToCompare) {
-          const newVal = normalizeForCompare(payload[key])
-          const oldVal = normalizeForCompare(match[key])
-
-          if (newVal !== oldVal) {
-            console.log(`Campo: ${key}`)
-            console.log("Firestore:", oldVal)
-            console.log("Nuevo:    ", newVal)
-          }
-        }
-
-        console.log("==========================")
-      }
       if (hasChanges) {
         batch.set(collection.doc(match.id), payload, { merge: true })
         result.updated++

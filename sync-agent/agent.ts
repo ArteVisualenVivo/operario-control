@@ -11,7 +11,7 @@ import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
 import { parseExcel } from "../src/lib/sync-3c/parser"
-import { syncItems, syncRepairsToMaintenance } from "../src/lib/sync-3c/engine"
+import { loadInventoryIndex, syncItems, syncRepairsToMaintenance } from "../src/lib/sync-3c/engine"
 import type { Sync3CItem, Sync3CResult } from "../src/lib/sync-3c/types"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -309,7 +309,12 @@ function buildSparePartsSeedFromStock(items: Sync3CItem[]) {
 // ============================================================================
 type ModuleName = "stock" | "reparaciones" | "articulos" | "alquileres"
 
-async function processModule(redis: Redis, commandId: string, module: ModuleName) {
+async function processModule(
+    redis: Redis,
+    commandId: string,
+    module: ModuleName,
+    inventoryIndex?: Map<string, { id: string; data: Record<string, unknown> }>,
+) {
     try {
         await redis.hset(`sync-3c:command:${commandId}`, {
             status: "running",
@@ -370,7 +375,7 @@ async function processModule(redis: Redis, commandId: string, module: ModuleName
                 }
             } else {
                 try {
-                    result = await syncItems(items)
+                    result = await syncItems(items, undefined, inventoryIndex)
                 } catch (err) {
                     const errMsg = err instanceof Error ? err.message : String(err)
                     const errCode = err && typeof err === "object" && "code" in err ? String((err as { code: unknown }).code) : "unknown"
@@ -606,10 +611,13 @@ async function main() {
             machineName: MACHINE_NAME,
         }), { ex: 120 })
 
+        // Cargar inventoryIndex UNA VEZ para todo el pipeline
+        const inventoryIndex = await loadInventoryIndex()
+
         // Procesar cada módulo del pipeline
         for (const { commandId: cmdId, module: mod } of pipeline) {
             console.log(`[AGENT] === Processing pipeline step: ${mod} (${cmdId}) ===`)
-            await processModule(redis, cmdId, mod)
+            await processModule(redis, cmdId, mod, inventoryIndex)
         }
 
         // Heartbeat final (idle)
