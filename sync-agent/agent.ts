@@ -11,7 +11,7 @@ import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
 import { parseExcel } from "../src/lib/sync-3c/parser"
-import { loadInventoryIndex, syncItems, syncRepairsToMaintenance } from "../src/lib/sync-3c/engine"
+import { loadInventoryIndexByCodes, syncItems, syncRepairsToMaintenance } from "../src/lib/sync-3c/engine"
 import type { Sync3CItem, Sync3CResult } from "../src/lib/sync-3c/types"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
@@ -22,6 +22,8 @@ const CACHE_DIR = path.resolve(PROJECT_ROOT, "automation-watcher", "cache")
 const STOCK_CACHE_FILE = path.join(CACHE_DIR, "stock-cache.json")
 const MACHINES_CACHE_FILE = path.join(CACHE_DIR, "machines-cache.json")
 const SPARE_PARTS_CACHE_FILE = path.join(CACHE_DIR, "spare-parts-cache.json")
+const DIAGNOSTIC_LOGS_DIR = path.resolve(PROJECT_ROOT, "automation-watcher", "logs")
+const MAX_DIAGNOSTIC_REPORTS = 20
 
 const LOG_FILE = path.join(__dirname, "agent.log")
 const logStream = fs.createWriteStream(LOG_FILE, { flags: "a" })
@@ -46,6 +48,170 @@ process.on("SIGTERM", () => { logStream.end(); process.exit(0) })
 const MACHINE_NAME = process.env.COMPUTERNAME || process.env.HOSTNAME || "unknown-pc"
 
 const LOCK_FILE = "C:\\Users\\Cesar\\Desktop\\operario-control\\sync-agent\\.agent.lock"
+
+// ============================================================================
+// DIAGNOSTIC MODE - Pure analysis function (no side effects)
+// ============================================================================
+interface DiagnosticContext {
+    stock: { codes: number; unique: number; codeSet: Set<string> }
+    articulos: { codes: number; unique: number; codeSet: Set<string> }
+    alquileres: { codes: number; unique: number; codeSet: Set<string> }
+}
+
+function analyzeItems(module: string, items: Sync3CItem[]): { codes: number; unique: number; codeSet: Set<string> } {
+    const codeSet = new Set<string>()
+    for (const item of items) {
+        if (item.codigo) {
+            codeSet.add(item.codigo)
+        }
+    }
+    return {
+        codes: items.length,
+        unique: codeSet.size,
+        codeSet,
+    }
+}
+
+function calculateDiagnosticReport(context: DiagnosticContext): {
+    report: Record<string, unknown>
+    reportPath: string
+} {
+    const stockCodes = context.stock.codeSet
+    const articulosCodes = context.articulos.codeSet
+    const alquileresCodes = context.alquileres.codeSet
+
+    const union = new Set([...stockCodes, ...articulosCodes, ...alquileresCodes])
+    const intersection = new Set([...stockCodes].filter(code => articulosCodes.has(code) && alquileresCodes.has(code)))
+
+    const overlapRatio = union.size > 0 ? intersection.size / union.size : 0
+    const decision = overlapRatio > 0.8 ? "A" : "B"
+
+    const BATCH_SIZE = 30
+    const stockReadsA = Math.ceil(stockCodes.size / BATCH_SIZE)
+    const articulosReadsA = Math.ceil(articulosCodes.size / BATCH_SIZE)
+    const alquileresReadsA = Math.ceil(alquileresCodes.size / BATCH_SIZE)
+    const totalReadsA = stockReadsA + articulosReadsA + alquileresReadsA
+
+    const allCodes = new Set([...stockCodes, ...articulosCodes, ...alquileresCodes])
+    const totalReadsB = Math.ceil(allCodes.size / BATCH_SIZE)
+
+    const readsSaved = totalReadsA - totalReadsB
+    const savingsPercentage = totalReadsA > 0 ? ((readsSaved / totalReadsA) * 100).toFixed(1) : "0.0"
+
+    const report = {
+        timestamp: new Date().toISOString(),
+        modules: {
+            stock: {
+                codes: context.stock.codes,
+                unique: context.stock.unique,
+            },
+            articulos: {
+                codes: context.articulos.codes,
+                unique: context.articulos.unique,
+            },
+            alquileres: {
+                codes: context.alquileres.codes,
+                unique: context.alquileres.unique,
+            },
+        },
+        union: union.size,
+        intersection: intersection.size,
+        overlapRatio: parseFloat((overlapRatio * 100).toFixed(1)),
+        firestoreAnalysis: {
+            scenarioA: {
+                description: "3 inventoryIndex independientes",
+                stock: stockReadsA,
+                articulos: articulosReadsA,
+                alquileres: alquileresReadsA,
+                total: totalReadsA,
+            },
+            scenarioB: {
+                description: "1 inventoryIndex compartido",
+                totalCodes: allCodes.size,
+                total: totalReadsB,
+            },
+            savings: {
+                readsSaved: readsSaved,
+                percentage: parseFloat(savingsPercentage),
+            },
+        },
+        decision: decision === "A" ? "shared" : "independent",
+        decisionReason: `overlapRatio ${(overlapRatio * 100).toFixed(1)}% ${decision === "A" ? "> 80% → compartido" : "≤ 80% → independiente"}`,
+    }
+
+    const timestamp = new Date()
+    const filename = `diagnostic-${timestamp.getFullYear()}${String(timestamp.getMonth() + 1).padStart(2, "0")}${String(timestamp.getDate()).padStart(2, "0")}-${String(timestamp.getHours()).padStart(2, "0")}${String(timestamp.getMinutes()).padStart(2, "0")}${String(timestamp.getSeconds()).padStart(2, "0")}.json`
+    const reportPath = path.join(DIAGNOSTIC_LOGS_DIR, filename)
+
+    return { report, reportPath }
+}
+
+function saveDiagnosticReport(report: Record<string, unknown>, reportPath: string): void {
+    if (!fs.existsSync(DIAGNOSTIC_LOGS_DIR)) {
+        fs.mkdirSync(DIAGNOSTIC_LOGS_DIR, { recursive: true })
+    }
+
+    fs.writeFileSync(reportPath, JSON.stringify(report, null, 2))
+
+    // Limpiar reportes antiguos, conservar solo los últimos MAX_DIAGNOSTIC_REPORTS
+    try {
+        const files = fs.readdirSync(DIAGNOSTIC_LOGS_DIR)
+            .filter(f => f.startsWith("diagnostic-") && f.endsWith(".json"))
+            .sort()
+
+        if (files.length > MAX_DIAGNOSTIC_REPORTS) {
+            const toDelete = files.slice(0, files.length - MAX_DIAGNOSTIC_REPORTS)
+            for (const file of toDelete) {
+                fs.unlinkSync(path.join(DIAGNOSTIC_LOGS_DIR, file))
+            }
+        }
+    } catch (err) {
+        console.warn("[DIAG] No se pudo limpiar reportes antiguos:", err instanceof Error ? err.message : String(err))
+    }
+}
+
+function printDiagnosticReport(context: DiagnosticContext): void {
+    const stockCodes = context.stock.codeSet
+    const articulosCodes = context.articulos.codeSet
+    const alquileresCodes = context.alquileres.codeSet
+
+    const union = new Set([...stockCodes, ...articulosCodes, ...alquileresCodes])
+    const intersection = new Set([...stockCodes].filter(code => articulosCodes.has(code) && alquileresCodes.has(code)))
+
+    const overlapRatio = union.size > 0 ? intersection.size / union.size : 0
+    const decision = overlapRatio > 0.8 ? "A" : "B"
+
+    const BATCH_SIZE = 30
+    const stockReadsA = Math.ceil(stockCodes.size / BATCH_SIZE)
+    const articulosReadsA = Math.ceil(articulosCodes.size / BATCH_SIZE)
+    const alquileresReadsA = Math.ceil(alquileresCodes.size / BATCH_SIZE)
+    const totalReadsA = stockReadsA + articulosReadsA + alquileresReadsA
+
+    const allCodes = new Set([...stockCodes, ...articulosCodes, ...alquileresCodes])
+    const totalReadsB = Math.ceil(allCodes.size / BATCH_SIZE)
+
+    const readsSaved = totalReadsA - totalReadsB
+    const savingsPercentage = totalReadsA > 0 ? ((readsSaved / totalReadsA) * 100).toFixed(1) : "0.0"
+
+    console.log(`\n[AGENT] ════════════════════════════════════════`)
+    console.log(`[AGENT] REPORTE DIAGNÓSTICO`)
+    console.log(`[AGENT] ════════════════════════════════════════`)
+    console.log(`[AGENT] Stock........${context.stock.unique} códigos únicos`)
+    console.log(`[AGENT] Artículos....${context.articulos.unique} códigos únicos`)
+    console.log(`[AGENT] Alquileres...${context.alquileres.unique} códigos únicos`)
+    console.log(`[AGENT] Unión........${union.size} códigos`)
+    console.log(`[AGENT] Intersección.${intersection.size} códigos`)
+    console.log(`[AGENT] Superposición.${(overlapRatio * 100).toFixed(1)}%`)
+    console.log(`[AGENT] ════════════════════════════════════════`)
+    console.log(`[AGENT] FIRESTORE - Escenario A (3 índices): ${totalReadsA} lecturas`)
+    console.log(`[AGENT]   Stock: ${stockReadsA}, Artículos: ${articulosReadsA}, Alquileres: ${alquileresReadsA}`)
+    console.log(`[AGENT] FIRESTORE - Escenario B (1 índice): ${totalReadsB} lecturas`)
+    console.log(`[AGENT] Ahorro estimado: ${readsSaved} lecturas (${savingsPercentage}%)`)
+    console.log(`[AGENT] ════════════════════════════════════════`)
+    console.log(`[AGENT] Decisión: inventoryIndex ${decision === "A" ? "COMPARTIDO" : "INDEPENDIENTE"}`)
+    console.log(`[AGENT] Criterio: overlap > 80% → compartido (A), ≤ 80% → independiente (B)`)
+    console.log(`[AGENT] ════════════════════════════════════════`)
+}
 
 // ============================================================================
 // LOCK MANAGEMENT
@@ -309,11 +475,16 @@ function buildSparePartsSeedFromStock(items: Sync3CItem[]) {
 // ============================================================================
 type ModuleName = "stock" | "reparaciones" | "articulos" | "alquileres"
 
+type ProcessModuleOptions = {
+    diagnosticCallback?: (module: string, items: Sync3CItem[]) => void
+}
+
 async function processModule(
     redis: Redis,
     commandId: string,
     module: ModuleName,
     inventoryIndex?: Map<string, { id: string; data: Record<string, unknown> }>,
+    options?: ProcessModuleOptions,
 ) {
     try {
         await redis.hset(`sync-3c:command:${commandId}`, {
@@ -363,6 +534,11 @@ async function processModule(
             const parsed = parseExcel(buffer)
             items = parsed.items
 
+            // Callback de diagnóstico (observador pasivo)
+            if (options?.diagnosticCallback) {
+                options.diagnosticCallback(module, items)
+            }
+
             if (items.length === 0) {
                 result = {
                     success: true,
@@ -374,6 +550,12 @@ async function processModule(
                     ],
                 }
             } else {
+                // Construir inventoryIndex solo con los códigos del Excel
+                if (!inventoryIndex) {
+                    const codes = items.map((i) => i.codigo).filter(Boolean) as string[]
+                    console.log(`[AGENT] Building inventoryIndex from ${codes.length} codes in Excel`)
+                    inventoryIndex = await loadInventoryIndexByCodes(codes)
+                }
                 try {
                     result = await syncItems(items, undefined, inventoryIndex)
                 } catch (err) {
@@ -472,6 +654,35 @@ async function processModule(
 const HEARTBEAT_INTERVAL_MS = 30_000   // cada 30s
 const POLL_INTERVAL_MS = 5_000         // cada 5s
 
+// Migrar comandos pendientes existentes a la cola FIFO
+async function migratePendingCommandsToQueue(redis: Redis) {
+    console.log(`[AGENT] Migrating existing pending commands to queue...`)
+    let migrated = 0
+    let cursor = "0"
+    
+    do {
+        const result = await redis.scan(cursor, { match: "sync-3c:command:*", count: 100 })
+        cursor = result[0]
+        const keys = result[1] as string[]
+        
+     for (const key of keys) {
+         const data = await redis.hgetall<Record<string, unknown>>(key)
+         if (data && data.status === "pending") {
+             const commandId = key.replace("sync-3c:command:", "")
+             // Verificar si ya está en la cola
+             const queue = await redis.lrange<string>("sync-3c:queue", 0, -1)
+             if (!queue || (Array.isArray(queue) && !queue.includes(commandId))) {
+                 await redis.lpush("sync-3c:queue", commandId)
+                 migrated++
+                 console.log(`[AGENT] Migrated command ${commandId} to queue`)
+             }
+         }
+     }
+    } while (cursor !== "0")
+    
+    console.log(`[AGENT] Migration complete: ${migrated} commands migrated`)
+}
+
 async function startAgentListener() {
     acquireSingletonLock()
 
@@ -485,6 +696,13 @@ async function startAgentListener() {
 
     const redis = getRedis()
     let running = true
+
+    // Migrar comandos pendientes existentes a la cola FIFO (compatibilidad)
+    try {
+        await migratePendingCommandsToQueue(redis)
+    } catch (err) {
+        console.error(`[AGENT] Migration error (non-fatal):`, err)
+    }
 
     // === Manejo de señales para cierre limpio ===
     const shutdown = () => {
@@ -528,44 +746,36 @@ async function startAgentListener() {
         }
     }, HEARTBEAT_INTERVAL_MS)
 
-    // === Bucle principal de escucha ===
-    while (running) {
-        try {
-            // Buscar todas las claves de comandos
-            const keys = await redis.keys("sync-3c:command:*")
+     // === Bucle principal de escucha (usando cola FIFO) ===
+     while (running) {
+         try {
+             // Obtener command de la cola (RPOP es atómico)
+             const commandId = await redis.rpop<string>("sync-3c:queue")
 
-            const pendingCommands: { commandId: string; module: string }[] = []
+             if (commandId) {
+                 // Obtener datos del command
+                 const data = await redis.hgetall<Record<string, unknown>>(`sync-3c:command:${commandId}`)
 
-            for (const key of keys) {
-                const data = await redis.hgetall<Record<string, unknown>>(key)
-                if (data && data.status === "pending") {
-                    const commandId = key.replace("sync-3c:command:", "")
-                    const module = (data.module as string) || "stock"
-                    pendingCommands.push({ commandId, module })
-                }
-            }
+                 if (data && data.status === "pending") {
+                     const module = (data.module as string) || "stock"
+                     console.log(`[AGENT] === Processing command from queue: ${commandId} [module: ${module}] ===`)
+                     try {
+                         await processModule(redis, commandId, module as ModuleName)
+                         console.log(`[AGENT] Command ${commandId} processed successfully`)
+                     } catch (err) {
+                         console.error(`[AGENT] Command ${commandId} failed:`, err)
+                     }
+                 } else {
+                     console.log(`[AGENT] Command ${commandId} not pending (status: ${data?.status || "not found"}), skipping`)
+                 }
+             }
+         } catch (err) {
+             console.error(`[AGENT] Listener error:`, err)
+         }
 
-            if (pendingCommands.length > 0) {
-                console.log(`[AGENT] Found ${pendingCommands.length} pending command(s)`)
-
-                for (const cmd of pendingCommands) {
-                    if (!running) break
-                    console.log(`[AGENT] === Processing pending command: ${cmd.commandId} [module: ${cmd.module}] ===`)
-                    try {
-                        await processModule(redis, cmd.commandId, cmd.module as ModuleName)
-                        console.log(`[AGENT] Command ${cmd.commandId} processed successfully`)
-                    } catch (err) {
-                        console.error(`[AGENT] Command ${cmd.commandId} failed:`, err)
-                    }
-                }
-            }
-        } catch (err) {
-            console.error(`[AGENT] Listener error:`, err)
-        }
-
-        // Esperar 5 segundos antes de la próxima búsqueda
-        await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
-    }
+         // Esperar 5 segundos antes de la próxima búsqueda
+         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS))
+     }
 }
 
 // ============================================================================
@@ -603,6 +813,62 @@ async function main() {
         }))
     ]
 
+    // ═══════════════════════════════════════════════
+    // MODO DIAGNÓSTICO (activar con SYNC_DIAGNOSTIC=true)
+    // ═══════════════════════════════════════════════
+    const DIAGNOSTIC_MODE = process.env.SYNC_DIAGNOSTIC === "true"
+    
+    if (DIAGNOSTIC_MODE) {
+        console.log(`[AGENT] ════════════════════════════════════════`)
+        console.log(`[AGENT] MODO DIAGNÓSTICO ACTIVADO`)
+        console.log(`[AGENT] ════════════════════════════════════════`)
+        
+        const diagnosticContext: DiagnosticContext = {
+            stock: { codes: 0, unique: 0, codeSet: new Set<string>() },
+            articulos: { codes: 0, unique: 0, codeSet: new Set<string>() },
+            alquileres: { codes: 0, unique: 0, codeSet: new Set<string>() },
+        }
+        
+        // Callback que acumula datos de diagnóstico (observador pasivo)
+        const diagnosticCallback = (mod: string, items: Sync3CItem[]) => {
+            if (mod === "reparaciones") return // Reparaciones no tiene códigos de inventario
+            
+            console.log(`[AGENT] [DIAG] Analizando módulo: ${mod}`)
+            const analysis = analyzeItems(mod, items)
+            
+            diagnosticContext[mod as keyof DiagnosticContext] = {
+                codes: analysis.codes,
+                unique: analysis.unique,
+                codeSet: analysis.codeSet,
+            }
+            
+            console.log(`[AGENT] [DIAG] ${mod}: ${analysis.codes} ítems, ${analysis.unique} códigos únicos`)
+        }
+        
+        // Procesar pipeline normal con callback de diagnóstico
+        for (const { commandId: cmdId, module: mod } of pipeline) {
+            console.log(`[AGENT] === Processing pipeline step: ${mod} (${cmdId}) ===`)
+            try {
+                await processModule(redis, cmdId, mod, undefined, {
+                    diagnosticCallback,
+                })
+            } catch (err) {
+                console.error(`[AGENT] Command ${cmdId} failed:`, err)
+            }
+        }
+        
+        // Generar reporte final
+        printDiagnosticReport(diagnosticContext)
+        
+        const { report, reportPath } = calculateDiagnosticReport(diagnosticContext)
+        saveDiagnosticReport(report, reportPath)
+        
+        console.log(`\n[AGENT] Reporte guardado en: ${reportPath}`)
+        console.log(`[AGENT] Diagnóstico completado.`)
+        
+        return
+    }
+    
     try {
         // Heartbeat inicial
         await redis.set("sync-3c:agent:production", JSON.stringify({
@@ -611,13 +877,11 @@ async function main() {
             machineName: MACHINE_NAME,
         }), { ex: 120 })
 
-        // Cargar inventoryIndex UNA VEZ para todo el pipeline
-        const inventoryIndex = await loadInventoryIndex()
-
         // Procesar cada módulo del pipeline
+        // Cada módulo carga su propio inventoryIndex optimizado con los códigos del Excel
         for (const { commandId: cmdId, module: mod } of pipeline) {
             console.log(`[AGENT] === Processing pipeline step: ${mod} (${cmdId}) ===`)
-            await processModule(redis, cmdId, mod, inventoryIndex)
+            await processModule(redis, cmdId, mod)
         }
 
         // Heartbeat final (idle)

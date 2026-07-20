@@ -35,22 +35,33 @@ export async function POST(request: Request) {
     const startIndex = SYNC_PIPELINE.indexOf(module)
     const modulesToEnqueue = SYNC_PIPELINE.slice(startIndex)
 
-    // Verificar si ya existen comandos pending para los módulos solicitados
-    const keys = await redis.keys("sync-3c:command:*")
-    for (const key of keys) {
-      const data = await redis.hgetall<Record<string, unknown>>(key)
-      if (data && data.status === "pending") {
-        const existingModule = data.module as string
-        if (modulesToEnqueue.includes(existingModule)) {
-          const existingCommandId = key.replace("sync-3c:command:", "")
-          return NextResponse.json({
-            commandId: existingCommandId,
-            alreadyPending: true,
-            pipeline: modulesToEnqueue,
-          })
-        }
-      }
-    }
+     // Verificar si ya existen comandos pending para los módulos solicitados
+     // Usar SCAN en lugar de KEYS para evitar bloqueo
+     const pendingCommandIds: string[] = []
+     let cursor = "0"
+     do {
+       const result = await redis.scan(cursor, { match: "sync-3c:command:*", count: 100 })
+       cursor = result[0]
+       const keys = result[1] as string[]
+       for (const key of keys) {
+         const data = await redis.hgetall<Record<string, unknown>>(key)
+         if (data && data.status === "pending") {
+           const existingModule = data.module as string
+           if (modulesToEnqueue.includes(existingModule)) {
+             const existingCommandId = key.replace("sync-3c:command:", "")
+             pendingCommandIds.push(existingCommandId)
+           }
+         }
+       }
+     } while (cursor !== "0")
+
+     if (pendingCommandIds.length > 0) {
+       return NextResponse.json({
+         commandId: pendingCommandIds[0],
+         alreadyPending: true,
+         pipeline: modulesToEnqueue,
+       })
+     }
 
     // Crear comandos para todos los módulos del pipeline desde el punto de inicio
     const commandIds: string[] = []
@@ -66,6 +77,8 @@ export async function POST(request: Request) {
         result: "",
         error: "",
       })
+      // Agregar a la cola FIFO para el listener
+      await redis.lpush("sync-3c:queue", commandId)
       commandIds.push(commandId)
     }
 

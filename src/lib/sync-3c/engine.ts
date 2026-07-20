@@ -79,6 +79,70 @@ export async function loadInventoryIndex(): Promise<Map<string, { id: string; da
   return inventoryIndex
 }
 
+/**
+ * Carga únicamente los productos cuyos códigos aparecen en el array "codes".
+ * Reemplaza la lectura completa de inventory_stock cuando se tiene una lista
+ * de productos a sincronizar.
+ *
+ * Los códigos se dividen en lotes de 30 (límite de Firestore para "in" queries).
+ * Retorna exactamente el mismo formato Map que loadInventoryIndex().
+ */
+export async function loadInventoryIndexByCodes(
+  codes: string[],
+): Promise<Map<string, { id: string; data: Record<string, unknown> }>> {
+  const admin = getFirebaseAdmin()
+  const { getFirestore } = require("firebase-admin/firestore")
+  const db = getFirestore()
+  const collection = db.collection("inventory_stock")
+
+  // Deduplicar y filtrar códigos vacíos
+  const uniqueCodes = [...new Set(codes.filter((c) => c && c.trim().length > 0))]
+
+  if (uniqueCodes.length === 0) {
+    console.log(`[SYNC] loadInventoryIndexByCodes: no codes provided, returning empty index`)
+    return new Map()
+  }
+
+  console.log(`[SYNC] loadInventoryIndexByCodes: ${uniqueCodes.length} unique codes`)
+
+  const inventoryIndex = new Map<string, { id: string; data: Record<string, unknown> }>()
+  const BATCH_SIZE = 30
+  let totalReads = 0
+  const t0 = Date.now()
+
+  // Dividir códigos en lotes de 30 (límite de Firestore para "in" queries)
+  for (let i = 0; i < uniqueCodes.length; i += BATCH_SIZE) {
+    const batch = uniqueCodes.slice(i, i + BATCH_SIZE)
+    const tBatch0 = Date.now()
+
+    const snapshot = await collection.where("codigo", "in", batch).get()
+    const tBatch1 = Date.now()
+    totalReads += snapshot.size
+
+    console.log(
+      `[SYNC] loadInventoryIndexByCodes batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(uniqueCodes.length / BATCH_SIZE)}: ` +
+      `${snapshot.size} docs found (${tBatch1 - tBatch0}ms)`,
+    )
+
+    for (const doc of snapshot.docs) {
+      const data = doc.data() as Record<string, unknown>
+      if (data.codigo) {
+        inventoryIndex.set(String(data.codigo), { id: doc.id, data })
+      }
+      if (data.name) {
+        inventoryIndex.set(String(data.name), { id: doc.id, data })
+      }
+    }
+  }
+
+  const t1 = Date.now()
+  console.log(
+    `[SYNC] loadInventoryIndexByCodes complete: ${inventoryIndex.size} entries ` +
+    `from ${totalReads} reads (${t1 - t0}ms)`,
+  )
+  return inventoryIndex
+}
+
 export async function syncItems(
   items: Sync3CItem[],
   options?: SyncEngineOptions,
@@ -356,40 +420,7 @@ export async function syncItems(
   console.log(`  🔥 Batch commits:         ${batchCommits}`)
   console.log(`  🔥 Ops totales escritas:  ${totalBatchOps}`)
   console.log(`========================================\n`)
-
-  // ─────────── FIRESTORE PROFILE ───────────
-  console.log(`\n========================================`)
-  console.log(`FIRESTORE PROFILE`)
-  console.log(`========================================`)
-  console.log(`Collection:`)
-  console.log(`inventory_stock`)
-  console.log(`Items recibidos:`)
-  console.log(`${items.length}`)
-  console.log(`Documentos existentes:`)
-  console.log(`${performedReads}`)
-  console.log(`Lecturas realizadas:`)
-  console.log(`${performedReads}`)
-  console.log(`Documentos creados:`)
-  console.log(`${result.created}`)
-  console.log(`Documentos actualizados:`)
-  console.log(`${result.updated}`)
-  console.log(`Documentos sin cambios:`)
-  console.log(`${performedReads - result.updated}`)
-  console.log(`Batch commits:`)
-  console.log(`${batchCommits}`)
-  console.log(`Operaciones escritas:`)
-  console.log(`${totalBatchOps}`)
-  console.log(`Tiempo lectura:`)
-  console.log(`${PROFILING["collection_get"]}ms`)
-  console.log(`Tiempo escritura:`)
-  console.log(`${PROFILING["firestore_writes"]}ms`)
-  console.log(`Tiempo total:`)
-  console.log(`${PROFILING["total"]}ms`)
-  console.log(`========================================\n`)
   // ─────────────────────────────────────────
-
-  console.log(`[SYNC ${syncId}] END`)
-  console.log(`[SYNC ${syncId}] TOTAL: ${Date.now() - startTotal}ms`)
 
   return result
 }

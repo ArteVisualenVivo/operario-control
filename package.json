@@ -11,7 +11,8 @@
     "seed": "npx tsx scripts/seed-machines.ts",
     "audit": "npx tsx scripts/audit.ts",
     "fix:rented": "npx tsx scripts/fix-rented-machines.ts",
-    "sync-agent": "npx tsx sync-agent/agent.ts"
+    "sync-agent": "npx tsx sync-agent/agent.ts",
+    "diagnostic": "npx tsx sync-agent/diagnostic-mode.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.5.0",
