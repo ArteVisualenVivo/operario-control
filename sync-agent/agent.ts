@@ -654,35 +654,6 @@ async function processModule(
 const HEARTBEAT_INTERVAL_MS = 30_000   // cada 30s
 const POLL_INTERVAL_MS = 5_000         // cada 5s
 
-// Migrar comandos pendientes existentes a la cola FIFO
-async function migratePendingCommandsToQueue(redis: Redis) {
-    console.log(`[AGENT] Migrating existing pending commands to queue...`)
-    let migrated = 0
-    let cursor = "0"
-    
-    do {
-        const result = await redis.scan(cursor, { match: "sync-3c:command:*", count: 100 })
-        cursor = result[0]
-        const keys = result[1] as string[]
-        
-     for (const key of keys) {
-         const data = await redis.hgetall<Record<string, unknown>>(key)
-         if (data && data.status === "pending") {
-             const commandId = key.replace("sync-3c:command:", "")
-             // Verificar si ya está en la cola
-             const queue = await redis.lrange<string>("sync-3c:queue", 0, -1)
-             if (!queue || (Array.isArray(queue) && !queue.includes(commandId))) {
-                 await redis.lpush("sync-3c:queue", commandId)
-                 migrated++
-                 console.log(`[AGENT] Migrated command ${commandId} to queue`)
-             }
-         }
-     }
-    } while (cursor !== "0")
-    
-    console.log(`[AGENT] Migration complete: ${migrated} commands migrated`)
-}
-
 async function startAgentListener() {
     acquireSingletonLock()
 
@@ -696,13 +667,6 @@ async function startAgentListener() {
 
     const redis = getRedis()
     let running = true
-
-    // Migrar comandos pendientes existentes a la cola FIFO (compatibilidad)
-    try {
-        await migratePendingCommandsToQueue(redis)
-    } catch (err) {
-        console.error(`[AGENT] Migration error (non-fatal):`, err)
-    }
 
     // === Manejo de señales para cierre limpio ===
     const shutdown = () => {
