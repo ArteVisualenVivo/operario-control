@@ -26,17 +26,21 @@ NavigateReparaciones() {
     Sleep(afterSubmenu)
     ValidarFoco()
 
-    ; 3 — Establecer fecha inicial: cambiar SOLO el dígito del año (2026 → 2024)
+    ; 3 — Establecer fecha inicial: escribir la fecha completa 01/01/2024
     ; Clic único posiciona el cursor SIN abrir el calendario/popup (el doble clic abría el popup
     ; y bloqueaba los clics siguientes, por eso dejó de exportar el Excel).
     ClickAt("FechaIni")
     Sleep(200)
-    SendInput("{End}")          ; llevar cursor al final del campo (año)
+    ; Borrar la fecha anterior completa (DD/MM/YYYY = 10 dígitos + separadores) sin depender de ^a
+    SendInput("{End}")
+    Sleep(80)
+    Loop 12 {
+        SendInput("{Backspace}")
+        Sleep(20)
+    }
     Sleep(100)
-    SendInput("{Backspace}")    ; borrar el dígito final (6 de ...2026)
-    Sleep(100)
-    SendText("4")               ; escribir el 4 → 01/01/2024
-    Sleep(300)
+    SendText("01/01/2024")
+    Sleep(400)
 
     ; 4 — Actualizar el filtro de fecha
     ClickAt("Actualizar")
