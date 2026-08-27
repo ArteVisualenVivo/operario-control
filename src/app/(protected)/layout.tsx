@@ -13,7 +13,6 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/stock", label: "Stock Global" },
   { href: "/machines", label: "Máquinas" },
-  { href: "/andamios", label: "Andamios" },
   { href: "/inventory", label: "Inventario" },
   { href: "/rentals", label: "Alquileres" },
   { href: "/repairs", label: "Reparaciones" },
@@ -21,6 +20,14 @@ const navItems = [
   { href: "/stock-movements", label: "Mov. Stock" },
   { href: "/inventory-movements", label: "Mov. Materiales" },
   { href: "/maintenance", label: "Mantenimiento" },
+]
+
+/**
+ * Rubro apartado: andamios. Se renderiza visualmente separado del
+ * bloque principal de máquinas / reparación / stock.
+ */
+const andamiosItems = [
+  { href: "/andamios", label: "Andamios" },
 ]
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
@@ -47,12 +54,27 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex h-screen flex-col">
       <AgentAutoStart />
-      <header className="flex items-center justify-between border-b px-6 py-3">
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-6 py-3">
         <Link href="/dashboard" className="text-lg font-bold tracking-tight">
           OPERARIO CONTROL
         </Link>
-        <nav className="flex items-center gap-4">
+        <nav className="flex flex-wrap items-center gap-x-3 gap-y-2">
           {navItems.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`text-sm font-medium transition-colors hover:text-primary ${
+                pathname.startsWith(item.href) ? "text-primary" : "text-muted-foreground"
+              }`}
+            >
+              {item.label}
+            </Link>
+          ))}
+          <Separator orientation="vertical" className="h-6" />
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Andamios
+          </span>
+          {andamiosItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}
