@@ -144,7 +144,9 @@ export async function saveScaffoldRentalStats(stats: ScaffoldRentalStats): Promi
     const admin = require("firebase-admin")
     const fs = require("fs")
     const path = require("path")
-    const serviceAccountPath = path.resolve(process.cwd(), "sync-agent/service-account.json")
+    const serviceAccountPathHere = path.resolve(__dirname, "..", "..", "..", "sync-agent", "service-account.json")
+    const serviceAccountPathCwd = path.resolve(process.cwd(), "sync-agent/service-account.json")
+    const serviceAccountPath = fs.existsSync(serviceAccountPathHere) ? serviceAccountPathHere : serviceAccountPathCwd
 
     if (!fs.existsSync(serviceAccountPath)) {
         throw new Error(

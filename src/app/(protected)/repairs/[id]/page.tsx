@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation"
 import { getRepair, updateRepair, deleteRepair } from "@/services/repairs"
 import { useMaintenanceSettings } from "@/hooks/useMaintenanceSettings"
 import RepairForm from "@/components/repairs/RepairForm"
+import { SparePartOrderPanel } from "@/components/repairs/SparePartOrderPanel"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
@@ -25,12 +26,22 @@ function dueBadge(label: string, days: number | null): { color: string; text: st
 }
 
 export default function RepairDetailPage() {
-  const { id } = useParams<{ id: string }>()
+  const params = useParams<{ id: string }>()
   const router = useRouter()
   const { settings, loading: settingsLoading } = useMaintenanceSettings()
   const [repair, setRepair] = useState<MachineRepair | null>(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
+
+  // El id puede venir URL-codificado (los números de orden de 3C
+  // contienen espacios y ":", ej: maintenance:X 0001-000101444)
+  const id = (() => {
+    try {
+      return decodeURIComponent(Array.isArray(params.id) ? params.id[0] : params.id ?? "")
+    } catch {
+      return Array.isArray(params.id) ? params.id[0] : (params.id ?? "")
+    }
+  })()
 
   useEffect(() => {
     getRepair(id).then((r) => { setRepair(r); setLoading(false) })
@@ -207,6 +218,8 @@ export default function RepairDetailPage() {
               </div>
             </div>
           )}
+
+          <SparePartOrderPanel repair={repair} />
 
           <div className="rounded-lg border bg-muted/20 p-4">
             <p className="text-sm font-medium mb-3">Estados de mantenimiento</p>

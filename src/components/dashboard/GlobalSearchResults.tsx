@@ -10,6 +10,7 @@ const META: Record<SearchResultType, { icon: string; label: string }> = {
     alquiler: { icon: "📋", label: "Alquiler" },
     andamio: { icon: "🏗️", label: "Andamios" },
     puntal: { icon: "🟤", label: "Puntales" },
+    pedido: { icon: "🛒", label: "Pedido de repuesto" },
 }
 
 interface Props {

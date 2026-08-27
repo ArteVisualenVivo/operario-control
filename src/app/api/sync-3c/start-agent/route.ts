@@ -37,6 +37,40 @@ function isAgentRunning(): boolean {
 export async function POST(request: Request) {
     try {
         const body = await request.json().catch(() => ({}))
+
+        // ============================================================
+        // MODO LISTENER: iniciar el servicio permanente del agente
+        // (usado por el auto-start de la web)
+        // ============================================================
+        if (body.mode === "listener") {
+            if (isAgentRunning()) {
+                return NextResponse.json({
+                    success: true,
+                    message: "Agente ya está corriendo",
+                    alreadyRunning: true,
+                })
+            }
+
+            const projectRoot = path.resolve(process.cwd(), "sync-agent")
+            const agentPath = path.join(projectRoot, "agent.ts")
+
+            console.log("[API] Starting agent in LISTENER mode")
+            const child = spawn("npx", ["tsx", agentPath], {
+                cwd: process.cwd(),
+                windowsHide: true,
+                shell: true,
+                detached: true,
+                stdio: "ignore",
+            })
+            child.unref()
+
+            return NextResponse.json({
+                success: true,
+                message: "Agente iniciado en modo listener",
+                pid: child.pid,
+            })
+        }
+
         const commandId = body.commandId
         const module = body.module || "stock"
         const autoEnqueued: string[] = body.autoEnqueued || []

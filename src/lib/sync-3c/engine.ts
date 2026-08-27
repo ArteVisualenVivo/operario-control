@@ -14,11 +14,16 @@ function getFirebaseAdmin() {
   const admin = require("firebase-admin")
   const fs = require("fs")
   const path = require("path")
-  const serviceAccountPath = path.resolve(process.cwd(), "sync-agent/service-account.json")
+  // Resolver respecto de la ubicación de este archivo (src/lib/sync-3c → raíz = ../../..)
+  // con fallback al directorio de trabajo, para que funcione se lance desde donde se lance.
+  const here = path.resolve(__dirname, "..", "..", "..", "sync-agent", "service-account.json")
+  const cwdBased = path.resolve(process.cwd(), "sync-agent/service-account.json")
+  const serviceAccountPath = fs.existsSync(here) ? here : cwdBased
 
   if (!fs.existsSync(serviceAccountPath)) {
     throw new Error(
       "[FIREBASE] Missing sync-agent/service-account.json. " +
+      `Buscado en: ${here} y ${cwdBased}. ` +
       "Colocar el archivo en sync-agent/ del proyecto."
     )
   }

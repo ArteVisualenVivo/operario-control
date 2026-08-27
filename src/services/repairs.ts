@@ -241,9 +241,28 @@ export async function getRepairsByMachine(machineId: string): Promise<MachineRep
 }
 
 export async function getRepair(id: string): Promise<MachineRepair | null> {
+  // Las órdenes importadas de 3C viven en la colección "maintenance"
+  // y en la lista aparecen con id "maintenance:<orderNumber>".
+  if (id.startsWith("maintenance:")) {
+    const orderNumber = id.slice("maintenance:".length)
+    const records = await getMaintenanceRecords()
+    const record = records.find((r) => r.id === orderNumber)
+    return record ? maintenanceToRepair(record) : null
+  }
+
   const ref = doc(db, COLLECTION, id)
   const snap = await getDoc(ref)
-  if (!snap.exists()) return null
+  if (!snap.exists()) {
+    // Fallback: buscar también entre las órdenes de 3C por si el id
+    // llegó sin el prefijo (ej: enlaces viejos o id = orderNumber)
+    try {
+      const records = await getMaintenanceRecords()
+      const record = records.find((r) => r.id === id || r.orderNumber === id)
+      return record ? maintenanceToRepair(record) : null
+    } catch {
+      return null
+    }
+  }
   return docToRepair(snap)
 }
 

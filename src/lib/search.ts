@@ -1,5 +1,6 @@
 import type { Machine, InventoryStock } from "@/types"
 import type { MaintenanceRecord } from "@/services/maintenance"
+import type { SparePartOrder } from "@/types"
 
 export type SearchResultType =
     | "orden"
@@ -9,6 +10,7 @@ export type SearchResultType =
     | "alquiler"
     | "andamio"
     | "puntal"
+    | "pedido"
 
 export interface SearchResult {
     type: SearchResultType
@@ -23,6 +25,7 @@ export interface SearchData {
     orders: MaintenanceRecord[]
     machines: Machine[]
     stockItems: InventoryStock[]
+    sparePartOrders?: SparePartOrder[]
 }
 
 /** Normaliza quitando acentos y pasando a minúsculas (mantiene espacios). */
@@ -200,6 +203,30 @@ export function searchEverywhere(query: string, data: SearchData): SearchResult[
             subtitle: `Stock: ${item.stockAvailable}${item.codigo ? ` · Código: ${item.codigo}` : ""}`,
             route,
             id: item.id,
+            score,
+        })
+    }
+
+    // Pedidos de repuestos
+    for (const o of data.sparePartOrders ?? []) {
+        const fields = [
+            o.description,
+            o.code,
+            o.orderNumber,
+            o.machineName,
+        ]
+        const allRaw = fields.join(" ")
+        const allCompact = compact(allRaw)
+        const s = scoreMatch(allCompact, allRaw, tokens)
+        if (s <= 0) continue
+        let score = s
+        if (compact(o.code).startsWith(joinedTokens)) score += 5
+        results.push({
+            type: "pedido",
+            title: `${o.description} · ${o.code}`,
+            subtitle: `${o.orderNumber || "—"} · ${o.machineName} · ${o.status}`,
+            route: `/spare-part-orders/${o.id}`,
+            id: o.id,
             score,
         })
     }
