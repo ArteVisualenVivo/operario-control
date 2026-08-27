@@ -28,13 +28,50 @@ const STATUS_LABELS: Record<SparePartOrderStatus, string> = {
 
 export default function SparePartOrdersPage() {
   const router = useRouter()
-  const { orders, loading, markAsOrdered } = useAllSparePartOrders()
+  const { orders, loading, markAsOrdered, remove } = useAllSparePartOrders()
   const [filter, setFilter] = useState<Filter>("todos")
   const [search, setSearch] = useState("")
   const [orderSearch, setOrderSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [orderedTarget, setOrderedTarget] = useState<SparePartOrder | null>(null)
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [deleting, setDeleting] = useState(false)
+
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const handleDeleteSelected = async () => {
+    if (selected.size === 0) return
+    if (!window.confirm(`¿Eliminar ${selected.size} pedido(s)? Esta acción no se puede deshacer.`)) return
+    setDeleting(true)
+    try {
+      await remove(Array.from(selected))
+      setSelected(new Set())
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Error al eliminar")
+    } finally {
+      setDeleting(false)
+    }
+  }
+
+  const handleDeleteOne = async (id: string) => {
+    if (!window.confirm("¿Eliminar este pedido? Esta acción no se puede deshacer.")) return
+    setDeleting(true)
+    try {
+      await remove([id])
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Error al eliminar")
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   const handleMarkOrdered = async (orderedAt: Date, expectedAt: Date | null, notes?: string) => {
     if (!orderedTarget) return
@@ -161,14 +198,33 @@ export default function SparePartOrdersPage() {
         <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-auto" />
         <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-auto" />
       </div>
-{visible.length === 0 ? (
+
+      {/* Barra de seleccion / eliminacion */}
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm text-muted-foreground">
+          {selected.size > 0
+            ? `${selected.size} seleccionado(s)`
+            : `${visible.length} pedido(s) con el filtro actual`}
+        </p>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => setSelected(new Set())} disabled={selected.size === 0}>
+            Limpiar
+          </Button>
+          <Button variant="destructive" size="sm" onClick={handleDeleteSelected} disabled={selected.size === 0 || deleting}>
+            {deleting ? "Eliminando..." : `Eliminar seleccionados (${selected.size})`}
+          </Button>
+        </div>
+      </div>
+
+      {visible.length === 0 ? (
         <p className="text-sm text-muted-foreground">No hay pedidos que coincidan con el filtro.</p>
       ) : (
         <div className="rounded-md border overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
-                <th className="text-left py-2 px-3 font-medium text-muted-foreground">Orden</th>
+                <th className="w-10 py-2 px-3"><input type="checkbox" checked={visible.length > 0 && selected.size === visible.length} onChange={(e) => { if (e.target.checked) setSelected(new Set(visible.map((v) => v.id))); else setSelected(new Set()); }} /></th>
+<th className="text-left py-2 px-3 font-medium text-muted-foreground">Orden</th>
                 <th className="text-left py-2 px-3 font-medium text-muted-foreground">Máquina</th>
                 <th className="text-left py-2 px-3 font-medium text-muted-foreground">Repuesto</th>
                 <th className="text-left py-2 px-3 font-medium text-muted-foreground">Código</th>
@@ -185,6 +241,7 @@ export default function SparePartOrdersPage() {
                 const parcial = (o.status === "SOLICITADO" || o.status === "PEDIDO" || o.status === "RECIBIDO") && (o.quantityReceived < o.quantityRequested || (o.quantityUsed > 0 && o.quantityUsed < o.quantityReceived))
                 return (
                   <tr key={o.id} className="border-b last:border-0 hover:bg-muted/20">
+<td className="py-2 px-3"><input type="checkbox" checked={selected.has(o.id)} onChange={() => toggleSelect(o.id)} /></td>
                     <td className="py-2 px-3 font-medium">{o.orderNumber || "—"}</td>
                     <td className="py-2 px-3">{o.machineName}</td>
                     <td className="py-2 px-3">{o.description}{parcial && <span className="ml-1 text-xs text-violet-600 font-semibold">parcial</span>}</td>
@@ -207,6 +264,7 @@ export default function SparePartOrdersPage() {
                           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setOrderedTarget(o)}>Encargar</Button>
                         )}
                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => router.push(`/spare-part-orders/${o.id}`)}>Ver</Button>
+<Button variant="ghost" size="sm" className="h-7 text-xs text-red-600" onClick={() => handleDeleteOne(o.id)} disabled={deleting}>Eliminar</Button>
                       </div>
                     </td>
                   </tr>

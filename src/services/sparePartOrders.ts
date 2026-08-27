@@ -1,5 +1,5 @@
 import {
-  collection, addDoc, getDocs, getDoc, doc, updateDoc, query, where, orderBy, Timestamp,
+  collection, addDoc, getDocs, getDoc, doc, updateDoc, deleteDoc, query, where, orderBy, Timestamp,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { LOCAL_MODE } from "@/lib/runtimeMode"
@@ -275,6 +275,25 @@ export async function cancelOrder(id: string): Promise<void> {
   const updates: Record<string, unknown> = { status: "CANCELADO", updatedAt: new Date() }
   await updateDoc(ref, updates)
   await createAuditLog("update", "spare_part_order", id, before, { ...before, ...updates })
+}
+
+export async function deleteOrders(ids: string[]): Promise<void> {
+  const unique = Array.from(new Set(ids)).filter(Boolean)
+  if (unique.length === 0) return
+  await Promise.all(
+    unique.map(async (id) => {
+      const ref = doc(db, COLLECTION, id)
+      let before: Record<string, unknown> | null = null
+      try {
+        const snap = await getDoc(ref)
+        if (snap.exists()) before = snap.data()
+      } catch {
+        before = null
+      }
+      await deleteDoc(ref)
+      await createAuditLog("delete", "spare_part_order", id, before ?? {}, {})
+    }),
+  )
 }
 
 export async function updateOrderNotes(id: string, notes: string): Promise<void> {
