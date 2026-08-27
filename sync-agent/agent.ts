@@ -50,6 +50,82 @@ const MACHINE_NAME = process.env.COMPUTERNAME || process.env.HOSTNAME || "unknow
 const LOCK_FILE = "C:\\Users\\Cesar\\Desktop\\operario-control\\sync-agent\\.agent.lock"
 
 // ============================================================================
+// CONTROL DE CUOTA FIREBASE (plan Spark gratis) + CACHÉ DE ÍNDICE COMPARTIDO
+// ============================================================================
+// Objetivos:
+//  1) Reutilizar un único inventoryIndex en todo el pipeline (leer 1 vez).
+//  2) Cache de 10 min para no releer Firestore en corridas seguidas.
+//  3) Freno automático: si el día se acerca al cupo, saltar y avisar.
+const INDEX_TTL_MS = 10 * 60 * 1000          // copia del índice por 10 minutos
+const DAILY_READ_LIMIT = 45000               // margen bajo el tope Spark (50K)
+
+// Horario de sincronización automática (hora local). Fuera de estas horas
+// el agente NO corre sync automático (solo heartbeat / cola manual).
+const AUTO_SYNC_HOURS = [10, 12, 15, 17]
+
+let sharedInventoryIndex: Map<string, { id: string; data: Record<string, unknown> }> | null = null
+let sharedIndexLoadedAt = 0
+
+function firestoreDateKey(d = new Date()): string {
+    return d.toISOString().slice(0, 10)
+}
+
+async function getDailyReads(redis: Redis): Promise<number> {
+    try {
+        const v = await redis.get<string>(`sync-3c:reads:${firestoreDateKey()}`)
+        return Number(v) || 0
+    } catch {
+        return 0
+    }
+}
+
+async function addDailyReads(redis: Redis, reads: number): Promise<void> {
+    if (reads <= 0) return
+    try {
+        await redis.incrby(`sync-3c:reads:${firestoreDateKey()}`, Math.max(1, Math.round(reads)))
+        await redis.expire(`sync-3c:reads:${firestoreDateKey()}`, 48 * 3600)
+    } catch {
+        // si Redis falla, no bloquea el sync
+    }
+}
+
+/**
+ * Devuelve el índice compartido con cache de 10 min. Si la corrida es seguida,
+ * reutiliza el mismo para no releer Firestore.
+ */
+async function getSharedInventoryIndex(
+    redis: Redis,
+    codes: string[],
+): Promise<Map<string, { id: string; data: Record<string, unknown> }>> {
+    if (sharedInventoryIndex && Date.now() - sharedIndexLoadedAt < INDEX_TTL_MS) {
+        console.log(`[AGENT] Reutilizando inventoryIndex en cache (${sharedInventoryIndex.size} entries, ${Math.round((Date.now() - sharedIndexLoadedAt) / 1000)}s viejos)`)
+        return sharedInventoryIndex
+    }
+
+    const index = await loadInventoryIndexByCodes(codes)
+    sharedInventoryIndex = index
+    sharedIndexLoadedAt = Date.now()
+
+    // Contabilizar lecturas estimadas (1 batch de 30 códigos ≈ 1 petición)
+    const batchCount = Math.ceil(codes.length / 30)
+    await addDailyReads(redis, batchCount)
+    console.log(`[AGENT] Índice compartido actualizado (${index.size} entries)`)
+    return index
+}
+
+/**
+ * Verifica si aún queda cupo de lecturas para hoy. false = hay que frenar.
+ */
+async function canSyncToday(redis: Redis, approxReads = 0): Promise<boolean> {
+    const used = await getDailyReads(redis)
+    if (used + approxReads >= DAILY_READ_LIMIT) {
+        console.warn(`[AGENT] Cuota del día casi agotada (${used}/~${DAILY_READ_LIMIT}). Saltando sync automático.`)
+        return false
+    }
+    return true
+}
+
+// ============================================================================
 // DIAGNOSTIC MODE - Pure analysis function (no side effects)
 // ============================================================================
 interface DiagnosticContext {
@@ -550,11 +626,11 @@ async function processModule(
                     ],
                 }
             } else {
-                // Construir inventoryIndex solo con los códigos del Excel
+                // Construir inventoryIndex con caché compartido (leer 1 vez / 10 min)
                 if (!inventoryIndex) {
                     const codes = items.map((i) => i.codigo).filter(Boolean) as string[]
-                    console.log(`[AGENT] Building inventoryIndex from ${codes.length} codes in Excel`)
-                    inventoryIndex = await loadInventoryIndexByCodes(codes)
+                    console.log(`[AGENT] Building shared inventoryIndex from ${codes.length} codes in Excel`)
+                    inventoryIndex = await getSharedInventoryIndex(redis, codes)
                 }
                 try {
                     result = await syncItems(items, undefined, inventoryIndex)
@@ -649,6 +725,58 @@ async function processModule(
 }
 
 // ============================================================================
+// AUTO-SYNC PROGRAMADO — corre el pipeline a horas fijas (10, 12, 15, 17)
+// reutilizando el índice compartido para cuidar la cuota de Firestore.
+// ============================================================================
+let lastAutoSyncHour: number | null = null
+
+async function triggerAutoSync(redis: Redis) {
+    const now = new Date()
+    const hour = now.getHours()
+
+    if (!AUTO_SYNC_HOURS.includes(hour)) return
+    if (lastAutoSyncHour === hour) return
+
+    // Solo corre si estamos dentro de los primeros 5 minutos de la hora fija
+    if (now.getMinutes() > 5) return
+
+    if (!(await canSyncToday(redis))) {
+        console.log(`[AGENT] Auto-sync saltado: cuota del día casi agotada (${hour}:00)`)
+        lastAutoSyncHour = hour
+        return
+    }
+
+    lastAutoSyncHour = hour
+
+    console.log(`[AGENT] ════════════════════════════════════════`)
+    console.log(`[AGENT] AUTO-SYNC programado ${hour}:00`)
+    console.log(`[AGENT] ════════════════════════════════════════`)
+
+    // Pipeline de los 3 módulos (cada processModule usa el caché compartido)
+    const modules: ModuleName[] = ["stock", "alquileres", "reparaciones"]
+    const pipeline: { commandId: string; module: ModuleName }[] = modules.map((m) => ({
+        commandId: `auto-${new Date().toISOString().replace(/[:.]/g, "-")}-${m}`,
+        module: m,
+    }))
+
+    for (const step of pipeline) {
+        console.log(`[AGENT] === Auto-sync step: ${step.module} (${step.commandId}) ===`)
+        try {
+            await processModule(redis, step.commandId, step.module, sharedInventoryIndex ?? undefined)
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : String(err)
+            await redis.hset(`sync-3c:command:${step.commandId}`, {
+                status: "failed",
+                error: msg,
+                completedAt: Date.now(),
+            })
+        }
+    }
+
+    console.log(`[AGENT] AUTO-SYNC ${hour}:00 completado`)
+}
+
+// ============================================================================
 // LISTENER MODE (SERVICE) — corre permanentemente, escucha comandos pending
 // ============================================================================
 const HEARTBEAT_INTERVAL_MS = 30_000   // cada 30s
@@ -709,6 +837,16 @@ async function startAgentListener() {
             console.error(`[AGENT] Heartbeat error:`, err)
         }
     }, HEARTBEAT_INTERVAL_MS)
+
+    // === Auto-sync programado: revisar cada minuto si toca corrida (10/12/15/17) ===
+    setInterval(async () => {
+        if (!running) return
+        try {
+            await triggerAutoSync(redis)
+        } catch (err) {
+            console.error(`[AGENT] Auto-sync error:`, err)
+        }
+    }, 60_000)
 
      // === Bucle principal de escucha (usando cola FIFO) ===
      while (running) {
