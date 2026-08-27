@@ -167,7 +167,16 @@ WatchAndCopy() {
             Log("[WATCHER] TamaÃ±o: " A_LoopFileSizeKB " KB")
 
             targetFile := exportsDir "\" A_LoopFileName
-            if FileCopy(A_LoopFileFullPath, targetFile, 1) {
+            // Reintentar la copia (el archivo puede estar bloqueado por 3C/Excel justo tras generarse)
+            copied := false
+            Loop 15 {
+                if FileCopy(A_LoopFileFullPath, targetFile, 1) {
+                    copied := true
+                    break
+                }
+                Sleep(2000)
+            }
+            if copied {
                 Log("[OK] Archivo copiado a exports: " targetFile)
                 try {
                     FileDelete(A_LoopFileFullPath)
@@ -176,7 +185,7 @@ WatchAndCopy() {
                     Log("[WARN] No se pudo eliminar el original: " A_LoopFileFullPath)
                 }
             } else {
-                Log("[ERROR] No se pudo copiar el archivo a exports")
+                Log("[ERROR] No se pudo copiar el archivo a exports tras reintentos")
             }
 
             return A_LoopFileName
