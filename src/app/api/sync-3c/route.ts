@@ -20,6 +20,7 @@ export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({}))
     const module = body.module || "stock"
+    // Elegir UN solo módulo (el que pidió el usuario), no arrastrar el resto del pipeline
 
     if (!SYNC_PIPELINE.includes(module)) {
       return NextResponse.json(
@@ -33,7 +34,8 @@ export async function POST(request: Request) {
 
     // Determinar el punto de inicio en el pipeline
     const startIndex = SYNC_PIPELINE.indexOf(module)
-    const modulesToEnqueue = SYNC_PIPELINE.slice(startIndex)
+    // Encolar SOLO el módulo elegido (si el usuario pide uno, solo corre ese)
+    const modulesToEnqueue = SYNC_PIPELINE.slice(startIndex, startIndex + 1)
 
      // Verificar si ya existen comandos pending para los módulos solicitados
      // Usar SCAN en lugar de KEYS para evitar bloqueo
