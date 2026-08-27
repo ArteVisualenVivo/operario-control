@@ -167,7 +167,7 @@ WatchAndCopy() {
             Log("[WATCHER] TamaÃ±o: " A_LoopFileSizeKB " KB")
 
             targetFile := exportsDir "\" A_LoopFileName
-            // Reintentar la copia (el archivo puede estar bloqueado por 3C/Excel justo tras generarse)
+            ; Reintentar la copia (el archivo puede estar bloqueado justo tras generarse)
             copied := false
             Loop 15 {
                 if FileCopy(A_LoopFileFullPath, targetFile, 1) {
