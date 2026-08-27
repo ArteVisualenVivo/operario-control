@@ -154,10 +154,7 @@ export default function PurchaseListPage() {
             </>
           )}
 
-          <div style={{ marginTop: 24, fontSize: 100, color: "#555" }}>
-            Observaciones del encargo: ________________________________________________________________________
           </div>
-        </div>
       )}
 
       {!loading && !hasContent && (
