@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import type { SparePartOrder, CreateSparePartOrderInput } from "@/types"
+import type { SparePartOrder, CreateSparePartOrderInput, MarkOrderedInput } from "@/types"
 import * as sparePartOrdersService from "@/services/sparePartOrders"
 
 export function useSparePartOrders(repairId: string) {
@@ -34,8 +34,8 @@ export function useSparePartOrders(repairId: string) {
     return id
   }, [load])
 
-  const markOrdered = useCallback(async (id: string) => {
-    await sparePartOrdersService.markOrdered(id)
+  const markOrdered = useCallback(async (id: string, input: MarkOrderedInput) => {
+    await sparePartOrdersService.markOrdered(id, input)
     await load()
   }, [load])
 

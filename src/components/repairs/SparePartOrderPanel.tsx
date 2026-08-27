@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button"
 import { useSparePartOrders } from "@/hooks/useSparePartOrders"
 import { SparePartOrderDialog } from "./SparePartOrderDialog"
 import { SparePartOrderReceiveUseDialog } from "./SparePartOrderReceiveUseDialog"
+import { SparePartOrderOrderedDialog } from "./SparePartOrderOrderedDialog"
 import { SparePartOrderBadge } from "./SparePartOrderBadge"
 import { toast } from "sonner"
 import type { MachineRepair, CreateSparePartOrderInput, SparePartOrder } from "@/types"
@@ -19,6 +20,7 @@ export function SparePartOrderPanel({ repair }: Props) {
   const { orders, loading, create, markOrdered, markReceived, markUsed, cancel } = useSparePartOrders(repair.id)
   const [createOpen, setCreateOpen] = useState(false)
   const [action, setAction] = useState<{ type: "receive" | "use"; order: SparePartOrder } | null>(null)
+  const [orderedTarget, setOrderedTarget] = useState<SparePartOrder | null>(null)
 
   const orderNumber = repair.externalId ?? repair.id
 
@@ -35,13 +37,9 @@ export function SparePartOrderPanel({ repair }: Props) {
     }
   }
 
-  const handleMarkOrdered = async (id: string) => {
-    try {
-      await markOrdered(id)
-      toast.success("Marcado como pedido")
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Error")
-    }
+  const handleMarkOrdered = async (orderedAt: Date, expectedAt: Date | null, notes?: string) => {
+    if (!orderedTarget) return
+    await markOrdered(orderedTarget.id, { orderedAt, expectedAt, notes })
   }
 
   const handleCancel = async (id: string) => {
@@ -93,8 +91,8 @@ export function SparePartOrderPanel({ repair }: Props) {
                   <td className="py-2 px-3"><SparePartOrderBadge status={o.status} /></td>
                   <td className="py-2 px-3">
                     <div className="flex items-center justify-end gap-1 flex-wrap">
-                      {o.status === "SOLICITADO" && (
-                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => handleMarkOrdered(o.id)}>Pedir</Button>
+                      {(o.status === "SOLICITADO" || o.status === "PEDIDO") && (
+                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setOrderedTarget(o)}>Encargar</Button>
                       )}
                       {o.status !== "UTILIZADO" && o.status !== "CANCELADO" && (
                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAction({ type: "receive", order: o })}>Recibir</Button>
@@ -129,6 +127,13 @@ export function SparePartOrderPanel({ repair }: Props) {
         action={action?.type ?? "receive"}
         order={action?.order ?? null}
         onConfirm={(q, d, n) => handleAction(action!.order.id, q, d, n)}
+      />
+
+      <SparePartOrderOrderedDialog
+        open={orderedTarget !== null}
+        onOpenChange={(o) => { if (!o) setOrderedTarget(null) }}
+        order={orderedTarget}
+        onConfirm={handleMarkOrdered}
       />
     </div>
   )

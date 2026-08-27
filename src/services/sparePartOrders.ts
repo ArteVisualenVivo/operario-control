@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase"
 import { LOCAL_MODE } from "@/lib/runtimeMode"
 import { createAuditLog } from "./audit"
 import { restockPart, usePart as consumePart } from "./spareParts"
-import type { SparePartOrder, CreateSparePartOrderInput, SparePartOrderStatus } from "@/types"
+import type { SparePartOrder, CreateSparePartOrderInput, SparePartOrderStatus, MarkOrderedInput } from "@/types"
 
 const COLLECTION = "spare_part_orders"
 
@@ -33,6 +33,8 @@ function docToOrder(snap: { id: string; data: () => Record<string, unknown> }): 
     status: (d.status as SparePartOrderStatus) ?? "SOLICITADO",
     supplier: (d.supplier as string) || undefined,
     requestedAt: toDate(d.requestedAt),
+    orderedAt: d.orderedAt ? toDate(d.orderedAt) : undefined,
+    expectedAt: d.expectedAt ? toDate(d.expectedAt) : undefined,
     receivedAt: d.receivedAt ? toDate(d.receivedAt) : undefined,
     usedAt: d.usedAt ? toDate(d.usedAt) : undefined,
     notes: (d.notes as string) || undefined,
@@ -126,12 +128,34 @@ async function loadOrder(id: string): Promise<{ ref: Parameters<typeof updateDoc
   return { ref, before: snap.data() as Record<string, unknown> }
 }
 
-export async function markOrdered(id: string): Promise<void> {
-  const { ref, before } = await loadOrder(id)
-  if ((before.status as SparePartOrderStatus) !== "SOLICITADO") {
-    throw new Error("Solo se puede marcar como pedido un pedido solicitado")
+export async function markOrdered(
+  id: string,
+  input: MarkOrderedInput,
+): Promise<void> {
+  if (!(input.orderedAt instanceof Date) || Number.isNaN(input.orderedAt.getTime())) {
+    throw new Error("La fecha de encargo es inválida")
   }
-  const updates: Record<string, unknown> = { status: "PEDIDO", updatedAt: new Date() }
+  if (input.expectedAt && Number.isNaN(input.expectedAt.getTime())) {
+    throw new Error("La fecha estimada de retiro es inválida")
+  }
+
+  const { ref, before } = await loadOrder(id)
+  const status = before.status as SparePartOrderStatus
+
+  if (status !== "SOLICITADO" && status !== "PEDIDO") {
+    throw new Error(
+      `Solo se puede marcar como encargado un pedido SOLICITADO o PEDIDO (estado actual: ${status})`,
+    )
+  }
+
+  const updates: Record<string, unknown> = {
+    status: "ENCARGADO",
+    orderedAt: input.orderedAt,
+    expectedAt: input.expectedAt ?? null,
+    updatedAt: new Date(),
+  }
+  if (input.notes !== undefined) updates.notes = input.notes
+
   await updateDoc(ref, updates)
   await createAuditLog("update", "spare_part_order", id, before, { ...before, ...updates })
 }

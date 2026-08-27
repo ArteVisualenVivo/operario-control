@@ -1,6 +1,7 @@
 export type SparePartOrderStatus =
   | "SOLICITADO"
   | "PEDIDO"
+  | "ENCARGADO"
   | "RECIBIDO"
   | "UTILIZADO"
   | "CANCELADO"
@@ -21,11 +22,20 @@ export interface SparePartOrder {
   status: SparePartOrderStatus
   supplier?: string
   requestedAt: Date
+  // Datos del encargo del dueño (compra semanal)
+  orderedAt?: Date      // fecha en que se encargó en la casa de repuestos
+  expectedAt?: Date     // fecha aproximada para retirar
   receivedAt?: Date
   usedAt?: Date
   notes?: string
   createdAt: Date
   updatedAt: Date
+}
+
+export interface MarkOrderedInput {
+  orderedAt: Date
+  expectedAt?: Date | null
+  notes?: string
 }
 
 export interface CreateSparePartOrderInput {

@@ -11,7 +11,7 @@ import { SparePartOrderBadge } from "@/components/repairs/SparePartOrderBadge"
 import { formatDate } from "@/lib/ui"
 import type { SparePartOrderStatus } from "@/types"
 
-type Filter = "todos" | SparePartOrderStatus | "pendientes" | "recibidos-sin-usar" | "parciales" | "atrasados" | "utilizados"
+type Filter = "todos" | SparePartOrderStatus | "pendientes" | "encargados" | "recibidos-sin-usar" | "parciales" | "atrasados" | "utilizados"
 
 // Timestamp capturado a nivel de módulo (no durante el render) para los cálculos de "atrasos".
 const MODULE_LOAD_TS = Date.now()
@@ -19,6 +19,7 @@ const MODULE_LOAD_TS = Date.now()
 const STATUS_LABELS: Record<SparePartOrderStatus, string> = {
   SOLICITADO: "Solicitados",
   PEDIDO: "Pedidos",
+  ENCARGADO: "Encargados",
   RECIBIDO: "Recibidos",
   UTILIZADO: "Utilizados",
   CANCELADO: "Cancelados",
@@ -43,12 +44,15 @@ export default function SparePartOrdersPage() {
         return true
       case "SOLICITADO":
       case "PEDIDO":
+      case "ENCARGADO":
       case "RECIBIDO":
       case "UTILIZADO":
       case "CANCELADO":
         return o.status === filter
       case "pendientes":
         return o.status === "SOLICITADO" || o.status === "PEDIDO"
+      case "encargados":
+        return o.status === "ENCARGADO"
       case "recibidos-sin-usar":
         return o.status === "RECIBIDO"
       case "utilizados":
@@ -81,12 +85,13 @@ export default function SparePartOrdersPage() {
 
   const counts = useMemo(() => {
     const pendientes = orders.filter((o) => o.status === "SOLICITADO" || o.status === "PEDIDO").length
+    const encargados = orders.filter((o) => o.status === "ENCARGADO").length
     const recibidosSinUsar = orders.filter((o) => o.status === "RECIBIDO").length
     const parciales = orders.filter((o) => (o.status === "SOLICITADO" || o.status === "PEDIDO" || o.status === "RECIBIDO") && (o.quantityReceived < o.quantityRequested || (o.quantityUsed > 0 && o.quantityUsed < o.quantityReceived))).length
     const atrasados = orders.filter((o) => (o.status === "SOLICITADO" || o.status === "PEDIDO") && daysOld(o.requestedAt) > 7).length
     const utilizados = orders.filter((o) => o.status === "UTILIZADO").length
     const cancelados = orders.filter((o) => o.status === "CANCELADO").length
-    return { pendientes, recibidosSinUsar, parciales, atrasados, utilizados, cancelados, total: orders.length }
+    return { pendientes, encargados, recibidosSinUsar, parciales, atrasados, utilizados, cancelados, total: orders.length }
   }, [orders])
 
   if (loading) return <p className="text-muted-foreground">Cargando pedidos...</p>
@@ -95,10 +100,13 @@ export default function SparePartOrdersPage() {
 <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold">Pedidos de Repuestos</h1>
+        <Button variant="outline" onClick={() => router.push("/spare-part-orders/print")}>
+          🖨️ Lista de compra
+        </Button>
       </div>
 
       {/* Resumen semanal (clic para filtrar) */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-6">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-7">
         <Card onClick={() => setFilter("todos")} className={filter === "todos" ? "ring-2 ring-ring cursor-pointer" : "cursor-pointer"}>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total</CardTitle></CardHeader>
           <CardContent><p className="text-3xl font-bold">{counts.total}</p></CardContent>
@@ -106,6 +114,10 @@ export default function SparePartOrdersPage() {
         <Card onClick={() => setFilter("pendientes")} className={filter === "pendientes" ? "ring-2 ring-ring cursor-pointer" : "cursor-pointer"}>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Pendientes</CardTitle></CardHeader>
           <CardContent><p className="text-3xl font-bold text-amber-600">{counts.pendientes}</p></CardContent>
+        </Card>
+        <Card onClick={() => setFilter("encargados")} className={filter === "encargados" ? "ring-2 ring-ring cursor-pointer" : "cursor-pointer"}>
+          <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Encargados</CardTitle></CardHeader>
+          <CardContent><p className="text-3xl font-bold text-purple-600">{counts.encargados}</p></CardContent>
         </Card>
         <Card onClick={() => setFilter("recibidos-sin-usar")} className={filter === "recibidos-sin-usar" ? "ring-2 ring-ring cursor-pointer" : "cursor-pointer"}>
           <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Recibidos sin usar</CardTitle></CardHeader>
@@ -127,7 +139,7 @@ export default function SparePartOrdersPage() {
 
       {/* Filtros por estado */}
       <div className="flex gap-1 flex-wrap">
-        {(["todos", "pendientes", "recibidos-sin-usar", "parciales", "SOLICITADO", "PEDIDO", "RECIBIDO", "UTILIZADO", "CANCELADO"] as Filter[]).map((f) => (
+        {(["todos", "pendientes", "encargados", "recibidos-sin-usar", "parciales", "SOLICITADO", "PEDIDO", "ENCARGADO", "RECIBIDO", "UTILIZADO", "CANCELADO"] as Filter[]).map((f) => (
           <Button key={f} size="sm" variant={filter === f ? "default" : "outline"} onClick={() => setFilter(f)}>
             {f === "todos" ? "Todos" : f === "pendientes" ? "Pendientes" : f === "recibidos-sin-usar" ? "Recibidos sin usar" : f === "parciales" ? "Parciales" : STATUS_LABELS[f as SparePartOrderStatus]}
           </Button>
@@ -172,7 +184,14 @@ export default function SparePartOrdersPage() {
                     <td className="py-2 px-3 text-right">{o.quantityRequested}</td>
                     <td className="py-2 px-3 text-right">{o.quantityReceived}</td>
                     <td className="py-2 px-3 text-right">{o.quantityUsed}</td>
-                    <td className="py-2 px-3"><SparePartOrderBadge status={o.status} /></td>
+                    <td className="py-2 px-3">
+                      <SparePartOrderBadge status={o.status} />
+                      {o.status === "ENCARGADO" && (o.orderedAt || o.expectedAt) && (
+                        <span className="block text-xs text-muted-foreground mt-1">
+                          enc: {formatDate(o.orderedAt!)}{o.expectedAt ? ` · retiro: ${formatDate(o.expectedAt)}` : ""}
+                        </span>
+                      )}
+                    </td>
                     <td className="py-2 px-3 text-xs">{formatDate(o.requestedAt)}</td>
                     <td className="py-2 px-3 text-right">
                       <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => router.push(`/spare-part-orders/${o.id}`)}>Ver</Button>
