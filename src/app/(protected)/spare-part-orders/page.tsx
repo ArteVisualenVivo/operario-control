@@ -8,8 +8,9 @@ import { SearchInput } from "@/components/ui/SearchInput"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAllSparePartOrders } from "@/hooks/useAllSparePartOrders"
 import { SparePartOrderBadge } from "@/components/repairs/SparePartOrderBadge"
+import { SparePartOrderOrderedDialog } from "@/components/repairs/SparePartOrderOrderedDialog"
 import { formatDate } from "@/lib/ui"
-import type { SparePartOrderStatus } from "@/types"
+import type { SparePartOrderStatus, SparePartOrder } from "@/types"
 
 type Filter = "todos" | SparePartOrderStatus | "pendientes" | "encargados" | "recibidos-sin-usar" | "parciales" | "atrasados" | "utilizados"
 
@@ -27,12 +28,19 @@ const STATUS_LABELS: Record<SparePartOrderStatus, string> = {
 
 export default function SparePartOrdersPage() {
   const router = useRouter()
-  const { orders, loading } = useAllSparePartOrders()
+  const { orders, loading, markAsOrdered } = useAllSparePartOrders()
   const [filter, setFilter] = useState<Filter>("todos")
   const [search, setSearch] = useState("")
   const [orderSearch, setOrderSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  const [orderedTarget, setOrderedTarget] = useState<SparePartOrder | null>(null)
+
+  const handleMarkOrdered = async (orderedAt: Date, expectedAt: Date | null, notes?: string) => {
+    if (!orderedTarget) return
+    await markAsOrdered(orderedTarget.id, { orderedAt, expectedAt, notes })
+    setOrderedTarget(null)
+  }
 
   const daysOld = (d: Date): number => {
     return Math.floor((MODULE_LOAD_TS - new Date(d).getTime()) / (1000 * 60 * 60 * 24))
@@ -194,7 +202,12 @@ export default function SparePartOrdersPage() {
                     </td>
                     <td className="py-2 px-3 text-xs">{formatDate(o.requestedAt)}</td>
                     <td className="py-2 px-3 text-right">
-                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => router.push(`/spare-part-orders/${o.id}`)}>Ver</Button>
+                      <div className="flex items-center justify-end gap-1 flex-wrap">
+                        {(o.status === "SOLICITADO" || o.status === "PEDIDO") && (
+                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setOrderedTarget(o)}>Encargar</Button>
+                        )}
+                        <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => router.push(`/spare-part-orders/${o.id}`)}>Ver</Button>
+                      </div>
                     </td>
                   </tr>
                 )
@@ -203,6 +216,13 @@ export default function SparePartOrdersPage() {
           </table>
         </div>
       )}
+
+      <SparePartOrderOrderedDialog
+        open={orderedTarget !== null}
+        onOpenChange={(o) => { if (!o) setOrderedTarget(null) }}
+        order={orderedTarget}
+        onConfirm={handleMarkOrdered}
+      />
     </div>
   )
 }

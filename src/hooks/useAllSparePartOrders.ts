@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react"
 import type { SparePartOrder } from "@/types"
-import { getAllOrders } from "@/services/sparePartOrders"
+import { getAllOrders, markOrdered } from "@/services/sparePartOrders"
+import type { MarkOrderedInput } from "@/types"
 
 export function useAllSparePartOrders() {
   const [orders, setOrders] = useState<SparePartOrder[]>([])
@@ -22,5 +23,10 @@ export function useAllSparePartOrders() {
 
   useEffect(() => { load() }, [load])
 
-  return { orders, loading, reload: load }
+  const markAsOrdered = useCallback(async (id: string, input: MarkOrderedInput) => {
+    await markOrdered(id, input)
+    await load()
+  }, [load])
+
+  return { orders, loading, reload: load, markAsOrdered }
 }
