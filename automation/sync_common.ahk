@@ -21,6 +21,7 @@ coords := Map()
 for key in ["Almacenes","Informes","Existencias","Depositos",
             "SeleccionarTodos","Consulta","Aceptar","Excel","Salir",
             "Ventas","Reparaciones","ExcelItems","PrintAll","Imprimir","ExcelFormat","SalirRep",
+            "FechaIni","Actualizar",
             "Remitos","AlquileresPendientes",
             "ServiciosArt","ArticulosMenu","ArticulosLista","ImprimirArt","Generar","ExcelArt","SalirArt","SalirArt2"] {
     val := IniRead(configFile, "Coords", key, "")
