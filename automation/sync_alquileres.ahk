@@ -42,6 +42,21 @@ NavigateAlquileres() {
     ValidarFoco()
 
     ; 6 — Seleccionar formato Excel
+    ; (espera extendida: la lista de alquileres tarda en cargar; si el click cae
+    ;  antes de que el botón exista, no pasa nada — verificado en DIAG 00:24)
+    Sleep(4000)
+    try {
+        actTitle := WinGetTitle("A")
+        Log("[DIAG-PRE] Antes de ExportarExcel: ventana=" actTitle)
+        if WinExist("ahk_class SunAwtDialog")
+            Log("[DIAG-PRE] Hay diálogo Java (SunAwtDialog): " WinGetTitle("ahk_class SunAwtDialog"))
+    }
+    ClickAt("ExcelFormatAlq")
+    Sleep(3000)
+    ; Segundo intento por si el primero cayó antes de que el botón estuviera activo
+    ClickAt("ExcelFormatAlq")
+    Sleep(afterExcel)
+    ; 6 — Seleccionar formato Excel
     ClickAt("ExcelFormatAlq")
     Sleep(afterExcel)
 
