@@ -17,19 +17,19 @@ NavigateReparaciones() {
     Sleep(resyncDelay)
 
     ; 1 — Click Ventas (acceso al submenú de reparaciones)
-    ClickAt("Ventas")
+    ClickAt("RepVentas")
     Sleep(afterClick)
     ValidarFoco()
 
     ; 2 — Click Reparaciones (Quitar la orden)
-    ClickAt("Reparaciones")
+    ClickAt("RepReparaciones")
     Sleep(afterSubmenu)
     ValidarFoco()
 
     ; 3 — Establecer fecha inicial: escribir la fecha completa 01/01/2024
     ; Clic único posiciona el cursor SIN abrir el calendario/popup (el doble clic abría el popup
     ; y bloqueaba los clics siguientes, por eso dejó de exportar el Excel).
-    ClickAt("FechaIni")
+    ClickAt("RepFechaIni")
     Sleep(200)
     ; Borrar la fecha anterior completa (DD/MM/YYYY = 10 dígitos + separadores) sin depender de ^a
     SendInput("{End}")
@@ -43,27 +43,27 @@ NavigateReparaciones() {
     Sleep(400)
 
     ; 4 — Actualizar el filtro de fecha
-    ClickAt("Actualizar")
+    ClickAt("RepActualizar")
     Sleep(afterClick)
     ValidarFoco()
 
     ; 5 — Tildar imprimir todas
-    ClickAt("PrintAll")
+    ClickAt("RepPrintAll")
     Sleep(afterClick)
     ValidarFoco()
 
     ; 6 — Excel con ítems
-    ClickAt("ExcelItems")
+    ClickAt("RepExcelItems")
     Sleep(afterClick)
     ValidarFoco()
 
     ; 7 — Click imprimir
-    ClickAt("Imprimir")
+    ClickAt("RepImprimir")
     Sleep(afterClick)
     ValidarFoco()
 
     ; 8 — Seleccionar formato Excel
-    ClickAt("ExcelFormat")
+    ClickAt("RepExcelFormat")
     Sleep(afterExcel)
 
     Log("Exportación de reparaciones completada. Esperando Excel...")
@@ -77,6 +77,7 @@ Log("=== INICIO REPARACIONES ===")
 Sleep(initDelay)
 
 try {
+    CaptureTrescBaseline()
     FocusFix()
     Check3CRunning()
     NavigateReparaciones()
@@ -89,7 +90,7 @@ try {
     Sleep(500)
     WinActivate(windowTitle)
     Sleep(500)
-    ClickAt("SalirRep")
+    ClickAt("RepSalirRep")
     Sleep(1000)
     Log("[NAV] Main menu restored (Reparaciones)")
 } catch as err {

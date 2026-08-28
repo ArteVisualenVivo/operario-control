@@ -17,42 +17,42 @@ NavigateStock() {
     Sleep(resyncDelay)
 
     ; 1 — Abrir Almacenes
-    ClickAt("Almacenes")
+    ClickAt("StockAlmacenes")
     Sleep(afterClick)
     ValidarFoco()
 
     ; 2 — Abrir Informes
-    ClickAt("Informes")
+    ClickAt("StockInformes")
     Sleep(afterSubmenu)
     ValidarFoco()
 
     ; 3 — Seleccionar Existencias
-    ClickAt("Existencias")
+    ClickAt("StockExistencias")
     Sleep(afterSubmenu)
     ValidarFoco()
 
     ; 4 — Elegir Depósitos
-    ClickAt("Depositos")
+    ClickAt("StockDepositos")
     Sleep(afterClick)
     ValidarFoco()
 
     ; 5 — Seleccionar todos
-    ClickAt("SeleccionarTodos")
+    ClickAt("StockSeleccionarTodos")
     Sleep(afterClick)
     ValidarFoco()
 
     ; 6 — Click en Consulta
-    ClickAt("Consulta")
+    ClickAt("StockConsulta")
     Sleep(afterQuery)
     ValidarFoco()
 
     ; 7 — Aceptar
-    ClickAt("Aceptar")
+    ClickAt("StockAceptar")
     Sleep(afterAccept)
     ValidarFoco()
 
     ; 8 — Click en Excel
-    ClickAt("Excel")
+    ClickAt("StockExcel")
     Sleep(afterExcel)
 
     Log("Exportación completada. Esperando Excel...")
@@ -66,6 +66,7 @@ Log("=== INICIO STOCK ===")
 Sleep(initDelay)
 
 try {
+    CaptureTrescBaseline()
     FocusFix()
     Check3CRunning()
     NavigateStock()
@@ -78,7 +79,7 @@ try {
     Sleep(500)
     WinActivate(windowTitle)
     Sleep(500)
-    ClickAt("Salir")
+    ClickAt("StockSalir")
     Sleep(1000)
     Log("[NAV] Main menu restored")
 } catch as err {

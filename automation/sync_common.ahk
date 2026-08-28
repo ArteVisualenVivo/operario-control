@@ -18,10 +18,10 @@ windowTitle := IniRead(configFile, "Window", "Title", "3C")
 
 ; Leer coordenadas como "X,Y" y convertirlas
 coords := Map()
-for key in ["Almacenes","Informes","Existencias","Depositos",
-            "SeleccionarTodos","Consulta","Aceptar","Excel","Salir",
-            "Ventas","Reparaciones","ExcelItems","PrintAll","Imprimir","ExcelFormat","SalirRep",
-            "FechaIni","Actualizar",
+for key in ["StockAlmacenes","StockInformes","StockExistencias","StockDepositos",
+            "StockSeleccionarTodos","StockConsulta","StockAceptar","StockExcel","StockSalir",
+            "RepVentas","RepReparaciones","RepExcelItems","RepPrintAll","RepImprimir","RepExcelFormat","RepSalirRep",
+            "RepFechaIni","RepActualizar",
             "Remitos","AlquileresPendientes","VentasAlq","InformesAlq","AceptarAlq","ExcelFormatAlq","SalirAlq",
             "ServiciosArt","ArticulosMenu","ArticulosLista","ImprimirArt","Generar","ExcelArt","SalirArt","SalirArt2"] {
     val := IniRead(configFile, "Coords", key, "")
