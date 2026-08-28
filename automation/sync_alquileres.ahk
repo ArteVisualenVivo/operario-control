@@ -52,12 +52,6 @@ NavigateAlquileres() {
             Log("[DIAG-PRE] Hay diálogo Java (SunAwtDialog): " WinGetTitle("ahk_class SunAwtDialog"))
     }
     ClickAt("ExcelFormatAlq")
-    Sleep(3000)
-    ; Segundo intento por si el primero cayó antes de que el botón estuviera activo
-    ClickAt("ExcelFormatAlq")
-    Sleep(afterExcel)
-    ; 6 — Seleccionar formato Excel
-    ClickAt("ExcelFormatAlq")
     Sleep(afterExcel)
 
     ; --- DIAGNÓSTICO: qué ventana quedó activa tras el click de exportación ---
