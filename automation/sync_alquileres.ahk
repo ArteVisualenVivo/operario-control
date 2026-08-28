@@ -14,12 +14,12 @@ NavigateAlquileres() {
     Sleep(resyncDelay)
 
     ; 1 — Click Ventas
-    ClickAt("Ventas")
+    ClickAt("VentasAlq")
     Sleep(afterClick)
     ValidarFoco()
 
     ; 2 — Click Informes
-    ClickAt("Informes")
+    ClickAt("InformesAlq")
     Sleep(afterSubmenu)
     ValidarFoco()
 
@@ -37,12 +37,12 @@ NavigateAlquileres() {
     ValidarFoco()
 
     ; 5 — Click Aceptar
-    ClickAt("Aceptar")
+    ClickAt("AceptarAlq")
     Sleep(2500)
     ValidarFoco()
 
     ; 6 — Seleccionar formato Excel
-    ClickAt("ExcelFormat")
+    ClickAt("ExcelFormatAlq")
     Sleep(afterExcel)
 
     Log("Exportación de alquileres completada. Esperando Excel...")
@@ -69,7 +69,7 @@ try {
     Sleep(500)
     WinActivate(windowTitle)
     Sleep(500)
-    ClickAt("Salir")
+    ClickAt("SalirAlq")
     Sleep(1000)
     Log("[NAV] Main menu restored (Alquileres)")
 } catch as err {
