@@ -1143,10 +1143,33 @@ async function processOutbox(redis: Redis): Promise<void> {
                 await removeOutboxItem(redis, syncId)
                 console.log(`[OUTBOX] ${syncId} procesado y eliminado`)
             } else {
-                // NO se abandona nunca (REGLA 5/18): backoff exponencial con tope.
-                // Superado el tope, se sigue reintentando con el mayor intervalo.
-                const delay = 15_000 * Math.min(Math.pow(2, Math.min(item.attempts, 12) - 1), 256)
-                item.nextRetryAt = Date.now() + delay
+                // NO se abandona nunca (REGLA 5/18). Backoff adaptado al tipo de error:
+                // - Si la cuota diaria está agotada (RESOURCE_EXHAUSTED/UNAUTHENTICATED),
+                //   reintentar cada minuto es golpear Firestore 24h seguidas. Espaciamos
+                //   a HORAS (la cuota se resetea diariamente), sin abandonar el dato.
+                // - Para errores transitorios de red, usamos backoff exponencial corto.
+                const errMsg = (item.lastError ?? "").toLowerCase()
+                const quotaLike =
+                  errMsg.includes("resource_exhausted") ||
+                  errMsg.includes("quota exceeded") ||
+                  errMsg.includes("unauthenticated") ||
+                  errMsg.includes("permission_denied")
+                let nextDelayMs: number
+                if (quotaLike) {
+                    // Cuota diaria agotada (RESOURCE_EXHAUSTED): reintentar cada ~1h
+                    // (se resetea a diario y golpear más seguido solo agota el cupo del
+                    // día), con espaciamiento creciente sin abandonar nunca el dato.
+                    nextDelayMs = 60 * 60 * 1000 * Math.min(item.attempts, 4)
+                    if (errMsg.includes("unauthenticated") || errMsg.includes("permission_denied")) {
+                        // Auth inválida NO se resuelve sola: espaciar a 4h y registrar claro.
+                        console.warn(`[OUTBOX] ${syncId}: error de AUTENTICACIÓN (UNAUTHENTICATED). Reintento lento. Revisar service-account.json. Dato conservado en outbox.`)
+                        nextDelayMs = 4 * 60 * 60 * 1000
+                    }
+                } else {
+                    // Error transitorio de red: backoff exponencial corto (15s..1h)
+                    nextDelayMs = 15_000 * Math.min(Math.pow(2, Math.min(item.attempts, 12) - 1), 256)
+                }
+                item.nextRetryAt = Date.now() + nextDelayMs
                 await updateOutboxItem(redis, item)
             }
         }

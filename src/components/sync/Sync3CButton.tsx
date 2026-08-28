@@ -48,7 +48,9 @@ interface Sync3CButtonProps {
 
 const AGENT_POLL_INTERVAL = 60_000
 const STATUS_POLL_INTERVAL = 10_000
-const STATUS_POLL_TIMEOUT = 180_000
+// El agente puede tardar más de 3 min (AHK ~100s + procesamiento + escritura
+// Redis). Ampliamos el timeout a 10 min para no cortar sincronizaciones reales.
+const STATUS_POLL_TIMEOUT = 600_000
 
 function formatLastHeartbeat(timestamp: string | null): string {
   if (!timestamp) return "nunca"
@@ -265,7 +267,7 @@ export default function Sync3CButton({
         stopPolling()
         if (mountedRef.current) {
           setState("error")
-          toast.error("Timeout: el agente no respondió en 3 minutos")
+          toast.error("Timeout: el agente no respondió en 10 minutos")
         }
       }, STATUS_POLL_TIMEOUT)
     } catch {
