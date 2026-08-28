@@ -83,9 +83,11 @@ function mapPrimaryToStock(raw: Record<string, unknown>): InventoryStock {
 }
 
 /** Lee la fuente primaria (Redis) vía API. Devuelve null si aún no hay datos. */
-async function loadPrimaryStock(): Promise<InventoryStock[] | null> {
+async function fetchPrimaryModule(
+  moduleId: "stock" | "articulos"
+): Promise<InventoryStock[] | null> {
   try {
-    const res = await fetch(`/api/sync-3c/data/stock`, { cache: "no-store" })
+    const res = await fetch(`/api/sync-3c/data/${moduleId}`, { cache: "no-store" })
     if (!res.ok) return null
     const body = await res.json()
     if (!body?.available || !Array.isArray(body?.data) || body.recordCount === 0) return null
@@ -93,6 +95,25 @@ async function loadPrimaryStock(): Promise<InventoryStock[] | null> {
   } catch {
     return null
   }
+}
+
+/**
+ * Lee la fuente primaria (Redis) vía API. Stock y Artículos alimentan la misma
+ * colección (inventory_stock), así que fusiona ambos orígenes: si un registro
+ * existe en ambos gana el de Stock (fuente de verdad agregada). Devuelve null
+ * si ninguno tiene datos todavía (→ fallback Firestore).
+ */
+async function loadPrimaryStock(): Promise<InventoryStock[] | null> {
+  const [stock, articulos] = await Promise.all([
+    fetchPrimaryModule("stock"),
+    fetchPrimaryModule("articulos"),
+  ])
+  if (!stock && !articulos) return null
+  const byId = new Map<string, InventoryStock>()
+  for (const item of articulos ?? []) byId.set(item.id, item)
+  for (const item of stock ?? []) byId.set(item.id, item)
+  const merged = [...byId.values()]
+  return merged.length > 0 ? merged : null
 }
 
 export async function getStockItems(): Promise<InventoryStock[]> {
