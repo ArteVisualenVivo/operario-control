@@ -24,18 +24,21 @@ NavigateAlquileres() {
     ValidarFoco()
 
     ; 3 — Click Remitos
+    ; (1800ms: la pantalla de Remitos carga lento; con 500ms el click siguiente
+    ;  caía durante la transición y rompía la navegación — verificado con
+    ;  _nav_alq_obs.ahk que con 1800ms toda la secuencia funciona)
     ClickAt("Remitos")
-    Sleep(afterSubmenu)
+    Sleep(1800)
     ValidarFoco()
 
     ; 4 — Click Alquileres pendientes
     ClickAt("AlquileresPendientes")
-    Sleep(afterSubmenu)
+    Sleep(1800)
     ValidarFoco()
 
     ; 5 — Click Aceptar
     ClickAt("Aceptar")
-    Sleep(afterAccept)
+    Sleep(2500)
     ValidarFoco()
 
     ; 6 — Seleccionar formato Excel
@@ -53,6 +56,7 @@ Log("=== INICIO ALQUILERES ===")
 Sleep(initDelay)
 
 try {
+    CaptureTrescBaseline()
     FocusFix()
     Check3CRunning()
     NavigateAlquileres()
