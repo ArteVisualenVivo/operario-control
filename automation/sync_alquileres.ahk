@@ -45,6 +45,26 @@ NavigateAlquileres() {
     ClickAt("ExcelFormatAlq")
     Sleep(afterExcel)
 
+    ; --- DIAGNÓSTICO: qué ventana quedó activa tras el click de exportación ---
+    try {
+        actHwnd := WinExist("A")
+        if (actHwnd) {
+            actTitle := WinGetTitle(actHwnd)
+            actClass := WinGetClass(actHwnd)
+            Log("[DIAG] Ventana activa tras ExportarExcel: class=" actClass " title=" actTitle)
+        }
+        ; ¿Apareció algún diálogo (#32770) o ventana de Excel?
+        if WinExist("ahk_class #32770")
+            Log("[DIAG] Hay un DIÁLOGO abierto (ahk_class #32770): " WinGetTitle("ahk_class #32770"))
+        if WinExist("ahk_class XLMAIN")
+            Log("[DIAG] Se abrió una ventana de EXCEL (XLMAIN)")
+        ; Listado de Temp\tresc en este momento
+        tallFiles := 0
+        Loop Files "C:\Users\Cesar\AppData\Local\Temp\tresc\*.*"
+            tallFiles++
+        Log("[DIAG] Archivos en Temp\tresc ahora: " tallFiles)
+    }
+
     Log("Exportación de alquileres completada. Esperando Excel...")
 }
 
