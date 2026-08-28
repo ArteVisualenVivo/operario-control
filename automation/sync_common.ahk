@@ -22,7 +22,7 @@ for key in ["StockAlmacenes","StockInformes","StockExistencias","StockDepositos"
             "StockSeleccionarTodos","StockConsulta","StockAceptar","StockExcel","StockSalir",
             "RepVentas","RepReparaciones","RepExcelItems","RepPrintAll","RepImprimir","RepExcelFormat","RepSalirRep",
             "RepFechaIni","RepActualizar",
-            "Remitos","AlquileresPendientes","VentasAlq","InformesAlq","AceptarAlq","ExcelFormatAlq","SalirAlq",
+            "Remitos","AlquileresPendientes","VentasAlq","InformesAlq","AceptarAlq","ExcelFormatAlq","SalirAlq","SalirAlq2",
             "ServiciosArt","ArticulosMenu","ArticulosLista","ImprimirArt","Generar","ExcelArt","SalirArt","SalirArt2"] {
     val := IniRead(configFile, "Coords", key, "")
     parts := StrSplit(val, ",")
