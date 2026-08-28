@@ -25,15 +25,6 @@ async function loadFromExcel(): Promise<MaintenanceRecord[]> {
     "maintenance-cache.json"
   )
 
-  function toDate(value: unknown): Date | undefined {
-    if (value instanceof Date && !Number.isNaN(value.getTime())) return value
-    if (typeof value === "string") {
-      const parsed = new Date(value)
-      if (!Number.isNaN(parsed.getTime())) return parsed
-    }
-    return undefined
-  }
-
   function latestExportFile(): string | null {
     if (!fs.existsSync(EXPORTS_DIR)) return null
     const files = fs.readdirSync(EXPORTS_DIR)
@@ -80,10 +71,48 @@ async function loadFromExcel(): Promise<MaintenanceRecord[]> {
   const source = getRows()
   if (!source) return cached ?? []
 
-  const records: MaintenanceRecord[] = []
-  for (let i = 0; i < source.rows.length; i++) {
-    const row = source.rows[i]
-    if (!Array.isArray(row)) continue
+  return parseMaintenanceRows(source.rows)
+}
+
+// ---------------------------------------------------------------------------
+// PARSER DE MANTENIMIENTO REUTILIZABLE (fuente primaria / outbox)
+// Convierte un Excel de órdenes de reparación en MaintenanceRecord[].
+// Se usa en el agente para alimentar sync-3c:data:maintenance y el outbox.
+// ---------------------------------------------------------------------------
+
+type MRecord = MaintenanceRecord
+
+function normNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value
+  const t = String(value ?? "").trim()
+  if (!t) return null
+  const n = Number(t.replace(/\./g, "").replace(",", "."))
+  return Number.isFinite(n) ? n : null
+}
+
+export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
+  function toDate(value: unknown): Date | undefined {
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return value
+    if (typeof value === "string") {
+      if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(value.trim())) {
+        const parts = value.trim().split("/")
+        const d = Number(parts[0])
+        const m = Number(parts[1])
+        let y = Number(parts[2])
+        if (y < 100) y += 2000
+        const parsed = new Date(y, m - 1, d)
+        if (!Number.isNaN(parsed.getTime())) return parsed
+      }
+      const parsed = new Date(value)
+      if (!Number.isNaN(parsed.getTime())) return parsed
+    }
+    return undefined
+  }
+
+  const records: MRecord[] = []
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    if (!row || !Array.isArray(row)) continue
 
     const orderNumber = String(row[2] ?? "").trim()
     if (!/^X\s?\d{4}-\d{6,8}$/i.test(orderNumber)) continue
@@ -91,17 +120,26 @@ async function loadFromExcel(): Promise<MaintenanceRecord[]> {
     const entryDate = toDate(row[1])
     const returnDate = toDate(row[8])
     const repairDate = toDate(row[6])
+    const today = new Date()
+    const base = entryDate ?? today
 
     records.push({
       id: orderNumber,
       orderNumber,
       type: String(row[0] ?? "").trim() || undefined,
-      entryDate: entryDate ?? new Date(),
+      entryDate: base,
       returnDate,
       repairDate,
       clientName: String(row[4] ?? "").trim(),
+      clientCode: String(row[3] ?? "").trim() || undefined,
       machineName: String(row[6] ?? row[5] ?? "").trim(),
       status: String(row[3] ?? "Recepcion").trim(),
+      quantity: normNumber(row[9]),
+      unitPrice: normNumber(row[10]),
+      totalPrice: normNumber(row[11]),
+      taxed: normNumber(row[12]),
+      notTaxed: normNumber(row[13]),
+      exempt: normNumber(row[14]),
       originalData: {
         tipdoc: row[0] ?? null,
         fecha: row[1] ?? null,
@@ -117,8 +155,8 @@ async function loadFromExcel(): Promise<MaintenanceRecord[]> {
         vendedor: row[11] ?? null,
         costo: row[12] ?? null,
       },
-      createdAt: entryDate ?? new Date(),
-      updatedAt: entryDate ?? new Date(),
+      createdAt: base,
+      updatedAt: base,
       technician: undefined,
     } as MaintenanceRecord)
   }
@@ -126,4 +164,17 @@ async function loadFromExcel(): Promise<MaintenanceRecord[]> {
   return records.sort((a, b) => b.entryDate.getTime() - a.entryDate.getTime())
 }
 
+/** Parsea un buffer de Excel de mantenimiento a MaintenanceRecord[]. */
+export async function parseMaintenanceBuffer(buffer: ArrayBuffer | Buffer): Promise<MaintenanceRecord[]> {
+  const XLSX = await import("xlsx")
+  const workbook = XLSX.read(buffer, { type: "buffer" })
+  const sheetName = workbook.SheetNames[0]
+  const sheet = workbook.Sheets[sheetName]
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true }) as unknown[][]
+  return parseMaintenanceRows(rows)
+}
+
+// Se exporta para compatibilidad con local-sync.ts (import dinámico).
 export { loadFromExcel }
+
+

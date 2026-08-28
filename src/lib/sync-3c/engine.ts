@@ -9,7 +9,7 @@ const DEFAULTS: Sync3CConfig = {
   strictMode: false,
 }
 
-function getFirebaseAdmin() {
+export function getFirebaseAdmin() {
   // eslint-disable-next-line @typescript-eslint/no-var-requires
   const admin = require("firebase-admin")
   const fs = require("fs")

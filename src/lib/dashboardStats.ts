@@ -20,6 +20,21 @@ export interface ScaffoldRentalStats {
  * Solo lectura: no altera inventory_stock ni ningún otro dato.
  */
 export async function loadScaffoldRentalStats(): Promise<ScaffoldRentalStats | null> {
+    // 1) FUENTE PRIMARIA (Redis): datos recién procesados por el agente.
+    //    Funciona aunque Firestore esté sin cuota.
+    try {
+        const res = await fetch(`/api/sync-3c/data/alquileres`, { cache: "no-store" })
+        if (res.ok) {
+            const body = await res.json()
+            if (body?.available && body?.data) {
+                return body.data as ScaffoldRentalStats
+            }
+        }
+    } catch {
+        // sigue a Firestore
+    }
+
+    // 2) FALLBACK: Firestore
     try {
         const ref = doc(db, "dashboard_stats", "scaffold_rentals")
         const snap = await getDoc(ref)

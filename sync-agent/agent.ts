@@ -11,13 +11,29 @@ import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
 import { parseExcel } from "../src/lib/sync-3c/parser"
+import { parseScaffoldRentals, saveScaffoldRentalStats, type ScaffoldRentalStats } from "../src/lib/sync-3c/scaffoldRentals"
 import { loadInventoryIndexByCodes, syncItems, syncRepairsToMaintenance } from "../src/lib/sync-3c/engine"
+import { writeStockItemsIdempotent } from "../src/lib/sync-3c/firestoreSync"
+import {
+    saveModuleData,
+    enqueueOutbox,
+    updateOutboxItem,
+    removeOutboxItem,
+    listOutboxPending,
+    readOutboxItem,
+    readModuleData,
+    type PrimaryModuleId,
+} from "../src/lib/sync-3c/redisPrimary"
+import { parseMaintenanceBuffer } from "../src/lib/local-sync-excel"
+import type { MaintenanceRecord } from "../src/services/maintenance"
 import type { Sync3CItem, Sync3CResult } from "../src/lib/sync-3c/types"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PROJECT_ROOT = path.resolve(__dirname, "..")
 const AHK_DIR = path.join(PROJECT_ROOT, "automation")
 const EXPORTS_DIR = path.resolve(PROJECT_ROOT, "automation-watcher", "3c_exports")
+const EXPORT_MANIFEST = path.join(EXPORTS_DIR, "_last_export.json")
+const TRESC_TEMP_DIR = path.join(process.env.LOCALAPPDATA || "C:\\Users\\Cesar\\AppData\\Local", "Temp", "tresc")
 const CACHE_DIR = path.resolve(PROJECT_ROOT, "automation-watcher", "cache")
 const STOCK_CACHE_FILE = path.join(CACHE_DIR, "stock-cache.json")
 const MACHINES_CACHE_FILE = path.join(CACHE_DIR, "machines-cache.json")
@@ -403,7 +419,7 @@ function findAhkExe() {
     return null
 }
 
-function runAhk(scriptPath: string): Promise<void> {
+function runAhk(scriptPath: string, args: string[] = []): Promise<void> {
     return new Promise((resolve, reject) => {
         const exe = findAhkExe()
         if (!exe) {
@@ -411,7 +427,7 @@ function runAhk(scriptPath: string): Promise<void> {
             return
         }
 
-        const child = spawn(exe, [scriptPath], {
+        const child = spawn(exe, [scriptPath, ...args], {
             cwd: AHK_DIR,
             windowsHide: true,
             shell: false,
@@ -441,35 +457,143 @@ function runAhk(scriptPath: string): Promise<void> {
 // ============================================================================
 // EXCEL
 // ============================================================================
-async function waitForExport() {
-    for (let attempt = 0; attempt < EXPORT_RETRIES; attempt++) {
-        const latest = findLatestExport()
-        if (latest) return latest
-        await new Promise((r) => setTimeout(r, EXPORT_RETRY_DELAY_MS))
+class ExportError extends Error {
+    code: string
+    trace: Record<string, unknown>
+
+    constructor(code: string, message: string, trace: Record<string, unknown> = {}) {
+        super(message)
+        this.name = "ExportError"
+        this.code = code
+        this.trace = trace
     }
-    throw new Error(
-        `No se encontró archivo Excel en ${EXPORTS_DIR} tras ${EXPORT_RETRIES} intentos. ` +
-        "Verificá que 3C haya exportado correctamente."
-    )
 }
 
-function findLatestExport() {
-    if (!fs.existsSync(EXPORTS_DIR)) return null
+function readExportManifest(): Record<string, unknown> | null {
+    try {
+        if (!fs.existsSync(EXPORT_MANIFEST)) return null
+        return JSON.parse(fs.readFileSync(EXPORT_MANIFEST, "utf-8"))
+    } catch {
+        return null
+    }
+}
 
-    const files = fs.readdirSync(EXPORTS_DIR)
-        .filter((f) => f.endsWith(".xls") || f.endsWith(".xlsx"))
+function deleteExportManifest() {
+    try {
+        if (fs.existsSync(EXPORT_MANIFEST)) fs.unlinkSync(EXPORT_MANIFEST)
+    } catch {
+        // ignora
+    }
+}
+
+// Estado de Temp\tresc antes de la ejecución (diagnóstico y aislamiento).
+function snapshotTrescDir(): Record<string, { size: number; mtime: number }> {
+    const map: Record<string, { size: number; mtime: number }> = {}
+    if (!fs.existsSync(TRESC_TEMP_DIR)) return map
+    for (const f of fs.readdirSync(TRESC_TEMP_DIR)) {
+        if (!/\.xls$/i.test(f)) continue
+        try {
+            const s = fs.statSync(path.join(TRESC_TEMP_DIR, f))
+            map[f] = { size: s.size, mtime: s.mtimeMs }
+        } catch {
+            // ignora
+        }
+    }
+    return map
+}
+
+// Estado de 3c_exports (nombre → tamaño) ANTES de correr AHK.
+function snapshotExportsDir(): Map<string, number> {
+    const map = new Map<string, number>()
+    if (!fs.existsSync(EXPORTS_DIR)) return map
+    for (const f of fs.readdirSync(EXPORTS_DIR)) {
+        if (!/\.(xls|xlsx)$/i.test(f)) continue
+        try {
+            map.set(f, fs.statSync(path.join(EXPORTS_DIR, f)).size)
+        } catch {
+            // ignora
+        }
+    }
+    return map
+}
+
+// Archivo más reciente que NO existía en el baseline (o cuyo tamaño cambió),
+// es decir: generado durante ESTA ejecución, no un archivo viejo.
+function findNewExportSince(baseline: Map<string, number>) {
+    if (!fs.existsSync(EXPORTS_DIR)) return null
+    const files = fs
+        .readdirSync(EXPORTS_DIR)
+        .filter((f) => /\.(xls|xlsx)$/i.test(f))
         .map((f) => {
             const fullPath = path.join(EXPORTS_DIR, f)
             try {
-                return { name: f, mtime: fs.statSync(fullPath).mtimeMs, fullPath }
+                const s = fs.statSync(fullPath)
+                const prevSize = baseline.get(f)
+                const isNew = prevSize === undefined || prevSize !== s.size
+                return { name: f, fullPath, mtime: s.mtimeMs, isNew }
             } catch {
                 return null
             }
         })
-        .filter((f) => f !== null)
+        .filter((f): f is NonNullable<typeof f> => f !== null && f.isNew)
         .sort((a, b) => b.mtime - a.mtime)
-
     return files[0] ?? null
+}
+
+// Comprueba que el archivo termine de escribirse: dos lecturas de tamaño iguales y > 0.
+function isFileStable(fullPath: string): boolean {
+    try {
+        const s1 = fs.statSync(fullPath).size
+        const until = Date.now() + 1500
+        let s2 = s1
+        while (Date.now() < until) {
+            s2 = fs.statSync(fullPath).size
+            if (s2 !== s1) break
+        }
+        return s1 > 0 && s1 === s2
+    } catch {
+        return false
+    }
+}
+
+async function waitForExport(commandId: string, module: string, baseline: Map<string, number>) {
+    for (let attempt = 0; attempt < EXPORT_RETRIES; attempt++) {
+        // 1) Manifiesto de ESTA ejecución (lo escribe AHK tras copiar y verificar).
+        const manifest = readExportManifest()
+        if (manifest && typeof manifest.fileName === "string" && manifest.fileName) {
+            const mId = String(manifest.commandId ?? "")
+            const fileName = manifest.fileName
+            const fullPath = path.join(EXPORTS_DIR, fileName)
+            if (mId === commandId && fs.existsSync(fullPath) && isFileStable(fullPath)) {
+                const prevSize = baseline.get(fileName)
+                const size = fs.statSync(fullPath).size
+                if (prevSize === undefined || prevSize !== size) {
+                    return { name: fileName, fullPath, mtime: fs.statSync(fullPath).mtimeMs }
+                }
+            }
+        }
+
+        // 2) Fallback: archivo nuevo (no en baseline) más reciente y estable.
+        const latest = findNewExportSince(baseline)
+        if (latest && isFileStable(latest.fullPath)) {
+            return latest
+        }
+
+        await new Promise((r) => setTimeout(r, EXPORT_RETRY_DELAY_MS))
+    }
+
+    // Fracaso: codificar la causa real para la web.
+    const manifest = readExportManifest()
+    let code = "EXPORT_NOT_FOUND"
+    let detail = `No se encontró un archivo Excel nuevo para commandId ${commandId} [module: ${module}] en ${EXPORTS_DIR}.`
+    if (manifest) {
+        const status = String(manifest.status ?? "")
+        if (status && status !== "OK") {
+            code = status
+            detail = String(manifest.error ?? detail)
+        }
+    }
+    throw new ExportError(code, detail, { module, commandId, manifest: manifest ?? undefined })
 }
 
 // ============================================================================
@@ -562,6 +686,12 @@ async function processModule(
     inventoryIndex?: Map<string, { id: string; data: Record<string, unknown> }>,
     options?: ProcessModuleOptions,
 ) {
+    // Variables de ámbito accesibles desde try y catch (diagnóstico del fallo).
+    let runStart = Date.now()
+    let baseline: Map<string, number> = new Map()
+    let tempBefore: Record<string, { size: number; mtime: number }> = {}
+    let exportInfo: Record<string, unknown> | null = null
+
     try {
         await redis.hset(`sync-3c:command:${commandId}`, {
             status: "running",
@@ -585,26 +715,169 @@ async function processModule(
         const scriptPath = path.join(AHK_DIR, scriptName)
         console.log(`[AGENT] Module: ${module} → ${scriptName}`)
 
+        // ── Aislamiento de ejecución: estado previo y limpieza del manifiesto ──
+        runStart = Date.now()
+        baseline = snapshotExportsDir()      // 3c_exports ANTES de correr AHK
+        tempBefore = snapshotTrescDir()      // Temp\tresc ANTES (diagnóstico)
+        deleteExportManifest()               // limpiar manifiesto de una corrida previa
+        console.log(`[AGENT] Baseline 3c_exports=${baseline.size}; Temp\\tresc previo=${Object.keys(tempBefore).length}`)
+
+        // Pasar commandId + módulo al AHK para que identifique la ejecución
         const ahkStart = Date.now()
-        await runAhk(scriptPath)
+        await runAhk(scriptPath, [commandId, module, String(runStart)])
         const ahkEnd = Date.now()
         console.log(`[AGENT] AHK completed in ${ahkEnd - ahkStart}ms`)
 
-        const latest = await waitForExport()
-        console.log(`[AGENT] Export found: ${latest.name}`)
+        const latest = await waitForExport(commandId, module, baseline)
+        console.log(`[AGENT] Export found: ${latest.name} (mtime ${new Date(latest.mtime).toISOString()})`)
+
+        const expStat = fs.statSync(latest.fullPath)
+        exportInfo = {
+            commandId,
+            module,
+            file: latest.name,
+            fullPath: latest.fullPath,
+            size: expStat.size,
+            mtime: new Date(expStat.mtimeMs).toISOString(),
+            startedAt: runStart,
+            tempFilesBefore: tempBefore,
+            baselineExports: [...baseline.keys()],
+        }
 
         const buffer = fs.readFileSync(latest.fullPath).buffer
 
         let result: Sync3CResult
         let items: Sync3CItem[] = []
 
-        if (module === "reparaciones") {
-            result = {
-                success: true,
-                created: 0,
-                updated: 0,
-                skipped: 0,
-                warnings: [],
+        if (module === "alquileres") {
+            // Alquileres: el export de 3C es un listado de REMITOS, no el layout de stock.
+            // parseExcel (columnas fijas 2/5/20) NO aplica aquí y vaciaría el dato.
+            // Procesamos con el parser de andamios alquilados y persistimos en
+            // dashboard_stats/scaffold_rentals (destino que lee dashboardStats.ts).
+            const syncId = `alquileres-${runStart}`
+            result = { success: true, created: 0, updated: 0, skipped: 0, warnings: [] }
+            try {
+                const stats = parseScaffoldRentals(buffer)
+                console.log(`[AGENT] Alquileres: ${stats.cuerposAlquilados} cuerpos de andamio alquilados (${stats.detalle.length} renglones)`)
+                result.scaffoldCuerposAlquilados = stats.cuerposAlquilados
+                result.scaffoldDetalleCount = stats.detalle.length
+
+                // —— FUENTE PRIMARIA (Redis): guardar el detalle completo SIEMPRE ——
+                await saveModuleData(redis, {
+                    module: "alquileres",
+                    syncId,
+                    data: stats,
+                    recordCount: stats.detalle.length,
+                    degraded: false,
+                    firestoreStatus: "pending",
+                    exportInfo,
+                })
+
+                // —— FIRESTORE (copi secundaria) + OUTBOX ——
+                try {
+                    await saveScaffoldRentalStats(stats)
+                    // marcar como sincronizado
+                    await saveModuleData(redis, {
+                        module: "alquileres",
+                        syncId,
+                        data: stats,
+                        recordCount: stats.detalle.length,
+                        degraded: false,
+                        firestoreStatus: "synced",
+                        exportInfo,
+                    })
+                } catch (firebaseErr) {
+                    const fbMsg = firebaseErr instanceof Error ? firebaseErr.message : String(firebaseErr)
+                    console.error("[AGENT] Firebase bloqueado: no se persistió dashboard_stats/scaffold_rentals:", fbMsg)
+                    result.degraded = true
+                    result.warnings.push("Firebase temporalmente bloqueado: stats de alquileres no persistidas en dashboard_stats/scaffold_rentals")
+                    // OUTBOX: conservar el payload completo para re-persistir luego
+                    await enqueueOutbox(redis, {
+                        syncId,
+                        module: "alquileres",
+                        target: "dashboard_stats/scaffold_rentals",
+                        createdAt: Date.now(),
+                        attempts: 0,
+                        lastAttemptAt: Date.now(),
+                        nextRetryAt: Date.now(),
+                        lastError: fbMsg,
+                        dataKey: "sync-3c:data:alquileres",
+                    })
+                }
+            } catch (parseErr) {
+                const pMsg = parseErr instanceof Error ? parseErr.message : String(parseErr)
+                console.error("[AGENT] Error interpretando el export de alquileres:", pMsg)
+                result.warnings.push("No se pudo interpretar el export de alquileres (formato inesperado): " + pMsg)
+            }
+        } else if (module === "reparaciones") {
+            const syncId = `maintenance-${runStart}`
+            result = { success: true, created: 0, updated: 0, skipped: 0, warnings: [] }
+            // —— FUENTE PRIMARIA (Redis): parsear mantenimiento y guardarlo SIEMPRE ——
+            let maintenanceRecords: MaintenanceRecord[] = []
+            try {
+                maintenanceRecords = await parseMaintenanceBuffer(buffer)
+                console.log(`[AGENT] Maintenance primario: ${maintenanceRecords.length} órdenes parseadas`)
+                await saveModuleData(redis, {
+                    module: "maintenance",
+                    syncId,
+                    data: maintenanceRecords,
+                    recordCount: maintenanceRecords.length,
+                    degraded: false,
+                    firestoreStatus: "pending",
+                    exportInfo,
+                })
+            } catch (parseMaintErr) {
+                console.error(`[AGENT] No se pudo parsear mantenimiento para fuente primaria:`, parseMaintErr instanceof Error ? parseMaintErr.message : String(parseMaintErr))
+            }
+
+            try {
+                console.log("[AGENT] MAINTENANCE SYNC START")
+                console.log("[AGENT] Ejecutando syncRepairsToMaintenance")
+                const maintenanceResult = await syncRepairsToMaintenance(buffer)
+                console.log("[AGENT] MAINTENANCE SYNC RESULT", maintenanceResult)
+                console.log(`[AGENT] Resultado mantenimiento: created=${maintenanceResult.created}, updated=${maintenanceResult.updated}, skipped=${maintenanceResult.skipped}`)
+                console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped`)
+                if (maintenanceResult.warnings.length > 0) {
+                    console.warn(`[AGENT] Maintenance warnings:`, maintenanceResult.warnings)
+                }
+                result = {
+                    ...result,
+                    maintenanceCreated: maintenanceResult.created,
+                    maintenanceUpdated: maintenanceResult.updated,
+                    maintenanceSkipped: maintenanceResult.skipped,
+                    maintenanceWarnings: maintenanceResult.warnings,
+                }
+                // Firestore OK → marcar como sincronizado
+                await saveModuleData(redis, {
+                    module: "maintenance",
+                    syncId,
+                    data: maintenanceRecords,
+                    recordCount: maintenanceRecords.length,
+                    degraded: false,
+                    firestoreStatus: "synced",
+                    exportInfo,
+                })
+            } catch (maintErr) {
+                const maintMsg = maintErr instanceof Error ? maintErr.message : String(maintErr)
+                console.error(`[AGENT] Maintenance sync failed:`, maintMsg)
+                result = {
+                    ...result,
+                    maintenanceError: maintMsg,
+                }
+                // OUTBOX: conservar el buffer original para re-ejecutar syncRepairsToMaintenance
+                const buf = Buffer.from(buffer)
+                await enqueueOutbox(redis, {
+                    syncId,
+                    module: "maintenance",
+                    target: "maintenance",
+                    createdAt: Date.now(),
+                    attempts: 0,
+                    lastAttemptAt: Date.now(),
+                    nextRetryAt: Date.now(),
+                    lastError: maintMsg,
+                    dataKey: "sync-3c:data:maintenance",
+                    bufferBase64: buf.toString("base64"),
+                })
             }
         } else {
             const parsed = parseExcel(buffer)
@@ -630,10 +903,28 @@ async function processModule(
                 if (!inventoryIndex) {
                     const codes = items.map((i) => i.codigo).filter(Boolean) as string[]
                     console.log(`[AGENT] Building shared inventoryIndex from ${codes.length} codes in Excel`)
-                    inventoryIndex = await getSharedInventoryIndex(redis, codes)
+                    try {
+                        inventoryIndex = await getSharedInventoryIndex(redis, codes)
+                    } catch (indexErr) {
+                        // Si Firestore falla (p. ej. RESOURCE_EXHAUSTED/UNAUTHENTICATED)
+                        // al leer el índice, NO debemos marcar el comando como "failed":
+                        // guardamos el dato en Redis primario y creamos outbox.
+                        console.warn(`[AGENT] No se pudo cargar inventoryIndex (cuota/auth?): continuando con persistencia primaria + outbox.`, indexErr instanceof Error ? indexErr.message : String(indexErr))
+                        inventoryIndex = undefined
+                    }
                 }
                 try {
                     result = await syncItems(items, undefined, inventoryIndex)
+                    // Firestore OK → fuente primaria sincronizada
+                    await saveModuleData(redis, {
+                        module: module as PrimaryModuleId,
+                        syncId: `${module}-${runStart}`,
+                        data: items,
+                        recordCount: items.length,
+                        degraded: false,
+                        firestoreStatus: "synced",
+                        exportInfo,
+                    })
                 } catch (err) {
                     const errMsg = err instanceof Error ? err.message : String(err)
                     const errCode = err && typeof err === "object" && "code" in err ? String((err as { code: unknown }).code) : "unknown"
@@ -656,33 +947,28 @@ async function processModule(
                         ],
                         degraded: true,
                     }
-                }
-            }
-        }
-
-        if (module === "reparaciones") {
-            try {
-                console.log("[AGENT] MAINTENANCE SYNC START")
-                console.log("[AGENT] Ejecutando syncRepairsToMaintenance")
-                const maintenanceResult = await syncRepairsToMaintenance(buffer)
-                console.log("[AGENT] MAINTENANCE SYNC RESULT", maintenanceResult)
-                console.log(`[AGENT] Resultado mantenimiento: created=${maintenanceResult.created}, updated=${maintenanceResult.updated}, skipped=${maintenanceResult.skipped}`)
-                console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped`)
-                if (maintenanceResult.warnings.length > 0) {
-                    console.warn(`[AGENT] Maintenance warnings:`, maintenanceResult.warnings)
-                }
-                result = {
-                    ...result,
-                    maintenanceCreated: maintenanceResult.created,
-                    maintenanceUpdated: maintenanceResult.updated,
-                    maintenanceSkipped: maintenanceResult.skipped,
-                    maintenanceWarnings: maintenanceResult.warnings,
-                }
-            } catch (maintErr) {
-                console.error(`[AGENT] Maintenance sync failed:`, maintErr instanceof Error ? maintErr.message : String(maintErr))
-                result = {
-                    ...result,
-                    maintenanceError: maintErr instanceof Error ? maintErr.message : String(maintErr),
+                    // —— FUENTE PRIMARIA: guardar datos completos recuperables ——
+                    await saveModuleData(redis, {
+                        module: (module as PrimaryModuleId),
+                        syncId: `${module}-${runStart}`,
+                        data: items,
+                        recordCount: items.length,
+                        degraded: true,
+                        firestoreStatus: "degraded",
+                        exportInfo,
+                    })
+                    // —— OUTBOX: registrar pendiente con referencia a los datos ——
+                    await enqueueOutbox(redis, {
+                        syncId: `${module}-${runStart}`,
+                        module: (module as PrimaryModuleId),
+                        target: "inventory_stock",
+                        createdAt: Date.now(),
+                        attempts: 0,
+                        lastAttemptAt: Date.now(),
+                        nextRetryAt: Date.now(),
+                        lastError: errMsg,
+                        dataKey: `sync-3c:data:${module}`,
+                    })
                 }
             }
         }
@@ -699,6 +985,7 @@ async function processModule(
             status: "completed",
             module,
             result: JSON.stringify(result),
+            exportInfo: exportInfo ? JSON.stringify(exportInfo) : "",
             updatedAt: Date.now(),
         })
 
@@ -707,20 +994,164 @@ async function processModule(
             status: "completed",
             completedAt: Date.now(),
             result: JSON.stringify(result),
+            exportInfo: exportInfo ? JSON.stringify(exportInfo) : "",
         })
 
         console.log(`[AGENT] Command ${commandId} completed: ${result.created} created, ${result.updated} updated, ${result.skipped} skipped`)
         return result
     } catch (err) {
         const message = err instanceof Error ? err.message : "Error desconocido"
-        console.error(`[AGENT] Command ${commandId} failed: ${message}`)
+        let code = "EXPORT_PROCESSING_FAILED"
+        let trace: Record<string, unknown> = {}
+        if (err instanceof ExportError) {
+            code = err.code
+            trace = err.trace
+        } else if (err && typeof err === "object" && "code" in err) {
+            const c = (err as { code: unknown }).code
+            if (typeof c === "string" && c) code = c
+        }
+        console.error(`[AGENT] Command ${commandId} failed [${code}]: ${message}`)
+
+        const failureInfo: Record<string, unknown> = {
+            module,
+            commandId,
+            code,
+            reason: message,
+            startedAt: runStart,
+            endedAt: Date.now(),
+            tempDir: TRESC_TEMP_DIR,
+            exportsDir: EXPORTS_DIR,
+            tempFilesBefore: tempBefore,
+            baselineExports: [...baseline.keys()],
+            ...trace,
+        }
+        const infoJson = JSON.stringify(failureInfo)
 
         await redis.hset(`sync-3c:command:${commandId}`, {
             status: "failed",
             error: message,
+            errorCode: code,
+            errorInfo: infoJson,
             completedAt: Date.now(),
-        })
+        }).catch(() => {})
+        await redis.hset(`sync-3c:result:${commandId}`, {
+            status: "failed",
+            module,
+            error: message,
+            errorCode: code,
+            errorInfo: infoJson,
+            updatedAt: Date.now(),
+        }).catch(() => {})
         throw err
+    }
+}
+
+// ============================================================================
+// OUTBOX PROCESSING — reintentos de datos pendientes de Firestore
+// ============================================================================
+async function processOutbox(redis: Redis): Promise<void> {
+    try {
+        const pendingIds = await listOutboxPending(redis)
+        if (pendingIds.length === 0) return
+        console.log(`[OUTBOX] ${pendingIds.length} item(s) pendiente(s)`)
+
+        for (const syncId of pendingIds) {
+            const item = await readOutboxItem(redis, syncId)
+            if (!item) continue
+            // no reintentar antes de la próxima ventana (backoff)
+            if (Date.now() < item.nextRetryAt) continue
+
+            // ── VERSIONADO (REGLA 6/7/27): si ya existe un estado primario más
+            //    nuevo para este módulo, este outbox quedó obsoleto y NO debe
+            //    sobrescribirlo. El snapshot más reciente lo reemplaza.
+            const moduleForVersion: PrimaryModuleId =
+              item.module === "maintenance" || item.module === "alquileres"
+                ? item.module
+                : (item.module as PrimaryModuleId)
+            const currentEnv = await readModuleData(moduleForVersion, redis)
+            if (currentEnv && currentEnv.syncId !== item.syncId) {
+                console.log(`[OUTBOX] ${syncId} obsoleto (estado ${moduleForVersion} ahora es ${currentEnv.syncId}) → descartado sin sobrescribir`)
+                await removeOutboxItem(redis, syncId)
+                continue
+            }
+
+            item.attempts += 1
+            item.lastAttemptAt = Date.now()
+
+            let ok = false
+            try {
+                if (item.target === "maintenance") {
+                    // Reintento de REPARACIONES: re-ejecutar con el buffer original
+                    if (item.bufferBase64) {
+                        const buf = Buffer.from(item.bufferBase64, "base64")
+                        const r = await syncRepairsToMaintenance(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer)
+                        console.log(`[OUTBOX] maintenance ${syncId} → created=${r.created} updated=${r.updated} skipped=${r.skipped}`)
+                        ok = true
+                    } else {
+                        console.warn(`[OUTBOX] maintenance ${syncId} sin bufferBase64 — se conserva pendiente`)
+                        ok = false
+                    }
+                } else if (item.target === "dashboard_stats/scaffold_rentals") {
+                    // Reintento de ALQUILERES
+                    const env = await readModuleData("alquileres", redis)
+                    if (env && env.data) {
+                        await saveScaffoldRentalStats(env.data as ScaffoldRentalStats)
+                        console.log(`[OUTBOX] alquileres ${syncId} → scaffold_rentals reescrito`)
+                        ok = true
+                    } else {
+                        console.warn(`[OUTBOX] alquileres ${syncId} sin datos primarios — se conserva pendiente`)
+                        ok = false
+                    }
+                } else {
+                    // Reintento de STOCK / ARTÍCULOS → inventory_stock (idempotente)
+                    const mod = item.module as "stock" | "articulos"
+                    const env = await readModuleData(mod, redis)
+                    if (env && Array.isArray(env.data)) {
+                        await writeStockItemsIdempotent(env.data as Sync3CItem[])
+                        console.log(`[OUTBOX] ${mod} ${syncId} → inventory_stock reescrito (${(env.data as Sync3CItem[]).length} items)`)
+                        ok = true
+                    } else {
+                        console.warn(`[OUTBOX] ${mod} ${syncId} sin datos primarios — se conserva pendiente`)
+                        ok = false
+                    }
+                }
+            } catch (err) {
+                item.lastError = err instanceof Error ? err.message : String(err)
+                console.error(`[OUTBOX] ${syncId} falló (intento ${item.attempts}): ${item.lastError}`)
+            }
+
+            if (ok) {
+                // marcar la fuente primaria como sincronizada y quitar del outbox
+                const syncTargetModule: PrimaryModuleId =
+                  item.target === "maintenance"
+                    ? "maintenance"
+                    : item.target === "dashboard_stats/scaffold_rentals"
+                      ? "alquileres"
+                      : (item.module as PrimaryModuleId)
+                const envSynced = await readModuleData(syncTargetModule, redis)
+                if (envSynced) {
+                    await saveModuleData(redis, {
+                        module: syncTargetModule,
+                        syncId: envSynced.syncId,
+                        data: envSynced.data,
+                        recordCount: envSynced.recordCount,
+                        degraded: false,
+                        firestoreStatus: "synced",
+                        exportInfo: envSynced.exportInfo ?? null,
+                    })
+                }
+                await removeOutboxItem(redis, syncId)
+                console.log(`[OUTBOX] ${syncId} procesado y eliminado`)
+            } else {
+                // NO se abandona nunca (REGLA 5/18): backoff exponencial con tope.
+                // Superado el tope, se sigue reintentando con el mayor intervalo.
+                const delay = 15_000 * Math.min(Math.pow(2, Math.min(item.attempts, 12) - 1), 256)
+                item.nextRetryAt = Date.now() + delay
+                await updateOutboxItem(redis, item)
+            }
+        }
+    } catch (err) {
+        console.error(`[OUTBOX] error procesando cola:`, err instanceof Error ? err.message : String(err))
     }
 }
 
@@ -846,6 +1277,12 @@ async function startAgentListener() {
         } catch (err) {
             console.error(`[AGENT] Auto-sync error:`, err)
         }
+    }, 60_000)
+
+    // === OUTBOX: reintenta datos pendientes de Firestore cada 60s (backoff) ===
+    setInterval(async () => {
+        if (!running) return
+        await processOutbox(redis)
     }, 60_000)
 
      // === Bucle principal de escucha (usando cola FIFO) ===

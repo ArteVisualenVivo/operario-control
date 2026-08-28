@@ -53,12 +53,63 @@ function clearStockItemsCache() {
   stockItemsPromise = null
 }
 
+// Invalida la fuente primaria de stock en Redis tras una mutación manual,
+// para que la web no siga mostrando datos obsoletos del último sync. REGLA 22.
+async function invalidatePrimaryStock() {
+  clearStockItemsCache()
+  try {
+    await fetch(`/api/sync-3c/data/stock`, { method: "DELETE", cache: "no-store" })
+  } catch {
+    // si falla la invalidación remota, al menos se limpió el cache local
+  }
+}
+
+function mapPrimaryToStock(raw: Record<string, unknown>): InventoryStock {
+  const now = new Date()
+  return {
+    id: String(raw.codigo ?? raw.name ?? `local-${Math.random().toString(36).slice(2)}`),
+    name: (raw.name as string) ?? "",
+    category: (raw.category as InventoryStock["category"]) ?? "consumibles",
+    unit: (raw.unit as InventoryStock["unit"]) ?? "unidad",
+    stockTotal: (raw.stockTotal as number) ?? 0,
+    stockAvailable: (raw.stockTotal as number) ?? 0,
+    stockRented: (raw.stockRented as number) ?? 0,
+    subtype: (raw.subtype as StockSubtype) ?? null,
+    size: (raw.size as StockSize | string) ?? null,
+    locationType: "deposito",
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+/** Lee la fuente primaria (Redis) vía API. Devuelve null si aún no hay datos. */
+async function loadPrimaryStock(): Promise<InventoryStock[] | null> {
+  try {
+    const res = await fetch(`/api/sync-3c/data/stock`, { cache: "no-store" })
+    if (!res.ok) return null
+    const body = await res.json()
+    if (!body?.available || !Array.isArray(body?.data) || body.recordCount === 0) return null
+    return (body.data as Record<string, unknown>[]).map(mapPrimaryToStock)
+  } catch {
+    return null
+  }
+}
+
 export async function getStockItems(): Promise<InventoryStock[]> {
   if (stockItemsCache) return stockItemsCache
   if (stockItemsPromise) return stockItemsPromise
 
   stockItemsPromise = (async () => {
     try {
+      // 1) FUENTE PRIMARIA: datos recién descargados/procesados por el agente
+      //    (funciona aunque Firestore esté sin cuota).
+      const primary = await loadPrimaryStock()
+      if (primary && primary.length > 0) {
+        stockItemsCache = primary
+        return primary
+      }
+
+      // 2) FALLBACK: Firestore
       const q = query(collection(db, COLLECTION), orderBy("name"))
       const start = Date.now()
       const snapshot = await getDocs(q)
@@ -71,6 +122,12 @@ export async function getStockItems(): Promise<InventoryStock[]> {
       stockItemsCache = data
       return data
     } catch (err) {
+      // 3) SI TODO FALLA: seed local (solo desarrollo) o propagar
+      const primaryFallback = await loadPrimaryStock().catch(() => null)
+      if (primaryFallback && primaryFallback.length > 0) {
+        stockItemsCache = primaryFallback
+        return primaryFallback
+      }
       if (LOCAL_MODE) {
         return LOCAL_STOCK_SEED
       }
@@ -107,7 +164,7 @@ export async function createStockItem(input: CreateStockInput): Promise<string> 
   }
   const docRef = await addDoc(collection(db, COLLECTION), docData)
   await createAuditLog("create", "inventory_stock", docRef.id, null, docData)
-  clearStockItemsCache()
+  await invalidatePrimaryStock()
   return docRef.id
 }
 
@@ -140,8 +197,7 @@ export async function updateStockItem(
   await updateDoc(ref, updates)
   const after = { ...before, ...updates }
   await createAuditLog("update", "inventory_stock", id, before ?? null, after)
-  clearStockItemsCache()
-  clearStockItemsCache()
+  await invalidatePrimaryStock()
 }
 
 export async function rentStockItem(
@@ -188,7 +244,7 @@ export async function deleteStockItem(id: string): Promise<void> {
   if (!before) throw new Error("Material no encontrado")
   await deleteDoc(ref)
   await createAuditLog("delete", "inventory_stock", id, before ?? null, null)
-  clearStockItemsCache()
+  await invalidatePrimaryStock()
 }
 
 export async function returnStockItem(
@@ -227,5 +283,5 @@ export async function returnStockItem(
     projectName: options?.projectName,
     reference: options?.reference,
   })
-  clearStockItemsCache()
+  await invalidatePrimaryStock()
 }

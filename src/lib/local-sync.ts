@@ -54,17 +54,43 @@ async function loadFromFirestore()
   return getMaintenanceRecords()
 }
 
+// 1) FUENTE PRIMARIA (Redis): lee los datos recién procesados por el agente
+//    (funciona aunque Firestore esté sin cuota).
+async function loadFromPrimary()
+  : Promise<MaintenanceRecord[] | null> {
+  try {
+    const res = await fetch(`/api/sync-3c/data/maintenance`, { cache: "no-store" })
+    if (!res.ok) return null
+    const body = await res.json()
+    if (!body?.available || !Array.isArray(body?.data) || body.recordCount === 0) return null
+    return (body.data as Record<string, unknown>[]).map((item) => ({
+      ...item,
+      entryDate: new Date((item.entryDate as string) ?? new Date()),
+      returnDate: item.returnDate ? new Date(item.returnDate as string) : undefined,
+      repairDate: item.repairDate ? new Date(item.repairDate as string) : undefined,
+      createdAt: new Date((item.createdAt as string) ?? new Date()),
+      updatedAt: new Date((item.updatedAt as string) ?? new Date()),
+    })) as MaintenanceRecord[]
+  } catch {
+    return null
+  }
+}
+
 // ----------------------------------------------
 // PUBLIC API
 // ----------------------------------------------
 
 export async function loadMaintenanceRecords()
   : Promise<MaintenanceRecord[]> {
-  // En el cliente, siempre usar Firestore
+  // 1) FUENTE PRIMARIA (Redis): datos recién procesados por el agente.
+  const primary = await loadFromPrimary()
+  if (primary && primary.length > 0) return primary
+
+  // 2) En el cliente, siempre usar Firestore
   if (typeof window !== "undefined") {
     return loadFromFirestore()
   }
-  // En el servidor, verificar LOCAL_MODE
+  // 3) En el servidor, verificar LOCAL_MODE
   if (process.env.NEXT_PUBLIC_LOCAL_MODE === "1") {
     return loadFromExcel()
   }
