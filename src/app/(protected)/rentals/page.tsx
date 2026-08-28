@@ -1,11 +1,15 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useMachines } from "@/hooks/useMachines"
+import { loadScaffoldRentalStats, type ScaffoldRentalStats } from "@/lib/dashboardStats"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { SearchInput } from "@/components/ui/SearchInput"
+import {
+  Card, CardContent, CardHeader, CardTitle,
+} from "@/components/ui/card"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
@@ -15,6 +19,18 @@ export default function RentalsPage() {
   const { machines, loading } = useMachines()
   const router = useRouter()
   const [search, setSearch] = useState("")
+  const [scaffold, setScaffold] = useState<ScaffoldRentalStats | null>(null)
+  const [scaffoldLoading, setScaffoldLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    loadScaffoldRentalStats()
+      .then((s) => { if (!cancelled) setScaffold(s) })
+      .catch(() => { if (!cancelled) setScaffold(null) })
+      .finally(() => { if (!cancelled) setScaffoldLoading(false) })
+    return () => { cancelled = true }
+  }, [])
+
   const rentedMachines = useMemo(() => {
     return machines.filter((m) => {
       if (!m.rental) return false
@@ -28,6 +44,22 @@ export default function RentalsPage() {
       )
     })
   }, [machines, search])
+
+  // Alquileres de andamios según 3C (Excel de alquileres pendientes)
+  const scaffoldDetail = useMemo(() => {
+    const detail = scaffold?.detalle ?? []
+    const q = search.toLowerCase()
+    if (!q) return detail
+    return detail.filter((d) =>
+      d.descripcion.toLowerCase().includes(q) ||
+      (d.cliente ?? "").toLowerCase().includes(q) ||
+      (d.clienteId ?? "").toLowerCase().includes(q) ||
+      d.remito.toLowerCase().includes(q) ||
+      d.codigo.toLowerCase().includes(q)
+    )
+  }, [scaffold, search])
+
+  const cuerposAlquilados = scaffold?.cuerposAlquilados ?? 0
 
   if (loading) return <p className="text-muted-foreground">Cargando...</p>
 
@@ -43,6 +75,76 @@ export default function RentalsPage() {
         onChange={setSearch}
         className="max-w-sm mb-4"
       />
+
+      {/* ============================================================
+          ANDAMIOS ALQUILADOS (desde 3C — Excel de alquileres pendientes)
+          ============================================================ */}
+      <Card className="border-2 border-amber-200">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-lg font-semibold">
+            🚧 Andamios y materiales alquilados (según 3C)
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">
+            Cuerpos alquilados: <span className="font-bold text-amber-700">{cuerposAlquilados}</span>
+            {scaffold?.fechaSync && (
+              <> · Última sincronización: {formatDate(new Date(scaffold.fechaSync))}</>
+            )}
+          </p>
+        </CardHeader>
+        <CardContent>
+          {scaffoldLoading ? (
+            <p className="text-sm text-muted-foreground">Cargando alquileres de 3C...</p>
+          ) : scaffoldDetail.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No hay alquileres de andamios pendientes según 3C.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Código</TableHead>
+                  <TableHead>Descripción</TableHead>
+                  <TableHead>Cantidad</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Remito</TableHead>
+                  <TableHead>Fecha</TableHead>
+                  <TableHead>Devolución</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {scaffoldDetail.map((d, i) => (
+                  <TableRow key={`${d.remito}-${d.codigo}-${i}`}>
+                    <TableCell className="font-mono text-xs">{d.codigo}</TableCell>
+                    <TableCell className="max-w-xs truncate" title={d.descripcion}>
+                      {d.descripcion}
+                    </TableCell>
+                    <TableCell className="font-bold">{d.cantidad}</TableCell>
+                    <TableCell>
+                      {d.cliente || d.clienteId || "—"}
+                      {d.cliente && d.clienteId ? (
+                        <span className="text-xs text-muted-foreground"> ({d.clienteId})</span>
+                      ) : null}
+                    </TableCell>
+                    <TableCell className="font-mono text-xs">{d.remito || "—"}</TableCell>
+                    <TableCell>{d.fecha || "—"}</TableCell>
+                    <TableCell>
+                      {d.devolucion ? (
+                        <Badge variant="outline" className="text-green-700 border-green-300">
+                          {d.devolucion}
+                        </Badge>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <h2 className="text-lg font-semibold">Máquinas alquiladas</h2>
       <Table>
         <TableHeader>
           <TableRow>

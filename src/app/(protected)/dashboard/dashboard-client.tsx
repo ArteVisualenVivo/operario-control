@@ -13,7 +13,6 @@ import SmartAlertsPanel from "@/components/dashboard/SmartAlertsPanel"
 import { useStockIntelligence } from "@/hooks/useStockIntelligence"
 import type { MachineStatus, Machine } from "@/types"
 import { statusLabels, formatDate } from "@/lib/ui"
-import { SCAFFOLD_RECIPE } from "@/lib/scaffoldConfig"
 import { sumStockByCodes, SCAFFOLD_CODES, PUNTAL_CODES } from "@/lib/inventoryGroups"
 import { searchEverywhere, type SearchResult } from "@/lib/search"
 import { GlobalSearchResults } from "@/components/dashboard/GlobalSearchResults"
@@ -115,17 +114,23 @@ export default function DashboardClient({ initialOrders, scaffoldRentals }: Prop
       .slice(0, 5)
   }, [machines])
 
+  // Cuerpos completos DISPONIBLES para alquilar:
+  // 1 andamio = 2 Estructuras + 2 Riendas largas + 2 Riendas cortas.
+  // Limita el componente del que haya menos pares.
   const cuerposCompletos = useMemo(() => {
-    let min = Infinity
-    for (const component of SCAFFOLD_RECIPE) {
-      const match = component.size
-        ? stockItems.filter(s => s.name === component.name && s.size === component.size)
-        : stockItems.filter(s => s.name === component.name)
-      const total = match.reduce((sum, s) => sum + s.stockAvailable, 0)
-      const posibles = Math.floor(total / component.quantity)
-      if (posibles < min) min = posibles
-    }
-    return min === Infinity ? 0 : min
+    const estructuras = sumScaffoldStructures(stockItems)
+    const n = (s: string) => s.toLowerCase().trim()
+    const riendasLargas = stockItems
+      .filter((item) => { const name = n(item.name); return name.includes("rienda") && name.includes("larga") })
+      .reduce((sum, item) => sum + item.stockAvailable, 0)
+    const riendasCortas = stockItems
+      .filter((item) => { const name = n(item.name); return name.includes("rienda") && name.includes("corta") })
+      .reduce((sum, item) => sum + item.stockAvailable, 0)
+    return Math.min(
+      Math.floor(estructuras / 2),
+      Math.floor(riendasLargas / 2),
+      Math.floor(riendasCortas / 2)
+    )
   }, [stockItems])
 
   // ---------------------------------------------------------------------------
@@ -169,7 +174,7 @@ export default function DashboardClient({ initialOrders, scaffoldRentals }: Prop
     const caballetes = sumStockByCodes(stockItems, SCAFFOLD_CODES.caballetes)
 
     const cuerpos = Math.min(
-      Math.floor(panos / 2),
+      Math.floor(estructuras / 2),
       Math.floor(riendasLargas / 2),
       Math.floor(riendasCortas / 2)
     )
@@ -368,7 +373,7 @@ export default function DashboardClient({ initialOrders, scaffoldRentals }: Prop
               </CardHeader>
               <CardContent>
                 <p className="text-3xl font-bold text-orange-700">{scaffoldStock.cuerpos}</p>
-                <p className="text-xs text-muted-foreground">Requiere: 2 Paños + 2 Riendas largas + 2 Riendas cortas</p>
+                <p className="text-xs text-muted-foreground">Requiere: 2 Estructuras + 2 Riendas largas + 2 Riendas cortas</p>
               </CardContent>
             </Card>
 

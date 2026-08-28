@@ -9,8 +9,10 @@ export interface ScaffoldRentalStats {
         descripcion: string
         cantidad: number
         cliente: string
+        clienteId?: string
         remito: string
         fecha: string
+        devolucion?: string
     }[]
 }
 
