@@ -10,7 +10,7 @@ import { spawn, execSync } from "child_process"
 import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
-import { parseExcel } from "../src/lib/sync-3c/parser"
+import { parseExcel, parseArticulos } from "../src/lib/sync-3c/parser"
 import { parseScaffoldRentals, saveScaffoldRentalStats, type ScaffoldRentalStats } from "../src/lib/sync-3c/scaffoldRentals"
 import { loadInventoryIndexByCodes, syncItems, syncRepairsToMaintenance } from "../src/lib/sync-3c/engine"
 import { writeStockItemsIdempotent } from "../src/lib/sync-3c/firestoreSync"
@@ -880,7 +880,10 @@ async function processModule(
                 })
             }
         } else {
-            const parsed = parseExcel(buffer)
+            // STOCK usa el parser de existencias; ARTÍCULOS usa el parser del
+            // catálogo (IDD|ARTICULO|COD_BARRA|...|FAMILIA|MARCA|...), que NO
+            // tiene columna de stock — parseExcel de stock vaciaría el dato.
+            const parsed = module === "articulos" ? parseArticulos(buffer) : parseExcel(buffer)
             items = parsed.items
 
             // Callback de diagnóstico (observador pasivo)
@@ -1107,7 +1110,7 @@ async function processOutbox(redis: Redis): Promise<void> {
                     const mod = item.module as "stock" | "articulos"
                     const env = await readModuleData(mod, redis)
                     if (env && Array.isArray(env.data)) {
-                        await writeStockItemsIdempotent(env.data as Sync3CItem[])
+                        await writeStockItemsIdempotent(env.data as Sync3CItem[], mod)
                         console.log(`[OUTBOX] ${mod} ${syncId} → inventory_stock reescrito (${(env.data as Sync3CItem[]).length} items)`)
                         ok = true
                     } else {

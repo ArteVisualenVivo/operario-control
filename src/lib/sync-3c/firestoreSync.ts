@@ -10,7 +10,10 @@ import { getFirebaseAdmin, loadInventoryIndex } from "./engine"
 // Se omite stockRented para NO pisar alquileres gestionados manualmente (merge).
 // ============================================================================
 
-export async function writeStockItemsIdempotent(items: Sync3CItem[]): Promise<void> {
+export async function writeStockItemsIdempotent(
+  items: Sync3CItem[],
+  module?: "stock" | "articulos"
+): Promise<void> {
   getFirebaseAdmin() // inicializa el Admin SDK
   const { getFirestore } = require("firebase-admin/firestore")
   const db = getFirestore()
@@ -32,13 +35,12 @@ export async function writeStockItemsIdempotent(items: Sync3CItem[]): Promise<vo
       matchId = inventoryIndex.get(item.name)!.id
     }
 
-    // Sin stockRented: merge conserva el valor real gestionado por CRUD now.
+    // El catálogo de ARTÍCULOS no trae cantidades: NUNCA debe poner stockTotal=0
+    // sobre un doc que ya tiene stock real del Excel de existencias.
+    const isCatalog = module === "articulos" || (!item.stockTotal && item.codBarra !== undefined)
     const payload: Record<string, unknown> = {
       codigo: item.codigo,
-      stockTotal: item.stockTotal,
-      stockAvailable: item.stockTotal,
       unit: item.unit,
-      deposito: item.deposito,
       source: "3c",
       stockWarning: item.stockWarning || false,
       lastSync: new Date(),
@@ -47,6 +49,21 @@ export async function writeStockItemsIdempotent(items: Sync3CItem[]): Promise<vo
       subtype: item.subtype ?? null,
       scaffoldKind: item.scaffoldKind ?? null,
     }
+    if (!isCatalog) {
+      payload.stockTotal = item.stockTotal
+      payload.stockAvailable = item.stockTotal
+      payload.deposito = item.deposito
+    }
+    // Metadatos reales del catálogo (sobreviven al merge sin pisar nada)
+    if (item.familia) payload.familia = item.familia
+    if (item.subfamilia) payload.subfamilia = item.subfamilia
+    if (item.marca) payload.marca = item.marca
+    if (item.tipo) payload.tipo = item.tipo
+    if (item.precioUnitario !== undefined) payload.precioUnitario = item.precioUnitario
+    if (item.stockMinimo !== undefined) payload.stockMinimo = item.stockMinimo
+    if (item.codBarra) payload.codBarra = item.codBarra
+    if (item.codCatalogo) payload.codCatalogo = item.codCatalogo
+    if (item.proveedor) payload.proveedor = item.proveedor
 
     if (matchId) {
       // Reusar el doc existente (idempotente respecto al histórico)

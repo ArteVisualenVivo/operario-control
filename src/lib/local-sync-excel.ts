@@ -109,59 +109,129 @@ export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
     return undefined
   }
 
-  const records: MRecord[] = []
-  for (let i = 0; i < rows.length; i++) {
+  function normHeader(value: unknown): string {
+    return String(value ?? "")
+      .trim()
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/\s+/g, "_")
+  }
+
+  // Detectar la fila de encabezados (TIPO|NUMERO|FECHA|CLIENTE|RAZON_SOCIAL|...)
+  // y mapear columnas dinámicamente, igual que syncRepairsToMaintenance().
+  let headerIndex = -1
+  const cols = new Map<string, number>()
+  for (let i = 0; i < Math.min(rows.length, 15); i++) {
+    const row = rows[i]
+    if (!Array.isArray(row)) continue
+    cols.clear()
+    row.forEach((c, idx) => {
+      const n = normHeader(c)
+      if (n && !cols.has(n)) cols.set(n, idx)
+    })
+    if (cols.has("numero") && cols.has("fecha")) {
+      headerIndex = i
+      break
+    }
+  }
+
+  // Mapeo con fallback posicional (formato real de 3C):
+  // 0=TIPO 1=NUMERO 2=FECHA 3=CLIENTE(id) 4=RAZON_SOCIAL 5=DOC_ID 6=ITEM_ID
+  // 7=ARTICU_ID 8=TEXTO 9=CANTIDAD 10=PRECIO_UNITARIO 11=PRECIO_TOTAL
+  const c = (names: string[], fallback: number): number => {
+    for (const n of names) {
+      const found = cols.get(n)
+      if (typeof found === "number") return found
+    }
+    return fallback
+  }
+  const COL = {
+    tipo: c(["tipo", "tipdoc"], 0),
+    numero: c(["numero", "nro", "nro_orden"], 1),
+    fecha: c(["fecha", "fecha_ingreso"], 2),
+    cliente: c(["cliente", "cod_cliente", "cliente_id"], 3),
+    razonSocial: c(["razon_social", "cliente_nombre", "nombre_cliente"], 4),
+    docId: c(["doc_id", "docid"], 5),
+    itemId: c(["item_id", "itemid"], 6),
+    articuId: c(["articu_id", "articulo_id"], 7),
+    texto: c(["texto", "maquina", "equipo", "descripcion"], 8),
+    cantidad: c(["cantidad", "qty"], 9),
+    precioUnitario: c(["precio_unitario", "precio"], 10),
+    precioTotal: c(["precio_total", "total"], 11),
+    gravado: c(["gravado"], 12),
+    noGravado: c(["no_gravado"], 13),
+    exento: c(["exento"], 14),
+  }
+  const num = (v: unknown): number | null => {
+    if (typeof v === "number" && Number.isFinite(v)) return v
+    const s = String(v ?? "").trim()
+    if (!s) return null
+    const n = Number(s.replace(/\./g, "").replace(",", "."))
+    return Number.isFinite(n) ? n : null
+  }
+
+  // Agrupar por NUMERO de orden: cada fila es un ítem de la orden.
+  const byOrder = new Map<string, MRecord>()
+  const today = new Date()
+
+  for (let i = headerIndex >= 0 ? headerIndex + 1 : 0; i < rows.length; i++) {
     const row = rows[i]
     if (!row || !Array.isArray(row)) continue
 
-    const orderNumber = String(row[2] ?? "").trim()
+    const orderNumber = String(row[COL.numero] ?? "").trim()
     if (!/^X\s?\d{4}-\d{6,8}$/i.test(orderNumber)) continue
+    const key = orderNumber.toUpperCase().replace(/\s+/g, " ")
 
-    const entryDate = toDate(row[1])
-    const returnDate = toDate(row[8])
-    const repairDate = toDate(row[6])
-    const today = new Date()
-    const base = entryDate ?? today
+    const entryDate = toDate(row[COL.fecha]) ?? today
+    const texto = String(row[COL.texto] ?? "").trim()
+    const cantidad = num(row[COL.cantidad]) ?? 0
+    const unitPrice = num(row[COL.precioUnitario]) ?? 0
+    const totalPrice = num(row[COL.precioTotal]) ?? 0
 
-    records.push({
+    const existing = byOrder.get(key)
+    if (existing) {
+      // Ítem adicional de la misma orden: acumular importes y textos.
+      if (texto && !existing.machineName.includes(texto)) {
+        existing.machineName = existing.machineName ? `${existing.machineName} | ${texto}` : texto
+      }
+      existing.quantity = (existing.quantity ?? 0) + cantidad
+      existing.unitPrice = Math.max(existing.unitPrice ?? 0, unitPrice)
+      existing.totalPrice = (existing.totalPrice ?? 0) + totalPrice
+      existing.taxed = (existing.taxed ?? 0) + (num(row[COL.gravado]) ?? 0)
+      existing.notTaxed = (existing.notTaxed ?? 0) + (num(row[COL.noGravado]) ?? 0)
+      existing.exempt = (existing.exempt ?? 0) + (num(row[COL.exento]) ?? 0)
+      const d = toDate(row[COL.fecha])
+      if (d && d.getTime() < existing.entryDate.getTime()) existing.entryDate = d
+      continue
+    }
+
+    byOrder.set(key, {
       id: orderNumber,
       orderNumber,
-      type: String(row[0] ?? "").trim() || undefined,
-      entryDate: base,
-      returnDate,
-      repairDate,
-      clientName: String(row[4] ?? "").trim(),
-      clientCode: String(row[3] ?? "").trim() || undefined,
-      machineName: String(row[6] ?? row[5] ?? "").trim(),
-      status: String(row[3] ?? "Recepcion").trim(),
-      quantity: normNumber(row[9]),
-      unitPrice: normNumber(row[10]),
-      totalPrice: normNumber(row[11]),
-      taxed: normNumber(row[12]),
-      notTaxed: normNumber(row[13]),
-      exempt: normNumber(row[14]),
-      originalData: {
-        tipdoc: row[0] ?? null,
-        fecha: row[1] ?? null,
-        numero: row[2] ?? null,
-        estado: row[3] ?? null,
-        cliente: row[4] ?? null,
-        observ: row[5] ?? null,
-        descrip: row[6] ?? null,
-        expediente: row[7] ?? null,
-        entrega: row[8] ?? null,
-        garant: row[9] ?? null,
-        presup: row[10] ?? null,
-        vendedor: row[11] ?? null,
-        costo: row[12] ?? null,
-      },
-      createdAt: base,
-      updatedAt: base,
+      type: String(row[COL.tipo] ?? "").trim() || undefined,
+      entryDate,
+      clientName: String(row[COL.razonSocial] ?? "").trim(),
+      clientCode: String(row[COL.cliente] ?? "").trim() || undefined,
+      machineName: texto,
+      status: "Recepción",
+      docId: String(row[COL.docId] ?? "").trim() || undefined,
+      itemId: Number(row[COL.itemId]) || null,
+      articleId: String(row[COL.articuId] ?? "").trim() || undefined,
+      quantity: cantidad,
+      unitPrice,
+      totalPrice,
+      taxed: num(row[COL.gravado]),
+      notTaxed: num(row[COL.noGravado]),
+      exempt: num(row[COL.exento]),
+      originalData: { row: row.slice(0, 19) },
+      createdAt: entryDate,
+      updatedAt: today,
       technician: undefined,
-    } as MaintenanceRecord)
+    } as MRecord)
   }
 
-  return records.sort((a, b) => b.entryDate.getTime() - a.entryDate.getTime())
+  return [...byOrder.values()].sort((a, b) => b.entryDate.getTime() - a.entryDate.getTime())
 }
 
 /** Parsea un buffer de Excel de mantenimiento a MaintenanceRecord[]. */

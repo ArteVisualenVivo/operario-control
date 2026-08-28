@@ -23,8 +23,10 @@ export interface ScaffoldRentalDetail {
     descripcion: string
     cantidad: number
     cliente: string
+    clienteId?: string
     remito: string
     fecha: string
+    devolucion?: string
 }
 
 export interface ScaffoldRentalStats {
@@ -93,9 +95,12 @@ export function parseScaffoldRentals(buffer: ArrayBuffer | Buffer): ScaffoldRent
         const COL_CODIGO = idx(["codigo", "código", "articulo", "art"])
         const COL_DESC = idx(["descripcion", "descrip", "detalle", "articulo", "producto"])
         const COL_CANT = idx(["cantidad", "qty", "cant"])
-        const COL_CLIENTE = idx(["cliente", "razon", "destinatario"])
+        // Nombre del cliente primero (CLIENTE_NOMBRE_CP); el id va aparte.
+        const COL_CLIENTE = idx(["cliente_nombre", "razon", "destinatario"])
+        const COL_CLIENTE_ID = idx(["cliente_id", "cliente"])
         const COL_REMITO = idx(["remito", "nro", "numero", "comprobante"])
         const COL_FECHA = idx(["fecha", "emision", "fecha"])
+        const COL_DEVOLUCION = idx(["devolucion"])
 
         const startRow = headerIndex >= 0 ? headerIndex + 1 : 0
 
@@ -119,8 +124,10 @@ export function parseScaffoldRentals(buffer: ArrayBuffer | Buffer): ScaffoldRent
                 descripcion,
                 cantidad,
                 cliente: COL_CLIENTE >= 0 ? toText(row[COL_CLIENTE]) : "",
+                clienteId: COL_CLIENTE_ID >= 0 ? toText(row[COL_CLIENTE_ID]) : undefined,
                 remito: COL_REMITO >= 0 ? toText(row[COL_REMITO]) : "",
                 fecha: COL_FECHA >= 0 ? toText(row[COL_FECHA]) : "",
+                devolucion: COL_DEVOLUCION >= 0 ? toText(row[COL_DEVOLUCION]) || undefined : undefined,
             })
 
             cuerposAlquilados += cantidad
