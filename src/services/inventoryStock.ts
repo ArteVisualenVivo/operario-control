@@ -30,6 +30,9 @@ function docToStock(docSnap: { id: string; data: () => Record<string, unknown> }
   const data = docSnap.data()
   return {
     id: docSnap.id,
+    // CÓDIGO 3C: imprescindible para que el dashboard de andamios
+    // (filterByCodes → SCAFFOLD_CODES) pueda identificar los materiales.
+    codigo: (data.codigo as string) ?? (data.name === docSnap.id ? docSnap.id : undefined),
     name: (data.name as string) ?? "",
     category: data.category as InventoryStock["category"],
     unit: (data.unit as InventoryStock["unit"]) ?? "unidad",
@@ -66,8 +69,11 @@ async function invalidatePrimaryStock() {
 
 function mapPrimaryToStock(raw: Record<string, unknown>): InventoryStock {
   const now = new Date()
+  const codigo = (raw.codigo as string) ?? ""
   return {
-    id: String(raw.codigo ?? raw.name ?? `local-${Math.random().toString(36).slice(2)}`),
+    id: String(codigo || raw.name || `local-${Math.random().toString(36).slice(2)}`),
+    // CÓDIGO 3C: imprescindible para el dashboard de andamios (filterByCodes).
+    codigo: codigo || undefined,
     name: (raw.name as string) ?? "",
     category: (raw.category as InventoryStock["category"]) ?? "consumibles",
     unit: (raw.unit as InventoryStock["unit"]) ?? "unidad",
