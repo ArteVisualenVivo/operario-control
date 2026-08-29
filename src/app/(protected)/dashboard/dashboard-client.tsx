@@ -285,38 +285,6 @@ export default function DashboardClient({ initialOrders, scaffoldRentals }: Prop
         </div>
 
       
-        {/* Fila 2: Categorías */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-          <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?category=machine")}>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Maquinaria</CardTitle></CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{machines.filter((m) => m.category === "machine").length}</p>
-              <div className="mt-2 h-2 w-full rounded-full bg-gray-200">
-                <div className="h-2 rounded-full bg-blue-500" style={{ width: `${machines.length > 0 ? Math.round((machines.filter(m => m.category === "machine").length / machines.length) * 100) : 0}%` }} />
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/andamios")}>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Andamios</CardTitle></CardHeader>
-            <CardContent className="space-y-1">
-              <p><span className="text-3xl font-bold">{machines.filter((m) => m.category === "scaffold").length}</span> <span className="text-sm text-muted-foreground">cuerpos</span></p>
-              <p><span className="text-xl font-bold text-orange-600">{cuerposCompletos}</span> <span className="text-sm text-muted-foreground">completos (según stock)</span></p>
-              <div className="mt-2 h-2 w-full rounded-full bg-gray-200">
-                <div className="h-2 rounded-full bg-orange-500" style={{ width: `${machines.length > 0 ? Math.round((machines.filter(m => m.category === "scaffold").length / machines.length) * 100) : 0}%` }} />
-              </div>
-            </CardContent>
-          </Card>
-          <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?category=tool")}>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Herramientas</CardTitle></CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{machines.filter((m) => m.category === "tool").length}</p>
-              <div className="mt-2 h-2 w-full rounded-full bg-gray-200">
-                <div className="h-2 rounded-full bg-green-500" style={{ width: `${machines.length > 0 ? Math.round((machines.filter(m => m.category === "tool").length / machines.length) * 100) : 0}%` }} />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
         {/* Fila 3: Estado de Andamios */}
         <div className="border-t pt-6 mt-6">
           <h2 className="text-xl font-semibold mb-4">🏗️ Estado de Andamios</h2>
@@ -528,78 +496,6 @@ export default function DashboardClient({ initialOrders, scaffoldRentals }: Prop
           </div>
         </div>
 
-        {/* Fila 3b: Estado de Puntales */}
-        <div className="border-t pt-6 mt-6">
-          <h2 className="text-xl font-semibold mb-4">🟤 Estado de Puntales</h2>
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {/* 1. Puntales completos */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">🟤 Puntales</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className={`text-3xl font-bold ${stockColor(puntalStock.structures)}`}>{puntalStock.structures}</p>
-                <p className="text-xs text-muted-foreground">Disponibles</p>
-              </CardContent>
-            </Card>
-
-            {/* 2. Reguladores */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">⚙ Reguladores</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className={`text-3xl font-bold ${stockColor(puntalStock.regulators)}`}>{puntalStock.regulators}</p>
-                <p className="text-xs text-muted-foreground">Disponibles</p>
-              </CardContent>
-            </Card>
-
-            {/* 3. Bases */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">🏗 Bases</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className={`text-3xl font-bold ${stockColor(puntalStock.basesPuntal)}`}>{puntalStock.basesPuntal}</p>
-                <p className="text-xs text-muted-foreground">Disponibles</p>
-              </CardContent>
-            </Card>
-
-            {/* 4. Ganchos */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">🪝 Ganchos</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className={`text-3xl font-bold ${stockColor(puntalStock.hooks)}`}>{puntalStock.hooks}</p>
-                <p className="text-xs text-muted-foreground">Disponibles</p>
-              </CardContent>
-            </Card>
-
-            {/* 5. Repuestos */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">🔩 Repuestos</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className={`text-3xl font-bold ${stockColor(puntalStock.spareParts)}`}>{puntalStock.spareParts}</p>
-                <p className="text-xs text-muted-foreground">Disponibles</p>
-              </CardContent>
-            </Card>
-
-            {/* 6. Extensiones */}
-            <Card>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">🟠 Extensiones</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className={`text-3xl font-bold ${stockColor(puntalStock.extensionsPuntal)}`}>{puntalStock.extensionsPuntal}</p>
-                <p className="text-xs text-muted-foreground">Disponibles</p>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-
         {/* Fila 4: Alquileres próximos a vencer */}
         {alerts.length > 0 && (
           <div className="space-y-2">
@@ -642,9 +538,7 @@ export default function DashboardClient({ initialOrders, scaffoldRentals }: Prop
           </div>
         )}
 
-        {/* Fila 4: WorkshopSummary */}
-        <WorkshopSummary />
-
+        
         {/* Fila 5: SmartAlertsPanel */}
         <SmartAlertsPanel />
 
