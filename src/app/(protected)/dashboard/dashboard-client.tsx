@@ -258,27 +258,33 @@ export default function DashboardClient({ initialOrders, scaffoldRentals }: Prop
       )}
 
       <>
-        {/* Fila 1: KPI Bar */}
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-6">
-          <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines")}>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total equipos</CardTitle></CardHeader>
-            <CardContent><p className="text-3xl font-bold">{machines.length}</p></CardContent>
+        {/* Fila 1: KPI — todo calculado desde los Excel de 3C */}
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/inventory")}>
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">📦 Materiales en stock (3C)</CardTitle></CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold">{stockItems.length}</p>
+              <p className="text-xs text-muted-foreground">registros del último Excel de Stock</p>
+            </CardContent>
           </Card>
-          <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?status=available")}>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Disponibles</CardTitle></CardHeader>
-            <CardContent><p className="text-3xl font-bold text-green-600">{machines.filter((m) => m.status === "available").length}</p></CardContent>
+          <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/andamios")}>
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">🧱 Andamios completos disponibles</CardTitle></CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold text-orange-600">{cuerposCompletos}</p>
+              <p className="text-xs text-muted-foreground">2 estructuras + 2 riendas largas + 2 riendas cortas</p>
+            </CardContent>
           </Card>
-          <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?status=rented")}>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Alquiladas</CardTitle></CardHeader>
-            <CardContent><p className="text-3xl font-bold text-blue-600">{machines.filter((m) => m.status === "rented").length}</p></CardContent>
-          </Card>
-          <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?status=maintenance")}>
-            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Mantenimiento</CardTitle></CardHeader>
-            <CardContent><p className="text-3xl font-bold text-yellow-600">{machines.filter((m) => m.status === "maintenance").length}</p></CardContent>
+          <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/rentals")}>
+            <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">🚧 Cuerpos alquilados (3C)</CardTitle></CardHeader>
+            <CardContent>
+              <p className="text-3xl font-bold text-blue-600">{scaffoldRentals?.cuerposAlquilados ?? 0}</p>
+              <p className="text-xs text-muted-foreground">alquileres pendientes según el Excel de Alquileres</p>
+            </CardContent>
           </Card>
           <WorkshopSummary />
         </div>
 
+      
         {/* Fila 2: Categorías */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           <Card className="cursor-pointer transition-shadow hover:shadow-md" onClick={() => router.push("/machines?category=machine")}>
