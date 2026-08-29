@@ -119,12 +119,12 @@ export default function DashboardClient({ initialOrders, scaffoldRentals }: Prop
   // Limita el componente del que haya menos pares.
   const cuerposCompletos = useMemo(() => {
     const estructuras = sumScaffoldStructures(stockItems)
-    const n = (s: string) => s.toLowerCase().trim()
+    // Riendas por código 3C real: R02/R04 = largas, R01/R03 = cortas
     const riendasLargas = stockItems
-      .filter((item) => { const name = n(item.name); return name.includes("rienda") && name.includes("larga") })
+      .filter((item) => ["R02", "R04"].includes((item.codigo ?? "").trim()))
       .reduce((sum, item) => sum + item.stockAvailable, 0)
     const riendasCortas = stockItems
-      .filter((item) => { const name = n(item.name); return name.includes("rienda") && name.includes("corta") })
+      .filter((item) => ["R01", "R03"].includes((item.codigo ?? "").trim()))
       .reduce((sum, item) => sum + item.stockAvailable, 0)
     return Math.min(
       Math.floor(estructuras / 2),
@@ -149,14 +149,14 @@ export default function DashboardClient({ initialOrders, scaffoldRentals }: Prop
     const riendasLargas = stockItems
       .filter((item) => {
         const name = n(item.name)
-        return (name.includes("rienda")) && (name.includes("larga"))
+        return ["R02", "R04"].includes((item.codigo ?? "").trim())
       })
       .reduce((sum, item) => sum + item.stockAvailable, 0)
 
     const riendasCortas = stockItems
       .filter((item) => {
         const name = n(item.name)
-        return (name.includes("rienda")) && (name.includes("corta"))
+        return ["R01", "R03"].includes((item.codigo ?? "").trim())
       })
       .reduce((sum, item) => sum + item.stockAvailable, 0)
 

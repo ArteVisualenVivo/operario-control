@@ -102,15 +102,24 @@ export default function AndamiosPage() {
   const totals = useMemo(() => {
     const machineCount = scaffoldMachines.length
 
-    // Calculate key components stock
-    const panos = stockItems.filter((item) => item.name === "Paños").reduce((sum, item) => sum + item.stockAvailable, 0)
-    const riendasLargas = stockItems.filter((item) => item.name === "Riendas" && item.size === "largas").reduce((sum, item) => sum + item.stockAvailable, 0)
-    const riendasCortas = stockItems.filter((item) => item.name === "Riendas" && item.size === "cortas").reduce((sum, item) => sum + item.stockAvailable, 0)
+    // Componentes según los datos reales del Excel de 3C:
+    // - Estructuras: códigos A03, A04, A07, 28501, 28601
+    // - Riendas: códigos R01/R03 = cortas, R02/R04 = largas
+    const estructuras = stockItems
+      .filter((item) => ["A03", "A04", "A07", "28501", "28601"].includes((item.codigo ?? "").trim()))
+      .reduce((sum, item) => sum + item.stockAvailable, 0)
+    const riendasLargas = stockItems
+      .filter((item) => ["R02", "R04"].includes((item.codigo ?? "").trim()))
+      .reduce((sum, item) => sum + item.stockAvailable, 0)
+    const riendasCortas = stockItems
+      .filter((item) => ["R01", "R03"].includes((item.codigo ?? "").trim()))
+      .reduce((sum, item) => sum + item.stockAvailable, 0)
     const tablones = stockItems.filter((item) => item.name === "Tablones").reduce((sum, item) => sum + item.stockAvailable, 0)
 
-    // Calculate cuerpos completos using the limiting component
+    // Cuerpos completos: 1 andamio = 2 Estructuras + 2 Riendas largas + 2 Riendas cortas
+    // Limita el componente del que haya menos pares.
     const cuerposCompletos = Math.min(
-      Math.floor(panos / 2),
+      Math.floor(estructuras / 2),
       Math.floor(riendasLargas / 2),
       Math.floor(riendasCortas / 2)
     )
@@ -120,7 +129,7 @@ export default function AndamiosPage() {
     const ruedasConFreno = stockItems.find((item) => item.codigo === "29501")?.stockAvailable ?? 0
     const juegosRuedas = stockItems.find((item) => item.codigo === "29601")?.stockAvailable ?? 0
 
-    return { machineCount, panos, riendasLargas, riendasCortas, tablones, ruedasSinFreno, ruedasConFreno, juegosRuedas, cuerposCompletos }
+    return { machineCount, estructuras, riendasLargas, riendasCortas, tablones, ruedasSinFreno, ruedasConFreno, juegosRuedas, cuerposCompletos }
   }, [stockItems, scaffoldMachines.length])
 
   if (loading) return <p className="text-muted-foreground">Cargando...</p>
@@ -149,7 +158,7 @@ export default function AndamiosPage() {
           <CardContent>
             <p className="text-5xl font-bold text-orange-700">{totals.cuerposCompletos}</p>
             <p className="text-sm text-muted-foreground mt-2">
-              Cada cuerpo requiere: 2 Paños + 2 Riendas largas + 2 Riendas cortas
+              Cada cuerpo requiere: 2 Estructuras + 2 Riendas largas + 2 Riendas cortas
             </p>
           </CardContent>
         </Card>
@@ -158,10 +167,10 @@ export default function AndamiosPage() {
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">🟦 Paños</CardTitle>
+              <CardTitle className="text-sm font-medium text-muted-foreground">🟦 Estructuras</CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-3xl font-bold">{totals.panos}</p>
+              <p className="text-3xl font-bold">{totals.estructuras}</p>
               <p className="text-xs text-muted-foreground">Disponibles</p>
             </CardContent>
           </Card>
