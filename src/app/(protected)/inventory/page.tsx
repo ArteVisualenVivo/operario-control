@@ -4,33 +4,29 @@ import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { useInventoryStock } from "@/hooks/useInventoryStock"
 import { Input } from "@/components/ui/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import { toast } from "sonner"
-import type { StockCategory } from "@/types"
-
-const CATEGORY_OPTIONS: { value: StockCategory; label: string }[] = [
-  { value: "puntales", label: "Puntales" },
-  { value: "riendas", label: "Riendas" },
-  { value: "andamio_accesorios", label: "Andamio Acc." },
-  { value: "consumibles", label: "Consumibles" },
-]
-
-const CATEGORY_LABELS: Record<string, string> = {
-  puntales: "Puntales",
-  riendas: "Riendas",
-  andamio_accesorios: "Andamio Acc.",
-  consumibles: "Consumibles",
-}
 
 export default function InventoryPage() {
   const router = useRouter()
   const { items, loading, remove } = useInventoryStock()
   const [search, setSearch] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
+
+  // Familias reales del Excel de 3C (derivadas de los datos)
+  const dynamicCategories = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const i of items) {
+      const c = i.category || "sin categoría"
+      map.set(c, (map.get(c) ?? 0) + 1)
+    }
+    return [...map.entries()].sort((a, b) => b[1] - a[1])
+  }, [items])
 
   const filtered = useMemo(() => {
     return items.filter((item) => {
@@ -110,18 +106,19 @@ export default function InventoryPage() {
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm"
         />
-        <div className="flex gap-1">
-          {(["all", ...CATEGORY_OPTIONS.map((o) => o.value)] as const).map((c) => (
-            <Button
-              key={c}
-              variant={categoryFilter === c ? "default" : "outline"}
-              size="sm"
-              onClick={() => setCategoryFilter(c)}
-            >
-              {c === "all" ? "Todas" : CATEGORY_LABELS[c]}
-            </Button>
-          ))}
-        </div>
+        <Select value={categoryFilter} onValueChange={(v) => setCategoryFilter(v ?? "all")}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="Filtrar por familia" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas las familias</SelectItem>
+                {dynamicCategories.map(([cat, count]) => (
+                  <SelectItem key={cat} value={cat}>
+                    {cat} ({count})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
       </div>
 
       {filtered.length === 0 ? (
@@ -146,7 +143,7 @@ export default function InventoryPage() {
               {filtered.map((item) => (
                 <TableRow key={item.id}>
                   <TableCell className="font-medium">{item.name}</TableCell>
-                  <TableCell>{CATEGORY_LABELS[item.category] ?? item.category}</TableCell>
+                  <TableCell>{item.category}</TableCell>
                   <TableCell>{item.subtype ?? "—"}</TableCell>
                   <TableCell>{item.size ?? "—"}</TableCell>
                   <TableCell>{item.unit}</TableCell>
