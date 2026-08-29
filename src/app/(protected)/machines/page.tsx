@@ -1,120 +1,130 @@
 "use client"
 
-import { useState, useMemo, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { useMachines } from "@/hooks/useMachines"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import MachineCard from "@/components/machines/MachineCard"
-import type { MachineStatus, MachineCategory } from "@/types"
-import { statusLabels } from "@/lib/ui"
-import { toast } from "sonner"
+import { useState, useMemo } from "react"
+import { useInventoryStock } from "@/hooks/useInventoryStock"
+import { SearchInput } from "@/components/ui/SearchInput"
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from "@/components/ui/table"
+
+// Familias de 3C que corresponden a MÁQUINAS.
+// Ajustar esta lista si 3C agrega o renombra familias.
+const MACHINE_FAMILIAS = [
+  "MAQUINAS",
+  "GRUPO ELECTROGENO",
+  "MOTOBOMBA",
+  "HORMIGONERA",
+  "PISON CANGURO",
+  "PLACA VIBRADORA",
+  "SOLDADORAS",
+  "ALLANADORA",
+  "PULIDORA DE PARQUET",
+  "PULIDORA DE GRANITO",
+  "AMOLADORA 230-180-110",
+  "DESMALEZADORA",
+  "PODADORAS",
+  "ELECTROGUINCHE",
+  "MOTOSIERRA",
+  "REGLA VIBRADORA",
+  "MOTOHOYADORA",
+  "HIDROLAVADORA",
+  "ASERRADORA",
+  "MOTOGUADAÑAS",
+]
+
+const norm = (s: string) => s.toUpperCase().trim().replace(/\s+/g, " ")
 
 export default function MachinesPage() {
-  const { machines, loading, remove, deleteAll } = useMachines()
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  
-  const statusParam = searchParams.get("status")
-  const categoryParam = searchParams.get("category")
-
-  const validStatuses: MachineStatus[] = ["available", "rented", "maintenance"]
-  const validCategories: MachineCategory[] = ["machine", "tool"]
-
-  const initialStatus =
-    statusParam && validStatuses.includes(statusParam as MachineStatus)
-      ? (statusParam as MachineStatus)
-      : "all"
-
-  const initialCategory =
-    categoryParam && validCategories.includes(categoryParam as MachineCategory)
-      ? (categoryParam as MachineCategory)
-      : "all"
-
+  const { items, loading } = useInventoryStock()
   const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState<MachineStatus | "all">(initialStatus)
-  const [categoryFilter, setCategoryFilter] = useState<MachineCategory | "all">(initialCategory)
-  const [deleting, setDeleting] = useState(false)
 
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("¿Eliminar esta máquina? Esta acción no se puede deshacer.")) return
-    try {
-      await remove(id)
-      toast.success("MÃ¡quina eliminada")
-    } catch {
-      toast.error("Error al eliminar mÃ¡quina")
-    }
-  }
+  const machines = useMemo(() => {
+    const familias = new Set(MACHINE_FAMILIAS.map(norm))
+    return items
+      .filter((item) => familias.has(norm(item.category ?? "")))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [items])
 
-  const handleDeleteAll = async () => {
-    const confirm = window.prompt("Esto eliminará TODAS las máquinas. Escribe ELIMINAR para confirmar:")
-    if (confirm !== "ELIMINAR") return
-    setDeleting(true)
-    try {
-      const count = await deleteAll()
-      toast.success(`${count} mÃ¡quina${count !== 1 ? "s" : ""} eliminada${count !== 1 ? "s" : ""}`)
-    } catch {
-      toast.error("Error al eliminar mÃ¡quinas")
-    } finally {
-      setDeleting(false)
-    }
-  }
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase()
+    if (!q) return machines
+    return machines.filter((m) =>
+      m.name.toLowerCase().includes(q) ||
+      (m.codigo ?? "").toLowerCase().includes(q) ||
+      (m.category ?? "").toLowerCase().includes(q)
+    )
+  }, [machines, search])
 
-  const filteredMachines = useMemo(() => {
-    return machines.filter((m) => {
-      if (m.category === "scaffold") return false
-      const q = search.toLowerCase()
-      const matchesSearch =
-        !q ||
-        m.name.toLowerCase().includes(q) ||
-        m.model.toLowerCase().includes(q) ||
-        (m.rental?.clientName ?? "").toLowerCase().includes(q) ||
-        (m.rental?.projectName ?? "").toLowerCase().includes(q)
-      const matchesStatus = statusFilter === "all" || m.status === statusFilter
-      const matchesCategory = categoryFilter === "all" || m.category === categoryFilter
-      return matchesSearch && matchesStatus && matchesCategory
-    })
-  }, [machines, search, statusFilter, categoryFilter])
+  const totalUnidades = filtered.reduce((sum, m) => sum + m.stockTotal, 0)
+  const totalDisponibles = filtered.reduce((sum, m) => sum + m.stockAvailable, 0)
 
-  if (loading) return <p className="text-muted-foreground">Cargando...</p>
+  if (loading) return <p className="text-muted-foreground">Cargando máquinas...</p>
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div>
         <h1 className="text-2xl font-bold">Máquinas</h1>
-        <div className="flex gap-2">
-          <Button onClick={() => router.push("/machines/new")}>Nueva mÃ¡quina</Button>
-          <Button variant="destructive" size="sm" onClick={handleDeleteAll} disabled={deleting || machines.length === 0}>
-            {deleting ? "Eliminando..." : "Eliminar todas"}
-          </Button>
+        <p className="text-sm text-muted-foreground">
+          Máquinas según el último Excel de 3C · {machines.length} tipos · {totalUnidades} unidades totales
+        </p>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+        <div className="rounded-lg border p-4">
+          <p className="text-sm text-muted-foreground">Tipos de máquina</p>
+          <p className="text-3xl font-bold">{machines.length}</p>
+        </div>
+        <div className="rounded-lg border p-4">
+          <p className="text-sm text-muted-foreground">Unidades totales</p>
+          <p className="text-3xl font-bold">{totalUnidades}</p>
+        </div>
+        <div className="rounded-lg border p-4">
+          <p className="text-sm text-muted-foreground">Unidades disponibles</p>
+          <p className="text-3xl font-bold text-green-600">{totalDisponibles}</p>
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 sm:flex-row">
-        <Input
-          placeholder="Buscar por nombre, modelo, cliente u obra..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-sm"
-        />
-        <div className="flex gap-2">
-          {(["all", "available", "rented", "maintenance"] as const).map((s) => (
-            <Button key={s} variant={statusFilter === s ? "default" : "outline"} size="sm" onClick={() => setStatusFilter(s)}>
-              {s === "all" ? "Todos" : statusLabels[s]}
-            </Button>
-          ))}
+      <SearchInput
+        value={search}
+        onChange={setSearch}
+        placeholder="Buscar por nombre, código o familia..."
+        className="max-w-sm"
+      />
+
+      {filtered.length === 0 ? (
+        <p className="text-center text-muted-foreground">
+          No se encontraron máquinas. Sincronizá Stock desde el Dashboard para traer los datos de 3C.
+        </p>
+      ) : (
+        <div className="rounded-md border">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Código</TableHead>
+                <TableHead>Nombre</TableHead>
+                <TableHead>Familia</TableHead>
+                <TableHead className="text-right">Stock (3C)</TableHead>
+                <TableHead className="text-right">Disponible</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((m) => (
+                <TableRow key={m.id}>
+                  <TableCell className="font-mono text-xs">{m.codigo ?? "—"}</TableCell>
+                  <TableCell className="font-medium">{m.name}</TableCell>
+                  <TableCell>{m.category}</TableCell>
+                  <TableCell className={`text-right font-bold ${m.stockTotal < 0 ? "text-red-600" : ""}`}>
+                    {m.stockTotal}
+                  </TableCell>
+                  <TableCell className={`text-right ${m.stockAvailable < 0 ? "text-red-600" : "text-green-600"}`}>
+                    {m.stockAvailable}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {filteredMachines.map((machine) => (
-          <MachineCard key={machine.id} machine={machine} onDelete={handleDelete} />
-        ))}
-      </div>
-
-      {filteredMachines.length === 0 && <p className="text-center text-muted-foreground">No se encontraron máquinas</p>}
-
+      )}
     </div>
   )
 }
