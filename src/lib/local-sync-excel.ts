@@ -177,6 +177,8 @@ export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
 
   // Agrupar por NUMERO de orden: cada fila es un ítem de la orden.
   const byOrder = new Map<string, MRecord>()
+  // Órdenes que ya tienen su línea REPARACION identificada
+  const conReparacion = new Set<string>()
   const today = new Date()
 
   for (let i = headerIndex >= 0 ? headerIndex + 1 : 0; i < rows.length; i++) {
@@ -195,9 +197,17 @@ export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
 
     const existing = byOrder.get(key)
     if (existing) {
-      // Ítem adicional de la misma orden: acumular importes y textos.
-      if (texto && !existing.machineName.includes(texto)) {
-        existing.machineName = existing.machineName ? `${existing.machineName} | ${texto}` : texto
+      // Ítem adicional de la misma orden.
+      const esLineaReparacion = /^reparaci[oó]n:/i.test(texto)
+      if (esLineaReparacion) {
+        // La línea "REPARACION: <máquina>" define la máquina/trabajo real
+        if (!conReparacion.has(key)) {
+          existing.machineName = texto.replace(/^reparaci[oó]n:\s*/i, "").trim()
+          conReparacion.add(key)
+        }
+      } else if (texto) {
+        // Las demás líneas son notas del taller (RETIRADA, CLIENTE NO RETIRA, etc.)
+        existing.observations = existing.observations ? `${existing.observations} | ${texto}` : texto
       }
       existing.quantity = (existing.quantity ?? 0) + cantidad
       existing.unitPrice = Math.max(existing.unitPrice ?? 0, unitPrice)
@@ -210,6 +220,8 @@ export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
       continue
     }
 
+    const esLineaReparacion = /^reparaci[oó]n:/i.test(texto)
+    if (esLineaReparacion) conReparacion.add(key)
     byOrder.set(key, {
       id: orderNumber,
       orderNumber,
@@ -217,7 +229,8 @@ export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
       entryDate,
       clientName: String(row[COL.razonSocial] ?? "").trim(),
       clientCode: String(row[COL.cliente] ?? "").trim() || undefined,
-      machineName: texto,
+      // Máquina real: la línea "REPARACION: <máquina>" sin el prefijo
+      machineName: esLineaReparacion ? texto.replace(/^reparaci[oó]n:\s*/i, "").trim() : texto,
       // Estado de 3C (Entreg./Factur., En taller, etc.) si el export lo incluye
       status: COL.estado >= 0 ? (String(row[COL.estado] ?? "").trim() || "Recepción") : "Recepción",
       // Fecha de entrega (Entreg.) si el export la incluye
