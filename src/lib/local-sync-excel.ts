@@ -162,6 +162,10 @@ export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
     gravado: c(["gravado"], 12),
     noGravado: c(["no_gravado"], 13),
     exento: c(["exento"], 14),
+    // Estado y fecha de entrega: solo presentes si el export de 3C
+    // incluye las columnas ESTADO / ENTREGA en la grilla.
+    estado: c(["estado", "estado_repara_txt", "situacion"], -1),
+    entrega: c(["entrega", "fecha_entrega", "fecha_retiro"], -1),
   }
   const num = (v: unknown): number | null => {
     if (typeof v === "number" && Number.isFinite(v)) return v
@@ -214,7 +218,10 @@ export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
       clientName: String(row[COL.razonSocial] ?? "").trim(),
       clientCode: String(row[COL.cliente] ?? "").trim() || undefined,
       machineName: texto,
-      status: "Recepción",
+      // Estado de 3C (Entreg./Factur., En taller, etc.) si el export lo incluye
+      status: COL.estado >= 0 ? (String(row[COL.estado] ?? "").trim() || "Recepción") : "Recepción",
+      // Fecha de entrega (Entreg.) si el export la incluye
+      returnDate: COL.entrega >= 0 ? toDate(row[COL.entrega]) : undefined,
       docId: String(row[COL.docId] ?? "").trim() || undefined,
       itemId: Number(row[COL.itemId]) || null,
       articleId: String(row[COL.articuId] ?? "").trim() || undefined,
