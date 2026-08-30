@@ -125,13 +125,22 @@ function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRec
   const originalReturn = asDate(findDateLikeValue(record.originalData, ["entrega", "egreso", "salida", "retiro", "return"]))
   const originalRepair = asDate(findDateLikeValue(record.originalData, ["reparacion", "reparaciÃ³n", "taller", "repair"]))
   const statusText = `${record.status} ${record.originalData ? Object.values(record.originalData).join(" ") : ""}`.toUpperCase()
-  const exitDate = record.returnDate ?? record.repairDate ?? (originalReturn instanceof Date ? originalReturn : undefined) ?? record.entryDate
+  const realExit = record.returnDate ?? record.repairDate ?? (originalReturn instanceof Date ? originalReturn : undefined)
+  const exitDate = realExit ?? record.entryDate
+  const exitDateReal = Boolean(realExit)
   const hasExitDate = Boolean(record.returnDate || record.repairDate || originalReturn || normalizeRepairStatus(record.status) === "FINALIZADO" || statusText.includes("ENTREG"))
+  // Modelo: solo si ARTICU_ID es un código de artículo real
+  // (cuando la línea es "REPARACION" no es un modelo, es el tipo de movimiento)
+  const articleIdClean = (record.articleId ?? "").trim()
+  const modelo = articleIdClean && !/^reparacion$/i.test(articleIdClean) ? articleIdClean : undefined
+  // Máquina: quitar el prefijo "REPARACION:" que agrega 3C al texto
+  const maquina = (record.machineName ?? "").replace(/^reparaci[oó]n:\s*/i, "").trim()
   return {
     id: `maintenance:${record.id}`,
+    exitDateReal,
     machineId: record.orderNumber,
-    machineName: record.machineName,
-    machineModel: record.articleId ?? record.type ?? undefined,
+    machineName: maquina,
+    machineModel: modelo ?? record.type ?? undefined,
     internalNumber: record.docId,
     clientId: record.clientCode,
     clientName: record.clientName,

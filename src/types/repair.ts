@@ -28,6 +28,8 @@ export interface MachineRepair {
 
   entryDate: Date
   exitDate: Date
+  /** true si hay fecha de entrega real (3C); false si se usó la fecha de ingreso como placeholder */
+  exitDateReal?: boolean
 
   hoursUsed?: number
 

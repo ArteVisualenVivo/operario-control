@@ -129,7 +129,7 @@ export default function RepairsPage() {
               <TableCell>{r.machineName}</TableCell>
               <TableCell>{r.machineModel}</TableCell>
               <TableCell>{formatDate(r.entryDate)}</TableCell>
-              <TableCell>{formatDate(r.exitDate)}</TableCell>
+              <TableCell>{r.exitDateReal ? formatDate(r.exitDate) : "—"}</TableCell>
               <TableCell>{r.status}</TableCell>
               <TableCell>
                 {hasMaintenanceLink(r) ? (
