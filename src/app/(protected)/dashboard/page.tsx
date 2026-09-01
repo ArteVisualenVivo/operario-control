@@ -5,7 +5,7 @@ import type { MaintenanceRecord } from "@/services/maintenance"
 import type { ScaffoldRentalStats } from "@/lib/dashboardStats"
 import DashboardClient from "./dashboard-client"
 
-const ORDER_PATTERN = /^x\s?\d{3,6}-\d{4,10}$/i
+const ORDER_PATTERN = /^x?\s?\d{3,6}-\d{4,10}$/i
 
 export default function DashboardPage() {
   const [orders, setOrders] = useState<MaintenanceRecord[]>([])
