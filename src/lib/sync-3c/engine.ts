@@ -537,7 +537,7 @@ export async function syncRepairsToMaintenance(
   const COL_CLIENT = col(["razon_social", "cliente_nombre", "nombre_cliente", "cliente"], 4)
   const COL_CLIENT_CODE = col(["cliente", "cod_cliente", "cliente_id"], 3)
   const COL_MACHINE = col(["texto", "maquina", "equipo", "articulo", "descripcion", "descrip", "observ"], 8)
-  const COL_STATUS = col(["estado", "estado_repara_txt", "situacion"], -1)
+  const COL_STATUS = col(["estado_repara_txt", "estado", "situacion"], -1)
   const COL_DOC_ID = col(["doc_id", "docid"], 5)
   const COL_ITEM_ID = col(["item_id", "itemid"], 6)
   const COL_ARTICLE_ID = col(["articu_id", "articulo_id", "article_id"], 7)

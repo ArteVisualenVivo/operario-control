@@ -337,6 +337,7 @@ export default function Sync3CButton({
         </SelectTrigger>
         <SelectContent>
           <SelectItem value="todo">Todo</SelectItem>
+          <SelectItem value="todo">Todo (5 módulos)</SelectItem>
           <SelectItem value="stock">Stock</SelectItem>
           <SelectItem value="reparaciones">Reparaciones</SelectItem>
           <SelectItem value="reparaciones_facturadas">Rep. Facturadas</SelectItem>

@@ -323,5 +323,10 @@ export function consolidatedToMaintenanceRecords(
 
   for (const r of existingByOrder.values()) result.push(r)
 
-  return result.sort((a, b) => b.entryDate.getTime() - a.entryDate.getTime())
+  const toTime = (d: Date | string | number | undefined | null): number => {
+    if (d === undefined || d === null) return 0
+    const t = d instanceof Date ? d.getTime() : new Date(d).getTime()
+    return Number.isNaN(t) ? 0 : t
+  }
+  return result.sort((a, b) => toTime(b.entryDate) - toTime(a.entryDate))
 }
