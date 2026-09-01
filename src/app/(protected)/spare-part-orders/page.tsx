@@ -7,9 +7,11 @@ import { Button } from "@/components/ui/button"
 import { SearchInput } from "@/components/ui/SearchInput"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAllSparePartOrders } from "@/hooks/useAllSparePartOrders"
+import { importPendingPartsFromMaintenance } from "@/services/sparePartOrders"
 import { SparePartOrderBadge } from "@/components/repairs/SparePartOrderBadge"
 import { SparePartOrderOrderedDialog } from "@/components/repairs/SparePartOrderOrderedDialog"
 import { formatDate } from "@/lib/ui"
+import { toast } from "sonner"
 import type { SparePartOrderStatus, SparePartOrder } from "@/types"
 
 type Filter = "todos" | SparePartOrderStatus | "pendientes" | "encargados" | "recibidos-sin-usar" | "parciales" | "atrasados" | "utilizados"
@@ -28,7 +30,7 @@ const STATUS_LABELS: Record<SparePartOrderStatus, string> = {
 
 export default function SparePartOrdersPage() {
   const router = useRouter()
-  const { orders, loading, markAsOrdered, remove } = useAllSparePartOrders()
+  const { orders, loading, reload, markAsOrdered, remove } = useAllSparePartOrders()
   const [filter, setFilter] = useState<Filter>("todos")
   const [search, setSearch] = useState("")
   const [orderSearch, setOrderSearch] = useState("")
@@ -37,6 +39,7 @@ export default function SparePartOrdersPage() {
   const [orderedTarget, setOrderedTarget] = useState<SparePartOrder | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
+  const [importing, setImporting] = useState(false)
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -77,6 +80,21 @@ export default function SparePartOrdersPage() {
     if (!orderedTarget) return
     await markAsOrdered(orderedTarget.id, { orderedAt, expectedAt, notes })
     setOrderedTarget(null)
+  }
+
+  const handleImport = async () => {
+    setImporting(true)
+    try {
+      const res = await importPendingPartsFromMaintenance()
+      toast.success(
+        `Importados ${res.created} repuesto(s) en espera${res.skippedExisting > 0 ? ` · ${res.skippedExisting} ya existían` : ""}`,
+      )
+      await reload()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Error al importar repuestos en espera")
+    } finally {
+      setImporting(false)
+    }
   }
 
   const daysOld = (d: Date): number => {
@@ -145,9 +163,14 @@ export default function SparePartOrdersPage() {
 <div className="space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 className="text-2xl font-bold">Pedidos de Repuestos</h1>
-        <Button variant="outline" onClick={() => router.push("/spare-part-orders/print")}>
-          🖨️ Lista de compra
-        </Button>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button variant="outline" onClick={handleImport} disabled={importing}>
+            {importing ? "Importando..." : "📥 Importar repuestos en espera (3C)"}
+          </Button>
+          <Button variant="outline" onClick={() => router.push("/spare-part-orders/print")}>
+            🖨️ Lista de compra
+          </Button>
+        </div>
       </div>
 
       {/* Resumen semanal (clic para filtrar) */}

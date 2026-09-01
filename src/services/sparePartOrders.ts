@@ -3,6 +3,7 @@ import {
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { LOCAL_MODE } from "@/lib/runtimeMode"
+import { loadMaintenanceRecords } from "@/lib/local-sync"
 import { createAuditLog } from "./audit"
 import { restockPart, usePart as consumePart } from "./spareParts"
 import type { SparePartOrder, CreateSparePartOrderInput, SparePartOrderStatus, MarkOrderedInput } from "@/types"
@@ -301,5 +302,70 @@ export async function updateOrderNotes(id: string, notes: string): Promise<void>
   const updates: Record<string, unknown> = { notes: notes || null, updatedAt: new Date() }
   await updateDoc(ref, updates)
   await createAuditLog("update", "spare_part_order", id, before, { ...before, ...updates })
+}
+// Normaliza el número de orden para comparar sin "X" ni espacios.
+function normOrderKey(value: unknown): string {
+  return String(value ?? "")
+    .toUpperCase()
+    .replace(/^X\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+/**
+ * Importa a "Pedidos de Repuestos" los repuestos que están en espera según las
+ * Órdenes de Reparación de 3C (estado "A la Espera Repuestos" en Mantenimiento).
+ *
+ * Toma de cada orden en espera su statusDescription (la descripción del repuesto
+ * que se está esperando) y crea un pedido (estado SOLICITADO) asociado a esa
+ * orden/máquina. Es idempotente: NO borra nada existente y NO duplica pedidos que
+ * ya existen para la misma (orden + descripción repuesto).
+ */
+export async function importPendingPartsFromMaintenance(): Promise<{
+  created: number
+  skippedExisting: number
+  createdOrders: { orderNumber: string; description: string }[]
+}> {
+  const existing = await getAllOrders()
+  const seen = new Set(
+    existing.map((o) => `${normOrderKey(o.orderNumber)}||${o.description.trim().toLowerCase()}`),
+  )
+
+  // Cargar órdenes consolidadas de 3C (fuente primaria Redis / Firestore)
+  const maintenance = await loadMaintenanceRecords()
+
+  const pendingKinds = /espera.*repuesto|repuesto.*espera|esperando.*repuesto/i
+  const awaiting = maintenance.filter((m) => pendingKinds.test(m.status ?? "") || pendingKinds.test(m.statusDescription ?? ""))
+
+  const createdOrders: { orderNumber: string; description: string }[] = []
+  let skippedExisting = 0
+
+  for (const rec of awaiting) {
+    const partDesc = (rec.statusDescription ?? rec.status ?? "").trim()
+    if (!partDesc) continue
+
+    const key = `${normOrderKey(rec.orderNumber)}||${partDesc.toLowerCase()}`
+    if (seen.has(key)) {
+      skippedExisting++
+      continue
+    }
+
+    await createOrder({
+      repairId: rec.id ?? rec.orderNumber,
+      orderNumber: rec.orderNumber,
+      machineId: rec.orderNumber,
+      machineName: rec.machineName ?? "",
+      code: "S/C",
+      description: partDesc,
+      unit: "unidad",
+      quantity: 1,
+      requestedAt: rec.entryDate ?? new Date(),
+      notes: "Importado desde Órdenes de Reparación (3C): repuesto en espera",
+    })
+    seen.add(key)
+    createdOrders.push({ orderNumber: rec.orderNumber, description: partDesc })
+  }
+
+  return { created: createdOrders.length, skippedExisting, createdOrders }
 }
 
