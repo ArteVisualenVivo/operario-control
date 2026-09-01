@@ -14,6 +14,7 @@ import { parseExcel, parseArticulos } from "../src/lib/sync-3c/parser"
 import { parseScaffoldRentals, saveScaffoldRentalStats, type ScaffoldRentalStats } from "../src/lib/sync-3c/scaffoldRentals"
 import { loadInventoryIndexByCodes, syncItems, syncRepairsToMaintenance } from "../src/lib/sync-3c/engine"
 import { writeStockItemsIdempotent, writeMaintenanceStatusesIdempotent } from "../src/lib/sync-3c/firestoreSync"
+import { buildConsolidatedOrders, consolidatedToMaintenanceRecords } from "../src/lib/sync-3c/consolidated"
 import {
     saveModuleData,
     enqueueOutbox,
@@ -28,7 +29,6 @@ import { parseMaintenanceBuffer } from "../src/lib/local-sync-excel"
 import {
     parseRepairStatusBuffer,
     getLatestStatusByOrder,
-    mergeStatusIntoMaintenance,
     type RepairStatusEntry,
 } from "../src/lib/repairStatus"
 import type { MaintenanceRecord } from "../src/services/maintenance"
@@ -677,6 +677,85 @@ function buildSparePartsSeedFromStock(items: Sync3CItem[]) {
         }))
 }
 
+/**
+ * CONSOLIDACIÓN — construye el registro consolidado de TODAS las órdenes de
+ * reparación cruzando TODOS los Excel presentes en 3c_exports (ítems +
+ * estados + cualquier informe futuro clasificable), lo guarda en la fuente
+ * primaria Redis y lo replica a Firestore (con outbox si falla).
+ * Reutilizable desde las ramas "reparaciones" y "reparaciones_facturadas".
+ */
+async function consolidateMaintenanceFromExports(
+    redis: Redis,
+    exportInfo: Record<string, unknown> | null,
+    runStart: number,
+    statusBuffer?: Buffer,
+): Promise<MaintenanceRecord[] | null> {
+    try {
+        const env = await readModuleData("maintenance", redis)
+        const existing = env && Array.isArray(env.data) ? (env.data as MaintenanceRecord[]) : []
+        const consolidated = await buildConsolidatedOrders(EXPORTS_DIR)
+        if (consolidated.size === 0) return null
+        const records = consolidatedToMaintenanceRecords(consolidated, existing)
+        const syncId = `maintenance-${runStart}`
+
+        // —— FUENTE PRIMARIA (Redis): registro consolidado completo ——
+        await saveModuleData(redis, {
+            module: "maintenance",
+            syncId,
+            data: records,
+            recordCount: records.length,
+            degraded: false,
+            firestoreStatus: "pending",
+            exportInfo,
+        })
+
+        // —— FIRESTORE (copia secundaria) + OUTBOX si falla ——
+        try {
+            const latest = new Map<string, RepairStatusEntry>()
+            for (const r of records) {
+                if (r.status) {
+                    latest.set(r.orderNumber, {
+                        orderNumber: r.orderNumber,
+                        status: r.status,
+                        statusDate: r.statusDate,
+                        statusDescription: r.statusDescription,
+                        statusUser: r.statusUser,
+                    })
+                }
+            }
+            await writeMaintenanceStatusesIdempotent(latest)
+            await saveModuleData(redis, {
+                module: "maintenance",
+                syncId,
+                data: records,
+                recordCount: records.length,
+                degraded: false,
+                firestoreStatus: "synced",
+                exportInfo,
+            })
+        } catch (fbErr) {
+            const fbMsg = fbErr instanceof Error ? fbErr.message : String(fbErr)
+            console.error(`[AGENT] Firebase bloqueado: consolidado de reparaciones pendiente en outbox:`, fbMsg)
+            await enqueueOutbox(redis, {
+                syncId,
+                module: "maintenance",
+                target: "maintenance_status",
+                createdAt: Date.now(),
+                attempts: 0,
+                lastAttemptAt: Date.now(),
+                nextRetryAt: Date.now(),
+                lastError: fbMsg,
+                dataKey: "sync-3c:data:maintenance",
+                bufferBase64: statusBuffer?.toString("base64"),
+            })
+        }
+        return records
+    } catch (err) {
+        console.error(`[AGENT] No se pudo consolidar el mantenimiento:`, err instanceof Error ? err.message : String(err))
+        return null
+    }
+}
+
 // ============================================================================
 // PROCESS SINGLE MODULE
 // ============================================================================
@@ -886,77 +965,31 @@ async function processModule(
                     bufferBase64: buf.toString("base64"),
                 })
             }
+
+            // —— CONSOLIDACIÓN: cruzar TODOS los Excel de 3C disponibles ——
+            await consolidateMaintenanceFromExports(redis, exportInfo, runStart)
         } else if (module === "reparaciones_facturadas") {
-            // Segundo Excel de Reparaciones: informe "facturadas" que aporta el
-            // ESTADO REAL de cada orden. Se cruza con el mantenimiento por número
-            // de orden y se selecciona siempre el ÚLTIMO estado (por fecha).
-            const syncId = `maintenance-status-${runStart}`
+            // 2º Excel de Reparaciones (informe "facturadas"): aporta el ESTADO
+            // real. Se CONSOLIDA con TODOS los Excel presentes en 3c_exports
+            // (ítems, estados y cualquier informe clasificable) cruzando por
+            // número de orden y seleccionando SIEMPRE el último estado real.
             result = { success: true, created: 0, updated: 0, skipped: 0, warnings: [] }
-            let statusEntries: RepairStatusEntry[] = []
             try {
-                statusEntries = await parseRepairStatusBuffer(buffer)
-                console.log(`[AGENT] Estados reparaciones facturadas: ${statusEntries.length} filas de estado`)
+                const entries = await parseRepairStatusBuffer(buffer)
+                console.log(`[AGENT] Estados reparaciones facturadas: ${entries.length} filas de estado`)
             } catch (parseStatusErr) {
                 const sMsg = parseStatusErr instanceof Error ? parseStatusErr.message : String(parseStatusErr)
                 console.error(`[AGENT] No se pudo parsear el export de estados:`, sMsg)
                 result.warnings.push("No se pudo interpretar el export de estados de reparaciones: " + sMsg)
             }
-
-            const latestByOrder = getLatestStatusByOrder(statusEntries)
-            console.log(`[AGENT] Último estado por orden: ${latestByOrder.size} órdenes`)
-
-            // Cruzar con el mantenimiento existente (fuente primaria Redis)
-            let maintenanceRecords: MaintenanceRecord[] = []
-            try {
-                const env = await readModuleData("maintenance", redis)
-                if (env && Array.isArray(env.data)) {
-                    maintenanceRecords = mergeStatusIntoMaintenance(
-                        env.data as MaintenanceRecord[],
-                        latestByOrder,
-                    )
-                }
-            } catch (mergeErr) {
-                console.error(`[AGENT] No se pudo fusionar estados con mantenimiento:`, mergeErr instanceof Error ? mergeErr.message : String(mergeErr))
-            }
-
-            // Fuente primaria: guardar el mantenimiento enriquecido (estado final)
-            try {
-                await saveModuleData(redis, {
-                    module: "maintenance",
-                    syncId: `maintenance-${runStart}`,
-                    data: maintenanceRecords,
-                    recordCount: maintenanceRecords.length,
-                    degraded: false,
-                    firestoreStatus: "pending",
-                    exportInfo,
-                })
-                result.updated = maintenanceRecords.length
-            } catch (saveMaintErr) {
-                console.error(`[AGENT] No se pudo guardar mantenimiento enriquecido:`, saveMaintErr instanceof Error ? saveMaintErr.message : String(saveMaintErr))
-            }
-
-            // Firestore (copia secundaria) + OUTBOX si falla
-            try {
-                await writeMaintenanceStatusesIdempotent(latestByOrder)
-                result.success = true
-            } catch (fbStatusErr) {
-                const fbMsg = fbStatusErr instanceof Error ? fbStatusErr.message : String(fbStatusErr)
-                console.error(`[AGENT] Firebase bloqueado: no se persistieron estados de reparaciones:`, fbMsg)
-                result.degraded = true
-                result.warnings.push("Firebase temporalmente bloqueado: estados de reparaciones no persistidos")
-                const buf = Buffer.from(buffer)
-                await enqueueOutbox(redis, {
-                    syncId,
-                    module: "maintenance",
-                    target: "maintenance_status",
-                    createdAt: Date.now(),
-                    attempts: 0,
-                    lastAttemptAt: Date.now(),
-                    nextRetryAt: Date.now(),
-                    lastError: fbMsg,
-                    dataKey: "sync-3c:data:maintenance",
-                    bufferBase64: buf.toString("base64"),
-                })
+            const statusBuffer = Buffer.from(buffer)
+            const consolidatedRecords = await consolidateMaintenanceFromExports(redis, exportInfo, runStart, statusBuffer)
+            if (consolidatedRecords) {
+                result.updated = consolidatedRecords.length
+                const withStatus = consolidatedRecords.filter((r) => r.status).length
+                console.log(`[AGENT] Consolidado: ${consolidatedRecords.length} órdenes, ${withStatus} con estado real`)
+            } else {
+                result.warnings.push("No se pudo construir el consolidado de reparaciones desde los Excel disponibles")
             }
         } else {
             // STOCK usa el parser de existencias; ARTÍCULOS usa el parser del
@@ -1174,17 +1207,37 @@ async function processOutbox(redis: Redis): Promise<void> {
                         ok = false
                     }
                 } else if (item.target === "maintenance_status") {
-                    // Reintento del 2º Excel (estado de reparaciones): parsear el
-                    // buffer original, calcular el último estado por orden y aplicarlo.
+                    // Reintento del consolidado de estados: si hay buffer del Excel
+                    // de estados se re-parsea; si no, se aplican los estados ya
+                    // consolidados en la fuente primaria Redis.
+                    let latestByOrder: Map<string, RepairStatusEntry> | null = null
                     if (item.bufferBase64) {
                         const buf = Buffer.from(item.bufferBase64, "base64")
                         const entries = await parseRepairStatusBuffer(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer)
-                        const latestByOrder = getLatestStatusByOrder(entries)
+                        latestByOrder = getLatestStatusByOrder(entries)
+                    } else {
+                        const env = await readModuleData("maintenance", redis)
+                        if (env && Array.isArray(env.data)) {
+                            latestByOrder = new Map()
+                            for (const r of env.data as MaintenanceRecord[]) {
+                                if (r.status) {
+                                    latestByOrder.set(r.orderNumber, {
+                                        orderNumber: r.orderNumber,
+                                        status: r.status,
+                                        statusDate: r.statusDate,
+                                        statusDescription: r.statusDescription,
+                                        statusUser: r.statusUser,
+                                    })
+                                }
+                            }
+                        }
+                    }
+                    if (latestByOrder && latestByOrder.size > 0) {
                         await writeMaintenanceStatusesIdempotent(latestByOrder)
                         console.log(`[OUTBOX] maintenance_status ${syncId} → ${latestByOrder.size} órdenes actualizadas`)
                         ok = true
                     } else {
-                        console.warn(`[OUTBOX] maintenance_status ${syncId} sin bufferBase64 — se conserva pendiente`)
+                        console.warn(`[OUTBOX] maintenance_status ${syncId} sin datos de estado — se conserva pendiente`)
                         ok = false
                     }
                 } else if (item.target === "dashboard_stats/scaffold_rentals") {

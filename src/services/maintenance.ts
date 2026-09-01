@@ -59,6 +59,10 @@ export interface MaintenanceRecord {
   vendedor?: string
   costo?: string
   reason?: string
+  // Información CONSOLIDADA de todos los Excel de 3C
+  states?: { status: string; statusDate?: string; statusDescription?: string; statusUser?: string; sourceFile?: string }[]
+  workItems?: string[]
+  sourceFiles?: string[]
 }
 
 export interface MaintenanceInput {

@@ -146,18 +146,27 @@ export function searchGrouped(query: string, data: GroupedSearchData): GroupedRe
     }
   }
 
-  // --- Reparaciones / mantenimiento ---
+  // --- Reparaciones / mantenimiento (registro CONSOLIDADO de todos los Excel) ---
   const reparaciones: ReparacionRow[] = []
   for (const o of data.orders) {
-    const fields = [o.orderNumber, o.clientName, o.clientCode, o.machineName, o.observations, o.observaciones, o.articleId, o.status, o.docId, o.type]
+    const fields = [
+      o.orderNumber, o.clientName, o.clientCode, o.machineName, o.observations, o.observaciones,
+      o.articleId, o.status, o.docId, o.type,
+      o.statusDescription, o.statusUser,
+      o.workItems?.join(" "), o.sourceFiles?.join(" "),
+    ]
     if (matchesTokens(compact(fields.join(" ")), tokens)) {
       reparaciones.push({
         orden: o.orderNumber,
         cliente: o.clientName,
         maquina: (o.machineName || "").replace(/^reparaci[oó]n:\s*/i, ""),
         estado: (o.status || "").trim(),
-        fecha: o.entryDate instanceof Date ? o.entryDate.toLocaleDateString("es-AR") : String(o.entryDate ?? ""),
-        descripcion: (o.observations || o.machineName || "").slice(0, 90),
+        fecha: o.statusDate instanceof Date
+          ? o.statusDate.toLocaleDateString("es-AR")
+          : o.entryDate instanceof Date
+            ? o.entryDate.toLocaleDateString("es-AR")
+            : String(o.entryDate ?? ""),
+        descripcion: (o.statusDescription || o.observations || o.machineName || "").slice(0, 90),
       })
     }
   }
