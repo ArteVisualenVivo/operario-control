@@ -22,6 +22,7 @@ export interface OrderConsolidated {
   observations?: string
   entryDate?: string
   returnDate?: string
+  repairDate?: string
   states: ConsolidatedState[]
   workItems: string[]
   sourceFiles: string[]
@@ -103,6 +104,7 @@ function mergeFacts(target: OrderConsolidated, src: Partial<OrderConsolidated>):
   if (src.observations && !target.observations) target.observations = src.observations
   if (src.entryDate && !target.entryDate) target.entryDate = src.entryDate
   if (src.returnDate && !target.returnDate) target.returnDate = src.returnDate
+  if (src.repairDate && !target.repairDate) target.repairDate = src.repairDate
   if (src.states?.length) target.states.push(...src.states)
   if (src.workItems?.length) {
     for (const w of src.workItems) {
@@ -154,12 +156,19 @@ export function extractStatusesExcel(rows: unknown[][], fileName: string): FactM
     const rec = touch(map, order)
     const fechaOrden = toDate(row[cFecha])
     const entrega = toDate(row[cEntrega])
+    // Cada fila del informe es un CAMBIO de estado con su propia fecha:
+    //  - fila "Reparada"        → FECHA = fecha de reparación (excluye "No Reparada")
+    //  - fila "Entreg./Factur." o "Retirada" → FECHA = fecha de entrega real
+    //    (si la columna ENTREGA está poblada se prefiere esa)
+    const isRepaired = /reparada/i.test(statusTxt) && !/^no\s+reparada$/i.test(statusTxt)
+    const isDelivered = /entreg|retirad/i.test(statusTxt)
     mergeFacts(rec, {
       clientName: clean(row[cCliente]) || undefined,
       machineName: clean(row[cMaquina]) || undefined,
       observations: clean(row[cObs]) || undefined,
       entryDate: iso(fechaOrden),
-      returnDate: iso(entrega),
+      returnDate: iso(isDelivered ? (entrega ?? fechaOrden) : entrega),
+      repairDate: isRepaired ? iso(fechaOrden) : undefined,
       states: [{
         status: statusTxt,
         statusDate: iso(fechaOrden),
@@ -303,6 +312,7 @@ export function consolidatedToMaintenanceRecords(
       orderNumber: prev?.orderNumber ?? rec.orderNumber,
       entryDate: prev?.entryDate ?? (rec.entryDate ? new Date(rec.entryDate) : new Date()),
       returnDate: rec.returnDate ? new Date(rec.returnDate) : prev?.returnDate,
+      repairDate: rec.repairDate ? new Date(rec.repairDate) : prev?.repairDate,
       clientName: rec.clientName || prev?.clientName || "",
       clientCode: rec.clientCode || prev?.clientCode,
       machineName: rec.machineName || prev?.machineName || "",
