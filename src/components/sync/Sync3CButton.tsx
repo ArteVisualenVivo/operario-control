@@ -13,7 +13,7 @@ import { toast } from "sonner"
 
 type SyncState = "idle" | "pending" | "running" | "completed" | "error"
 type AgentStatus = "unknown" | "online" | "running" | "offline"
-type SyncModule = "stock" | "reparaciones" | "reparaciones_facturadas" | "articulos" | "alquileres"
+type SyncModule = "stock" | "reparaciones" | "reparaciones_facturadas" | "articulos" | "alquileres" | "todo"
 
 interface Sync3CResult {
   success: boolean
@@ -50,7 +50,9 @@ const AGENT_POLL_INTERVAL = 60_000
 const STATUS_POLL_INTERVAL = 10_000
 // El agente puede tardar más de 3 min (AHK ~100s + procesamiento + escritura
 // Redis). Ampliamos el timeout a 10 min para no cortar sincronizaciones reales.
-const STATUS_POLL_TIMEOUT = 600_000
+// El pipeline completo ("Todo") puede tardar más de 15 min (5 módulos × AHK
+// ~100s + procesamiento + escritura Redis). Ampliamos a 25 min.
+const STATUS_POLL_TIMEOUT = 1_500_000
 
 function formatLastHeartbeat(timestamp: string | null): string {
   if (!timestamp) return "nunca"
@@ -76,6 +78,7 @@ function agentIndicator(status: AgentStatus): { dot: string; label: string } {
 }
 
 const MODULE_LABELS: Record<SyncModule, string> = {
+  todo: "Todo",
   stock: "Stock",
   reparaciones: "Reparaciones",
   reparaciones_facturadas: "Rep. Facturadas",
@@ -90,7 +93,7 @@ export default function Sync3CButton({
   className,
 }: Sync3CButtonProps) {
   const [state, setState] = useState<SyncState>("idle")
-  const [module, setModule] = useState<SyncModule>("stock")
+  const [module, setModule] = useState<SyncModule>("todo")
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("unknown")
   const [agentData, setAgentData] = useState<AgentStatusData | null>(null)
   const [result, setResult] = useState<Sync3CResult | null>(null)
@@ -268,7 +271,7 @@ export default function Sync3CButton({
         stopPolling()
         if (mountedRef.current) {
           setState("error")
-          toast.error("Timeout: el agente no respondió en 10 minutos")
+          toast.error("Timeout: el agente no respondió en 25 minutos")
         }
       }, STATUS_POLL_TIMEOUT)
     } catch {
@@ -325,7 +328,7 @@ export default function Sync3CButton({
       <Select
         value={module}
         onValueChange={(val: string | null) => {
-          if (val === "stock" || val === "reparaciones" || val === "reparaciones_facturadas" || val === "articulos" || val === "alquileres") setModule(val)
+          if (val === "todo" || val === "stock" || val === "reparaciones" || val === "reparaciones_facturadas" || val === "articulos" || val === "alquileres") setModule(val)
         }}
         disabled={disabled || state !== "idle"}
       >
@@ -333,6 +336,7 @@ export default function Sync3CButton({
           <SelectValue />
         </SelectTrigger>
         <SelectContent>
+          <SelectItem value="todo">Todo</SelectItem>
           <SelectItem value="stock">Stock</SelectItem>
           <SelectItem value="reparaciones">Reparaciones</SelectItem>
           <SelectItem value="reparaciones_facturadas">Rep. Facturadas</SelectItem>

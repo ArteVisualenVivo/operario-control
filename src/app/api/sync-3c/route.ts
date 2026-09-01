@@ -18,11 +18,12 @@ function getRedis() {
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json().catch(() => ({}))
+     const body = await request.json().catch(() => ({}))
     const module = body.module || "stock"
-    // Elegir UN solo módulo (el que pidió el usuario), no arrastrar el resto del pipeline
+    // "todo" = sincronizar TODOS los módulos en orden de pipeline.
+    // Si no, elegir UN solo módulo (el que pidió el usuario).
 
-    if (!SYNC_PIPELINE.includes(module)) {
+    if (module !== "todo" && !SYNC_PIPELINE.includes(module)) {
       return NextResponse.json(
         { success: false, error: `Módulo inválido. Usar: ${SYNC_PIPELINE.join(", ")}` },
         { status: 400 },
@@ -33,9 +34,10 @@ export async function POST(request: Request) {
     const now = Date.now()
 
     // Determinar el punto de inicio en el pipeline
-    const startIndex = SYNC_PIPELINE.indexOf(module)
-    // Encolar SOLO el módulo elegido (si el usuario pide uno, solo corre ese)
-    const modulesToEnqueue = SYNC_PIPELINE.slice(startIndex, startIndex + 1)
+    // "todo" → la cadena completa; un módulo → solo ese.
+    const startIndex = module === "todo" ? 0 : SYNC_PIPELINE.indexOf(module)
+    // Encolar los módulos desde el punto de inicio
+    const modulesToEnqueue = SYNC_PIPELINE.slice(startIndex)
 
      // Verificar si ya existen comandos pending para los módulos solicitados
      // Usar SCAN en lugar de KEYS para evitar bloqueo
