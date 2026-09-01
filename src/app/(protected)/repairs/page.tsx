@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useMemo } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useRepairs } from "@/hooks/useRepairs"
 import { Input } from "@/components/ui/input"
 import { SearchInput } from "@/components/ui/SearchInput"
@@ -12,6 +12,24 @@ import {
 import { formatDate } from "@/lib/ui"
 import { toast } from "sonner"
 import { hasMaintenanceLink } from "@/lib/machine-links"
+import type { MachineRepair } from "@/types"
+
+// Normaliza la clave de vinculación (externalId/machineId ↔ orderNumber):
+// mayúsculas, sin "X " inicial, espacios colapsados. Coincide con la
+// normalización usada en src/lib/sync-3c/consolidated.ts.
+function normKey(value?: string | null): string {
+  return (value ?? "")
+    .toUpperCase()
+    .replace(/^X\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+// Mismo vínculo que getRepairsForMaintenanceOrder(): externalId ?? machineId.
+function linksToOrder(repair: MachineRepair, orderKey: string): boolean {
+  const key = (repair.externalId ?? repair.machineId)?.trim()
+  return Boolean(key) && normKey(key) === normKey(orderKey)
+}
 
 function daysUntil(date: Date | undefined | null): number | null {
   if (!date) return null
@@ -28,13 +46,19 @@ function statusBadge(label: string, days: number | null): string {
 export default function RepairsPage() {
   const { repairs, loading, remove } = useRepairs()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
+  // Filtro por orden recibido vía ?order= (botón "Ver reparaciones" en
+  // Mantenimiento). Se inicializa desde el query y el usuario puede limpiarlo.
+  const [orderFilter, setOrderFilter] = useState<string | null>(searchParams.get("order") ?? null)
 
   const filtered = useMemo(() => {
     return repairs.filter((r) => {
+      if (orderFilter && !linksToOrder(r, orderFilter)) return false
+
       const q = search.toLowerCase()
       const matchesSearch =
         !q ||
@@ -55,7 +79,7 @@ export default function RepairsPage() {
 
       return matchesSearch && matchesFrom && matchesTo && matchesStatus
     })
-  }, [repairs, search, dateFrom, dateTo, statusFilter])
+  }, [repairs, search, dateFrom, dateTo, statusFilter, orderFilter])
 
   const handleDelete = async (id: string, machineName: string) => {
     if (!window.confirm(`Eliminar la reparación de ${machineName}?`)) return
@@ -107,6 +131,24 @@ export default function RepairsPage() {
           ))}
         </div>
       </div>
+
+      {orderFilter && (
+        <div className="flex items-center gap-2 rounded-md border border-blue-300 bg-blue-50 px-3 py-2 text-sm">
+          <span>
+            Mostrando reparaciones de la orden <span className="font-mono font-medium">{orderFilter}</span>
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              setOrderFilter(null)
+              router.push("/repairs")
+            }}
+          >
+            Ver todas
+          </Button>
+        </div>
+      )}
 
       <Table>
         <TableHeader>
