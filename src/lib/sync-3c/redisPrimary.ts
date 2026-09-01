@@ -34,7 +34,7 @@ export interface PrimaryDataEnvelope {
 export interface OutboxEntry {
   syncId: string
   module: PrimaryModuleId
-  target: "inventory_stock" | "maintenance" | "dashboard_stats/scaffold_rentals"
+  target: "inventory_stock" | "maintenance" | "maintenance_status" | "dashboard_stats/scaffold_rentals"
   createdAt: number
   attempts: number
   lastAttemptAt: number
