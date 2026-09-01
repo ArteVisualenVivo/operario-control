@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -96,6 +96,23 @@ export default function SparePartOrdersPage() {
       setImporting(false)
     }
   }
+
+  // Auto-importa los repuestos en espera que vienen del 3C al cargar la
+  // pantalla. Es idempotente: no duplica pedidos ya existentes (orden +
+  // repuesto). Solo corre una vez por montaje.
+  const autoImportRan = useRef(false)
+  useEffect(() => {
+    if (autoImportRan.current) return
+    autoImportRan.current = true
+    importPendingPartsFromMaintenance()
+      .then((res) => {
+        if (res.created > 0) void reload()
+      })
+      .catch(() => {
+        /* silencioso en montaje: ya existe el botón manual */
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const daysOld = (d: Date): number => {
     return Math.floor((MODULE_LOAD_TS - new Date(d).getTime()) / (1000 * 60 * 60 * 24))
