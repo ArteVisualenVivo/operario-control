@@ -313,6 +313,29 @@ function normOrderKey(value: unknown): string {
 }
 
 /**
+ * Extrae un posible CÓDIGO de repuesto desde un comentario/descripción de 3C.
+ * - Si hay un patrón tipo "CÓDIGO — NOMBRE" o "CÓDIGO.nombre" lo toma.
+ * - Si no, busca una secuencia alfanumérica con guiones/puntos que parezca código.
+ * Devuelve `null` si no encuentra nada (se usará "S/C").
+ */
+export function extractPartCodeFromText(text: unknown): string | null {
+  const raw = String(text ?? "").trim()
+  if (!raw) return null
+  // Formato "XXXXX — NOMBRE" (código antes del guión largo/emdash/trazo)
+  const em = raw.match(/^\s*([A-Z0-9][A-Z0-9.\-/]{2,})\s*[—–-]\s/i)
+  if (em) return em[1].toUpperCase()
+  // Buscar token alfanumérico con guiones que parezca código (>=4 chars, con dígito o letra+número)
+  const tm = raw.match(/\b([A-Z0-9]{1,4}[−–-]?[0-9]{2,}[A-Z0-9\-.]*|\d{2,}[A-Z0-9][A-Z0-9\-.]*)\b/i)
+  if (tm) {
+    const tok = tm[1].toUpperCase()
+    // Evitar falsos positivos: si es solo números tipo años/horas, ignorar
+    if (/^\d{4}$/.test(tok)) return null
+    return tok
+  }
+  return null
+}
+
+/**
  * Importa a "Pedidos de Repuestos" los repuestos que están en espera según las
  * Órdenes de Reparación de 3C (estado "A la Espera Repuestos" en Mantenimiento).
  *
@@ -340,30 +363,49 @@ export async function importPendingPartsFromMaintenance(): Promise<{
   const createdOrders: { orderNumber: string; description: string }[] = []
   let skippedExisting = 0
 
+  // Separa un ítem de trabajo/repuesto de 3C en { code, name }.
+  // formato esperado: "1262 — rodamiento 6203" | "KD44221 — FICHA BIPOLAR AZUL"
+  const splitItem = (item: string): { code: string; name: string } => {
+    const m = String(item ?? "").match(/^\s*([^—–]+?)\s*[—–]\s*(.+)$/)
+    if (m) {
+      const code = m[1].trim()
+      const name = m[2].trim()
+      if (code && name) return { code, name }
+    }
+    return { code: "S/C", name: String(item ?? "").trim() }
+  }
+
   for (const rec of awaiting) {
     const partDesc = (rec.statusDescription ?? rec.status ?? "").trim()
-    if (!partDesc) continue
+    // Ítems reales de la orden (código + nombre). Si no hay, usar el comentario.
+    const items = (rec.workItems ?? []).filter(Boolean)
+    const sources = items.length > 0 ? items : partDesc ? [partDesc] : []
 
-    const key = `${normOrderKey(rec.orderNumber)}||${partDesc.toLowerCase()}`
-    if (seen.has(key)) {
-      skippedExisting++
-      continue
+    for (const rawItem of sources) {
+      const { code, name } = splitItem(rawItem)
+      if (!name) continue
+
+      const key = `${normOrderKey(rec.orderNumber)}||${name.toLowerCase()}`
+      if (seen.has(key)) {
+        skippedExisting++
+        continue
+      }
+
+      await createOrder({
+        repairId: rec.id ?? rec.orderNumber,
+        orderNumber: rec.orderNumber,
+        machineId: rec.orderNumber,
+        machineName: rec.machineName ?? "",
+        code,
+        description: name,
+        unit: "unidad",
+        quantity: 1,
+        requestedAt: rec.entryDate ?? new Date(),
+        notes: "Importado desde Órdenes de Reparación (3C): repuesto en espera",
+      })
+      seen.add(key)
+      createdOrders.push({ orderNumber: rec.orderNumber, description: name })
     }
-
-    await createOrder({
-      repairId: rec.id ?? rec.orderNumber,
-      orderNumber: rec.orderNumber,
-      machineId: rec.orderNumber,
-      machineName: rec.machineName ?? "",
-      code: "S/C",
-      description: partDesc,
-      unit: "unidad",
-      quantity: 1,
-      requestedAt: rec.entryDate ?? new Date(),
-      notes: "Importado desde Órdenes de Reparación (3C): repuesto en espera",
-    })
-    seen.add(key)
-    createdOrders.push({ orderNumber: rec.orderNumber, description: partDesc })
   }
 
   return { created: createdOrders.length, skippedExisting, createdOrders }
