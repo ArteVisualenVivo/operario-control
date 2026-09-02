@@ -1331,6 +1331,26 @@ async function processOutbox(redis: Redis): Promise<void> {
 // AUTO-SYNC PROGRAMADO — corre el pipeline a horas fijas (10, 12, 15, 17)
 // reutilizando el índice compartido para cuidar la cuota de Firestore.
 // ============================================================================
+/**
+ * Detecta si la ventana principal de 3C está abierta (título "3C", ver config.ini).
+ * Usado por el auto-sync para no lanzar AHK cuando el sistema 3C está cerrado.
+ */
+function is3CRunning(): boolean {
+    try {
+        const out = execSync('tasklist /FI "WINDOWTITLE eq 3C*" /FO CSV /NH', {
+            encoding: "utf8",
+            windowsHide: true,
+            timeout: 10_000,
+        })
+        const t = out.trim()
+        // Windows en español devuelve "INFORMACIÓN: no hay tareas..." cuando no
+        // coincide; la detección positiva es una fila CSV que contiene "3C".
+        return /"3C/i.test(t)
+    } catch {
+        return false
+    }
+}
+
 let lastAutoSyncHour: number | null = null
 
 async function triggerAutoSync(redis: Redis) {
@@ -1342,6 +1362,20 @@ async function triggerAutoSync(redis: Redis) {
 
     // Solo corre si estamos dentro de los primeros 5 minutos de la hora fija
     if (now.getMinutes() > 5) return
+
+    // Si 3C no está abierto, no intentar exportar (los AHK salen en 1.5s y
+    // marcarían los comandos como failed con EXPORT_NOT_FOUND). Se reintenta
+    // unos minutos y si sigue cerrado, se salta hasta la próxima hora programada.
+    let threeCOpen = is3CRunning()
+    if (!threeCOpen) {
+        await new Promise((r) => setTimeout(r, 90_000))
+        threeCOpen = is3CRunning()
+    }
+    if (!threeCOpen) {
+        console.log(`[AGENT] Auto-sync saltado: 3C no está abierto (${hour}:00)`)
+        lastAutoSyncHour = hour
+        return
+    }
 
     if (!(await canSyncToday(redis))) {
         console.log(`[AGENT] Auto-sync saltado: cuota del día casi agotada (${hour}:00)`)
