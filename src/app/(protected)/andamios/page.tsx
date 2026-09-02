@@ -47,9 +47,17 @@ export default function AndamiosPage() {
     loadScaffoldRentalStats().then((stats) => {
       if (cancelled || !stats) return
       const r = stats.resumen
+      const modulosComunes = Math.max(0, (r?.estructuras ?? 0) - (r?.pasilleros ?? 0))
+      const pasilleros = r?.pasilleros ?? 0
       setAlquiladosResumen({
-        modulos: Math.max(0, (r?.estructuras ?? 0) - (r?.pasilleros ?? 0)),
-        pasilleros: r?.pasilleros ?? 0,
+        modulos: modulosComunes,
+        pasilleros,
+        // Las riendas no se alquilan sueltas en 3C: vienen incluidas con cada
+        // módulo ("ANDAMIOS ... (4 RIENDAS)"). Según la receta (1 juego = 2
+        // módulos + 2 riendas largas + 2 cortas), las riendas alquiladas
+        // equivalen a la cantidad total de módulos.
+        riendasLargas: modulosComunes + pasilleros,
+        riendasCortas: modulosComunes + pasilleros,
         ruedasSinFreno: r?.ruedasSinFreno ?? 0,
         ruedasConFreno: r?.ruedasConFreno ?? 0,
         juegosRuedas: r?.juegosRuedas ?? 0,
@@ -324,8 +332,10 @@ export default function AndamiosPage() {
           <div>
             <h2 className="text-lg font-semibold">Control de stock — Alquilados vs Depósito</h2>
             <p className="text-sm text-muted-foreground">
-              Alquilados salen de los remitos de 3C (solo andamios, ruedas y tablones). El stock guardado en
+              Alquilados salen de los remitos de 3C (andamios, riendas, ruedas y tablones). El stock guardado en
               depósito se carga manualmente. Total = Alquilados + Depósito. Disponibles = Depósito.
+              Las riendas no se alquilan sueltas en 3C (van incluidas con cada módulo): se calculan según la
+              receta, 2 largas + 2 cortas por cada juego de 2 módulos.
             </p>
           </div>
           <Button onClick={handleSaveDeposito} disabled={savingDeposito || !depositoLoaded}>

@@ -155,10 +155,19 @@ export function parseScaffoldRentals(buffer: ArrayBuffer | Buffer): ScaffoldRent
 
             const normalizedCodigo = normalizeCode(codigoRaw)
 
+            // Las ruedas sueltas a veces se alquilan en packs ("(4 RUEDAS)",
+            // "(8 unid.)"): la cantidad de la fila es packs, hay que multiplicar.
+            // El JUEGO de ruedas (29601) ya es un set, no se multiplica.
+            let cantidadFinal = cantidad
+            if (isWheel && !isInCodeList(codigoRaw, WHEEL_CODES_SET)) {
+                const pack = descripcion.match(/\((\d+)\s*(?:ruedas?|unid|unidades)/i)
+                if (pack) cantidadFinal = cantidad * Number(pack[1])
+            }
+
             detalle.push({
                 codigo: normalizedCodigo,
                 descripcion,
-                cantidad,
+                cantidad: cantidadFinal,
                 cliente: COL_CLIENTE >= 0 ? toText(row[COL_CLIENTE]) : "",
                 clienteId: COL_CLIENTE_ID >= 0 ? toText(row[COL_CLIENTE_ID]) : undefined,
                 remito: COL_REMITO >= 0 ? toText(row[COL_REMITO]) : "",
