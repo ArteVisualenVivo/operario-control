@@ -33,6 +33,32 @@ export interface ScaffoldRentalStats {
     fechaSync: string
     cuerposAlquilados: number
     detalle: ScaffoldRentalDetail[]
+    /** Agregados por familia (andamios, ruedas, tablones) para la vista de Andamios. */
+    resumen?: ScaffoldRentalResumen
+}
+
+export interface ScaffoldRentalResumen {
+    /** Estructuras de andamio alquiladas (módulos, incluye pasilleros). */
+    estructuras: number
+    /** Estructuras identificadas como andamio pasillero (por descripción). */
+    pasilleros: number
+    ruedasSinFreno: number
+    ruedasConFreno: number
+    /** Juegos de ruedas (set de 4, código 29601). */
+    juegosRuedas: number
+    tablones: number
+}
+
+// Códigos 3C de ruedas y tablones que se alquilan junto al andamio.
+const WHEEL_CODES_NOBRAKE = ["N7-1", "N71"]
+const WHEEL_CODES_BRAKE = ["29501"]
+const WHEEL_CODES_SET = ["29601"]
+const PLANK_CODES = ["TA02", "TA03", "28901", "29001", "29101", "29201"]
+
+function isInCodeList(code: string, list: string[]): boolean {
+    const normalized = normalizeCode(code)
+    if (!normalized) return false
+    return list.some((c) => normalizeCode(c) === normalized)
 }
 
 /** Convierte un valor de celda a número entero/decimal seguro. */
@@ -112,15 +138,25 @@ export function parseScaffoldRentals(buffer: ArrayBuffer | Buffer): ScaffoldRent
             const descripcion = COL_DESC >= 0 ? toText(row[COL_DESC]) : ""
             const cantidad = COL_CANT >= 0 ? toNumber(row[COL_CANT]) : 0
 
-            // Criterio: código de estructura Y descripción de andamio.
-            const matchCode = isScaffoldStructureCode(codigoRaw)
-            const matchDesc = isScaffoldStructureDescription(descripcion)
-
-            if (!matchCode || !matchDesc) continue
             if (cantidad <= 0) continue
 
+            // Criterio: estructuras (código de estructura Y descripción de andamio),
+            // o ruedas/tablones por código 3C.
+            const matchCode = isScaffoldStructureCode(codigoRaw)
+            const matchDesc = isScaffoldStructureDescription(descripcion)
+            const isWheel =
+                isInCodeList(codigoRaw, WHEEL_CODES_NOBRAKE) ||
+                isInCodeList(codigoRaw, WHEEL_CODES_BRAKE) ||
+                isInCodeList(codigoRaw, WHEEL_CODES_SET)
+            const isPlank = isInCodeList(codigoRaw, PLANK_CODES)
+
+            const isStructure = matchCode && matchDesc
+            if (!isStructure && !isWheel && !isPlank) continue
+
+            const normalizedCodigo = normalizeCode(codigoRaw)
+
             detalle.push({
-                codigo: normalizeCode(codigoRaw),
+                codigo: normalizedCodigo,
                 descripcion,
                 cantidad,
                 cliente: COL_CLIENTE >= 0 ? toText(row[COL_CLIENTE]) : "",
@@ -130,7 +166,32 @@ export function parseScaffoldRentals(buffer: ArrayBuffer | Buffer): ScaffoldRent
                 devolucion: COL_DEVOLUCION >= 0 ? toText(row[COL_DEVOLUCION]) || undefined : undefined,
             })
 
-            cuerposAlquilados += cantidad
+            if (isStructure) cuerposAlquilados += cantidad
+        }
+    }
+
+    // Agregados por familia para la vista de Andamios.
+    const resumen: ScaffoldRentalResumen = {
+        estructuras: 0,
+        pasilleros: 0,
+        ruedasSinFreno: 0,
+        ruedasConFreno: 0,
+        juegosRuedas: 0,
+        tablones: 0,
+    }
+    for (const row of detalle) {
+        const desc = row.descripcion.toLowerCase()
+        if (isScaffoldStructureCode(row.codigo)) {
+            resumen.estructuras += row.cantidad
+            if (/pasillero|pasillo/.test(desc)) resumen.pasilleros += row.cantidad
+        } else if (isInCodeList(row.codigo, WHEEL_CODES_NOBRAKE)) {
+            resumen.ruedasSinFreno += row.cantidad
+        } else if (isInCodeList(row.codigo, WHEEL_CODES_BRAKE)) {
+            resumen.ruedasConFreno += row.cantidad
+        } else if (isInCodeList(row.codigo, WHEEL_CODES_SET)) {
+            resumen.juegosRuedas += row.cantidad
+        } else if (isInCodeList(row.codigo, PLANK_CODES)) {
+            resumen.tablones += row.cantidad
         }
     }
 
@@ -138,6 +199,7 @@ export function parseScaffoldRentals(buffer: ArrayBuffer | Buffer): ScaffoldRent
         fechaSync: new Date().toISOString(),
         cuerposAlquilados,
         detalle,
+        resumen,
     }
 }
 

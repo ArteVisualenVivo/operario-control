@@ -14,6 +14,14 @@ export interface ScaffoldRentalStats {
         fecha: string
         devolucion?: string
     }[]
+    resumen?: {
+        estructuras: number
+        pasilleros: number
+        ruedasSinFreno: number
+        ruedasConFreno: number
+        juegosRuedas: number
+        tablones: number
+    }
 }
 
 /**

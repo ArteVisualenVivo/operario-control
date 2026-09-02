@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useMachines } from "@/hooks/useMachines"
 import { useInventoryStock } from "@/hooks/useInventoryStock"
@@ -11,9 +11,17 @@ import MachineCard from "@/components/machines/MachineCard"
 import type { MachineStatus } from "@/types"
 import { statusLabels } from "@/lib/ui"
 import { SCAFFOLD_CATALOG, SCAFFOLD_RECIPE } from "@/lib/scaffoldConfig"
+import { loadScaffoldRentalStats } from "@/lib/dashboardStats"
+import {
+  computeScaffoldTotals,
+  SCAFFOLD_ROW_LABELS,
+  type ScaffoldRowKey,
+} from "@/lib/scaffoldTotals"
 import { toast } from "sonner"
 
 type ScaffoldSection = "estructura" | "pieza" | "accesorio"
+
+const ROW_KEYS = Object.keys(SCAFFOLD_ROW_LABELS) as ScaffoldRowKey[]
 
 function normalizeText(value: string): string {
   return value.toLowerCase().trim()
@@ -25,6 +33,85 @@ export default function AndamiosPage() {
   const router = useRouter()
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<MachineStatus | "all">("all")
+
+  // ---- Control de stock: alquilados (remitos 3C) vs depósito (manual) ----
+  const [deposito, setDeposito] = useState<Partial<Record<ScaffoldRowKey, number>>>({})
+  const [alquiladosResumen, setAlquiladosResumen] = useState<Partial<Record<ScaffoldRowKey, number>>>({})
+  const [depositoLoaded, setDepositoLoaded] = useState(false)
+  const [savingDeposito, setSavingDeposito] = useState(false)
+  const [depositoDirty, setDepositoDirty] = useState(false)
+
+  // Alquilados desde remitos 3C (solo andamios, ruedas y tablones).
+  useEffect(() => {
+    let cancelled = false
+    loadScaffoldRentalStats().then((stats) => {
+      if (cancelled || !stats) return
+      const r = stats.resumen
+      setAlquiladosResumen({
+        modulos: Math.max(0, (r?.estructuras ?? 0) - (r?.pasilleros ?? 0)),
+        pasilleros: r?.pasilleros ?? 0,
+        ruedasSinFreno: r?.ruedasSinFreno ?? 0,
+        ruedasConFreno: r?.ruedasConFreno ?? 0,
+        juegosRuedas: r?.juegosRuedas ?? 0,
+        tablones: r?.tablones ?? 0,
+      })
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [])
+
+  // Depósito manual: cargar lo guardado; si no hay nada guardado, precargar
+  // con el stock disponible de 3C como punto de partida.
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/andamios/deposito", { cache: "no-store" })
+      .then((res) => res.json())
+      .then((body) => {
+        if (cancelled) return
+        if (body?.available && body.items && Object.keys(body.items).length > 0) {
+          setDeposito(body.items as Partial<Record<ScaffoldRowKey, number>>)
+        } else {
+          // Prefill desde el stock 3C disponible (solo como valor inicial).
+          setDeposito({
+            modulos: totals.estructuras,
+            riendasLargas: totals.riendasLargas,
+            riendasCortas: totals.riendasCortas,
+            ruedasSinFreno: totals.ruedasSinFreno,
+            ruedasConFreno: totals.ruedasConFreno,
+            juegosRuedas: totals.juegosRuedas,
+            tablones: totals.tablones,
+            pasilleros: 0,
+          })
+        }
+        setDepositoLoaded(true)
+      })
+      .catch(() => { if (!cancelled) setDepositoLoaded(true) })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stockLoading])
+
+  const controlRows = useMemo(
+    () => computeScaffoldTotals(alquiladosResumen, deposito),
+    [alquiladosResumen, deposito],
+  )
+
+  const handleSaveDeposito = async () => {
+    setSavingDeposito(true)
+    try {
+      const res = await fetch("/api/andamios/deposito", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items: deposito }),
+      })
+      if (!res.ok) throw new Error()
+      toast.success("Stock de depósito guardado")
+      setDepositoDirty(false)
+    } catch {
+      toast.error("Error al guardar el stock de depósito")
+    } finally {
+      setSavingDeposito(false)
+    }
+  }
+  // ---- fin control de stock ----
 
   const scaffoldMachines = useMemo(
     () => machines.filter((m) => m.category === "scaffold"),
@@ -230,6 +317,92 @@ export default function AndamiosPage() {
           </Card>
         </div>
       </div>
+
+      {/* Control de stock: alquilados (remitos 3C) vs depósito (manual) */}
+      <section className="space-y-4 border rounded-lg p-4 bg-card">
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <h2 className="text-lg font-semibold">Control de stock — Alquilados vs Depósito</h2>
+            <p className="text-sm text-muted-foreground">
+              Alquilados salen de los remitos de 3C (solo andamios, ruedas y tablones). El stock guardado en
+              depósito se carga manualmente. Total = Alquilados + Depósito. Disponibles = Depósito.
+            </p>
+          </div>
+          <Button onClick={handleSaveDeposito} disabled={savingDeposito || !depositoLoaded}>
+            {savingDeposito ? "Guardando..." : "Guardar depósito"}
+          </Button>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="border-b text-left text-muted-foreground">
+                <th className="py-2 pr-3 font-medium">Artículo</th>
+                <th className="py-2 pr-3 font-medium text-right">Alquilados</th>
+                <th className="py-2 pr-3 font-medium text-right">En depósito (manual)</th>
+                <th className="py-2 pr-3 font-medium text-right">Total</th>
+                <th className="py-2 font-medium text-right">Disponibles</th>
+              </tr>
+            </thead>
+            <tbody>
+              {controlRows.rows.map((row) => (
+                <tr key={row.key} className="border-b last:border-0">
+                  <td className="py-2 pr-3">{row.label}</td>
+                  <td className="py-2 pr-3 text-right tabular-nums text-blue-600">{row.alquilados}</td>
+                  <td className="py-2 pr-3 text-right">
+                    <Input
+                      type="number"
+                      min={0}
+                      className="w-24 ml-auto text-right h-8"
+                      value={deposito[row.key] ?? 0}
+                      disabled={!depositoLoaded}
+                      onChange={(e) => {
+                        const v = Math.max(0, Number(e.target.value) || 0)
+                        setDeposito((prev) => ({ ...prev, [row.key]: v }))
+                        setDepositoDirty(true)
+                      }}
+                    />
+                  </td>
+                  <td className="py-2 pr-3 text-right tabular-nums font-medium">{row.total}</td>
+                  <td className="py-2 text-right tabular-nums text-green-600 font-medium">{row.disponibles}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Card className="border-2 border-orange-500 bg-orange-50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold text-orange-800">
+                🧱 Juegos de andamio disponibles (comunes)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-4xl font-bold text-orange-700">{controlRows.juegos.comunes}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Cada juego: 2 módulos + 2 riendas largas + 2 riendas cortas
+              </p>
+            </CardContent>
+          </Card>
+          <Card className="border-2 border-amber-500 bg-amber-50">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base font-semibold text-amber-800">
+                🧱 Juegos de andamio pasillero disponibles
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-4xl font-bold text-amber-700">{controlRows.juegos.pasilleros}</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                Misma receta: 2 módulos pasilleros + 2 riendas largas + 2 riendas cortas
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {!depositoLoaded && <p className="text-sm text-muted-foreground">Cargando stock de depósito...</p>}
+        {depositoDirty && <p className="text-xs text-amber-600">Hay cambios sin guardar en el depósito.</p>}
+      </section>
 
       <div className="flex flex-col gap-4 sm:flex-row">
         <Input
