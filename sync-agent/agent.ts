@@ -1337,15 +1337,16 @@ async function processOutbox(redis: Redis): Promise<void> {
  */
 function is3CRunning(): boolean {
     try {
-        const out = execSync('tasklist /FI "WINDOWTITLE eq 3C*" /FO CSV /NH', {
+        // /V incluye la columna "Window Title" (el CSV simple no la trae).
+        const out = execSync('tasklist /V /FI "WINDOWTITLE eq 3C*" /FO CSV /NH', {
             encoding: "utf8",
             windowsHide: true,
-            timeout: 10_000,
+            timeout: 15_000,
         })
-        const t = out.trim()
-        // Windows en español devuelve "INFORMACIÓN: no hay tareas..." cuando no
-        // coincide; la detección positiva es una fila CSV que contiene "3C".
-        return /"3C/i.test(t)
+        // Windows en español: la detección positiva es una fila CSV que empieza
+        // con el nombre de imagen (los mensajes de "no hay tareas" no son CSV).
+        const first = out.trim().split(/\r?\n/)[0] ?? ""
+        return first.startsWith('"') && /3C/i.test(first)
     } catch {
         return false
     }
