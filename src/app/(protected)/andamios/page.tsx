@@ -10,18 +10,29 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import MachineCard from "@/components/machines/MachineCard"
 import type { MachineStatus } from "@/types"
 import { statusLabels } from "@/lib/ui"
-import { SCAFFOLD_CATALOG, SCAFFOLD_RECIPE } from "@/lib/scaffoldConfig"
+import { SCAFFOLD_CATALOG } from "@/lib/scaffoldConfig"
 import { loadScaffoldRentalStats } from "@/lib/dashboardStats"
 import {
   computeScaffoldTotals,
-  SCAFFOLD_ROW_LABELS,
   type ScaffoldRowKey,
 } from "@/lib/scaffoldTotals"
 import { toast } from "sonner"
 
-type ScaffoldSection = "estructura" | "pieza" | "accesorio"
+// Artículos principales de la zona de carga (los que definen un juego).
+const MAIN_ROWS: { key: ScaffoldRowKey; label: string }[] = [
+  { key: "modulos", label: "Paños (módulos)" },
+  { key: "riendasLargas", label: "Riendas largas" },
+  { key: "riendasCortas", label: "Riendas cortas" },
+  { key: "tablones", label: "Tablones" },
+]
 
-const ROW_KEYS = Object.keys(SCAFFOLD_ROW_LABELS) as ScaffoldRowKey[]
+// Artículos secundarios (se muestran más chicos).
+const SECONDARY_ROWS: { key: ScaffoldRowKey; label: string }[] = [
+  { key: "pasilleros", label: "Módulos pasilleros" },
+  { key: "ruedasSinFreno", label: "Ruedas sin freno" },
+  { key: "ruedasConFreno", label: "Ruedas con freno" },
+  { key: "juegosRuedas", label: "Juegos de ruedas (x4)" },
+]
 
 function normalizeText(value: string): string {
   return value.toLowerCase().trim()
@@ -41,7 +52,7 @@ export default function AndamiosPage() {
   const [savingDeposito, setSavingDeposito] = useState(false)
   const [depositoDirty, setDepositoDirty] = useState(false)
 
-  // Alquilados desde remitos 3C (solo andamios, ruedas y tablones).
+  // Alquilados desde remitos 3C.
   useEffect(() => {
     let cancelled = false
     loadScaffoldRentalStats().then((stats) => {
@@ -53,9 +64,8 @@ export default function AndamiosPage() {
         modulos: modulosComunes,
         pasilleros,
         // Las riendas no se alquilan sueltas en 3C: vienen incluidas con cada
-        // módulo ("ANDAMIOS ... (4 RIENDAS)"). Según la receta (1 juego = 2
-        // módulos + 2 riendas largas + 2 cortas), las riendas alquiladas
-        // equivalen a la cantidad total de módulos.
+        // módulo. Según la receta (1 juego = 2 módulos + 2 riendas largas +
+        // 2 cortas), las riendas alquiladas equivalen a los módulos totales.
         riendasLargas: modulosComunes + pasilleros,
         riendasCortas: modulosComunes + pasilleros,
         ruedasSinFreno: r?.ruedasSinFreno ?? 0,
@@ -67,8 +77,21 @@ export default function AndamiosPage() {
     return () => { cancelled = true }
   }, [])
 
-  // Depósito manual: cargar lo guardado; si no hay nada guardado, precargar
-  // con el stock disponible de 3C como punto de partida.
+  // Precarga del depósito con el stock disponible de 3C (solo valor inicial).
+  const totals3C = useMemo(() => {
+    const estructuras = stockItems
+      .filter((item) => ["A03", "A04", "A07", "28501", "28601"].includes((item.codigo ?? "").trim()))
+      .reduce((sum, item) => sum + item.stockAvailable, 0)
+    const riendasLargas = stockItems
+      .filter((item) => ["R02", "R04"].includes((item.codigo ?? "").trim()))
+      .reduce((sum, item) => sum + item.stockAvailable, 0)
+    const riendasCortas = stockItems
+      .filter((item) => ["R01", "R03"].includes((item.codigo ?? "").trim()))
+      .reduce((sum, item) => sum + item.stockAvailable, 0)
+    const tablones = stockItems.filter((item) => item.name === "Tablones").reduce((sum, item) => sum + item.stockAvailable, 0)
+    return { estructuras, riendasLargas, riendasCortas, tablones }
+  }, [stockItems])
+
   useEffect(() => {
     let cancelled = false
     fetch("/api/andamios/deposito", { cache: "no-store" })
@@ -78,15 +101,11 @@ export default function AndamiosPage() {
         if (body?.available && body.items && Object.keys(body.items).length > 0) {
           setDeposito(body.items as Partial<Record<ScaffoldRowKey, number>>)
         } else {
-          // Prefill desde el stock 3C disponible (solo como valor inicial).
           setDeposito({
-            modulos: totals.estructuras,
-            riendasLargas: totals.riendasLargas,
-            riendasCortas: totals.riendasCortas,
-            ruedasSinFreno: totals.ruedasSinFreno,
-            ruedasConFreno: totals.ruedasConFreno,
-            juegosRuedas: totals.juegosRuedas,
-            tablones: totals.tablones,
+            modulos: totals3C.estructuras,
+            riendasLargas: totals3C.riendasLargas,
+            riendasCortas: totals3C.riendasCortas,
+            tablones: totals3C.tablones,
             pasilleros: 0,
           })
         }
@@ -131,7 +150,6 @@ export default function AndamiosPage() {
       const scaffoldNames = SCAFFOLD_CATALOG.map((entry) => entry.name)
       return scaffoldNames.includes(item.name)
     })
-
     return rows.sort((a, b) => {
       const aLabel = `${a.name} ${a.size ?? ""}`
       const bLabel = `${b.name} ${b.size ?? ""}`
@@ -167,23 +185,6 @@ export default function AndamiosPage() {
     })
   }, [scaffoldItems, search])
 
-  const groupedItems = useMemo(() => {
-    const groups = new Map<ScaffoldSection, typeof filteredItems>()
-    groups.set("estructura", [])
-    groups.set("pieza", [])
-    groups.set("accesorio", [])
-
-    for (const item of filteredItems) {
-      if (item.category === "puntales" || item.category === "riendas") {
-        groups.get("pieza")!.push(item)
-      } else {
-        groups.get("accesorio")!.push(item)
-      }
-    }
-
-    return groups
-  }, [filteredItems])
-
   const handleDelete = async (id: string) => {
     if (!window.confirm("Eliminar esta maquina? Esta accion no se puede deshacer.")) return
     try {
@@ -194,148 +195,76 @@ export default function AndamiosPage() {
     }
   }
 
-  const totals = useMemo(() => {
-    const machineCount = scaffoldMachines.length
-
-    // Componentes según los datos reales del Excel de 3C:
-    // - Estructuras: códigos A03, A04, A07, 28501, 28601
-    // - Riendas: códigos R01/R03 = cortas, R02/R04 = largas
-    const estructuras = stockItems
-      .filter((item) => ["A03", "A04", "A07", "28501", "28601"].includes((item.codigo ?? "").trim()))
-      .reduce((sum, item) => sum + item.stockAvailable, 0)
-    const riendasLargas = stockItems
-      .filter((item) => ["R02", "R04"].includes((item.codigo ?? "").trim()))
-      .reduce((sum, item) => sum + item.stockAvailable, 0)
-    const riendasCortas = stockItems
-      .filter((item) => ["R01", "R03"].includes((item.codigo ?? "").trim()))
-      .reduce((sum, item) => sum + item.stockAvailable, 0)
-    const tablones = stockItems.filter((item) => item.name === "Tablones").reduce((sum, item) => sum + item.stockAvailable, 0)
-
-    // Cuerpos completos: 1 andamio = 2 Estructuras + 2 Riendas largas + 2 Riendas cortas
-    // Limita el componente del que haya menos pares.
-    const cuerposCompletos = Math.min(
-      Math.floor(estructuras / 2),
-      Math.floor(riendasLargas / 2),
-      Math.floor(riendasCortas / 2)
-    )
-
-    // Calculate wheels by codigo (exclusively)
-    const ruedasSinFreno = stockItems.find((item) => item.codigo === "N7-1")?.stockAvailable ?? 0
-    const ruedasConFreno = stockItems.find((item) => item.codigo === "29501")?.stockAvailable ?? 0
-    const juegosRuedas = stockItems.find((item) => item.codigo === "29601")?.stockAvailable ?? 0
-
-    return { machineCount, estructuras, riendasLargas, riendasCortas, tablones, ruedasSinFreno, ruedasConFreno, juegosRuedas, cuerposCompletos }
-  }, [stockItems, scaffoldMachines.length])
+  const rowBy = (key: ScaffoldRowKey) => controlRows.rows.find((r) => r.key === key)!
+  const juegosAlquilados = Math.floor(
+    ((alquiladosResumen.modulos ?? 0) + (alquiladosResumen.pasilleros ?? 0)) / 2,
+  )
 
   if (loading) return <p className="text-muted-foreground">Cargando...</p>
 
   return (
     <div className="space-y-6">
+      {/* Encabezado */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <h1 className="text-2xl font-bold">Andamios</h1>
           <p className="text-sm text-muted-foreground">
-            Vista unificada de estructuras, piezas y accesorios que forman cada andamio.
+            Placas de totales y carga del stock guardado en depósito.
           </p>
         </div>
         <div className="flex gap-2">
-          <Button onClick={() => router.push("/inventory/new")}>Nuevo material</Button>
-          <Button onClick={() => router.push("/machines/new")}>Nueva maquina de andamio</Button>
+          <Button variant="outline" onClick={() => router.push("/inventory/new")}>Nuevo material</Button>
+          <Button variant="outline" onClick={() => router.push("/machines/new")}>Nueva máquina</Button>
         </div>
       </div>
 
-      <div className="space-y-4">
-        {/* Card principal: Cuerpos completos disponibles */}
-        <Card className="border-2 border-orange-500 bg-orange-50">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-lg font-semibold text-orange-800">🏗️ Cuerpos completos disponibles</CardTitle>
+      {/* ===== PLACAS PRINCIPALES ===== */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Card className="border-2 border-green-600 bg-green-50">
+          <CardHeader className="pb-1">
+            <CardTitle className="text-base font-semibold text-green-800">
+              ✅ TOTAL ANDAMIOS DISPONIBLES
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-5xl font-bold text-orange-700">{totals.cuerposCompletos}</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Cada cuerpo requiere: 2 Estructuras + 2 Riendas largas + 2 Riendas cortas
+            <p className="text-6xl font-bold text-green-700">
+              {controlRows.juegos.comunes + controlRows.juegos.pasilleros}
+            </p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {controlRows.juegos.comunes} comunes · {controlRows.juegos.pasilleros} pasilleros
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Según lo guardado en depósito: cada juego = 2 paños + 2 riendas largas + 2 cortas
             </p>
           </CardContent>
         </Card>
 
-        {/* Fila de cards individuales */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">🟦 Estructuras</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{totals.estructuras}</p>
-              <p className="text-xs text-muted-foreground">Disponibles</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">🟨 Riendas largas</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{totals.riendasLargas}</p>
-              <p className="text-xs text-muted-foreground">Disponibles</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">🟧 Riendas cortas</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{totals.riendasCortas}</p>
-              <p className="text-xs text-muted-foreground">Disponibles</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">🟫 Tablones</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{totals.tablones}</p>
-              <p className="text-xs text-muted-foreground">Disponibles</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">⚫ Ruedas sin freno</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{totals.ruedasSinFreno}</p>
-              <p className="text-xs text-muted-foreground">Disponibles</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">🟢 Ruedas con freno</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{totals.ruedasConFreno}</p>
-              <p className="text-xs text-muted-foreground">Disponibles</p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">🔵 Juegos de ruedas (4 unidades)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{totals.juegosRuedas}</p>
-              <p className="text-xs text-muted-foreground">Disponibles</p>
-            </CardContent>
-          </Card>
-        </div>
+        <Card className="border-2 border-blue-600 bg-blue-50">
+          <CardHeader className="pb-1">
+            <CardTitle className="text-base font-semibold text-blue-800">
+              📤 TOTAL ANDAMIOS ALQUILADOS
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-6xl font-bold text-blue-700">{juegosAlquilados}</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              {alquiladosResumen.modulos ?? 0} paños comunes · {alquiladosResumen.pasilleros ?? 0} pasilleros
+            </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              Según remitos de alquiler de 3C
+            </p>
+          </CardContent>
+        </Card>
       </div>
+  )
 
-      {/* Control de stock: alquilados (remitos 3C) vs depósito (manual) */}
-      <section className="space-y-4 border rounded-lg p-4 bg-card">
+      {/* ===== ZONA DE CARGA MANUAL DEL DEPÓSITO ===== */}
+      <section className="rounded-lg border p-4 bg-card space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <h2 className="text-lg font-semibold">Control de stock — Alquilados vs Depósito</h2>
+            <h2 className="text-lg font-semibold">Stock guardado en depósito</h2>
             <p className="text-sm text-muted-foreground">
-              Alquilados salen de los remitos de 3C (andamios, riendas, ruedas y tablones). El stock guardado en
-              depósito se carga manualmente. Total = Alquilados + Depósito. Disponibles = Depósito.
-              Las riendas no se alquilan sueltas en 3C (van incluidas con cada módulo): se calculan según la
-              receta, 2 largas + 2 cortas por cada juego de 2 módulos.
+              Cargá la cantidad de cada artículo que hay en depósito y guardá.
             </p>
           </div>
           <Button onClick={handleSaveDeposito} disabled={savingDeposito || !depositoLoaded}>
@@ -343,80 +272,59 @@ export default function AndamiosPage() {
           </Button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm border-collapse">
-            <thead>
-              <tr className="border-b text-left text-muted-foreground">
-                <th className="py-2 pr-3 font-medium">Artículo</th>
-                <th className="py-2 pr-3 font-medium text-right">Alquilados</th>
-                <th className="py-2 pr-3 font-medium text-right">En depósito (manual)</th>
-                <th className="py-2 pr-3 font-medium text-right">Total</th>
-                <th className="py-2 font-medium text-right">Disponibles</th>
-              </tr>
-            </thead>
-            <tbody>
-              {controlRows.rows.map((row) => (
-                <tr key={row.key} className="border-b last:border-0">
-                  <td className="py-2 pr-3">{row.label}</td>
-                  <td className="py-2 pr-3 text-right tabular-nums text-blue-600">{row.alquilados}</td>
-                  <td className="py-2 pr-3 text-right">
-                    <Input
-                      type="number"
-                      min={0}
-                      className="w-24 ml-auto text-right h-8"
-                      value={deposito[row.key] ?? 0}
-                      disabled={!depositoLoaded}
-                      onChange={(e) => {
-                        const v = Math.max(0, Number(e.target.value) || 0)
-                        setDeposito((prev) => ({ ...prev, [row.key]: v }))
-                        setDepositoDirty(true)
-                      }}
-                    />
-                  </td>
-                  <td className="py-2 pr-3 text-right tabular-nums font-medium">{row.total}</td>
-                  <td className="py-2 text-right tabular-nums text-green-600 font-medium">{row.disponibles}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {MAIN_ROWS.map(({ key, label }) => (
+            <div key={key} className="rounded-lg border p-3">
+              <p className="text-sm font-medium">{label}</p>
+              <Input
+                type="number"
+                min={0}
+                className="mt-2 h-12 text-2xl font-bold text-center"
+                value={deposito[key] ?? 0}
+                disabled={!depositoLoaded}
+                onChange={(e) => {
+                  const v = Math.max(0, Number(e.target.value) || 0)
+                  setDeposito((prev) => ({ ...prev, [key]: v }))
+                  setDepositoDirty(true)
+                }}
+              />
+            </div>
+          ))}
         </div>
 
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Card className="border-2 border-orange-500 bg-orange-50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-orange-800">
-                🧱 Juegos de andamio disponibles (comunes)
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-4xl font-bold text-orange-700">{controlRows.juegos.comunes}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Cada juego: 2 módulos + 2 riendas largas + 2 riendas cortas
-              </p>
-            </CardContent>
-          </Card>
-          <Card className="border-2 border-amber-500 bg-amber-50">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base font-semibold text-amber-800">
-                🧱 Juegos de andamio pasillero disponibles
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-4xl font-bold text-amber-700">{controlRows.juegos.pasilleros}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Misma receta: 2 módulos pasilleros + 2 riendas largas + 2 riendas cortas
-              </p>
-            </CardContent>
-          </Card>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {SECONDARY_ROWS.map(({ key, label }) => (
+            <div key={key} className="flex items-center gap-2 rounded-md border bg-muted/30 px-3 py-2">
+              <span className="text-xs flex-1">{label}</span>
+              <Input
+                type="number"
+                min={0}
+                className="w-16 h-8 text-center"
+                value={deposito[key] ?? 0}
+                disabled={!depositoLoaded}
+                onChange={(e) => {
+                  const v = Math.max(0, Number(e.target.value) || 0)
+                  setDeposito((prev) => ({ ...prev, [key]: v }))
+                  setDepositoDirty(true)
+                }}
+              />
+            </div>
+          ))}
         </div>
 
-        {!depositoLoaded && <p className="text-sm text-muted-foreground">Cargando stock de depósito...</p>}
-        {depositoDirty && <p className="text-xs text-amber-600">Hay cambios sin guardar en el depósito.</p>}
+        <p className="text-xs text-muted-foreground">
+          Alquilados (automático): {rowBy("modulos").alquilados} paños · {rowBy("riendasLargas").alquilados} riendas
+          largas · {rowBy("riendasCortas").alquilados} cortas · {rowBy("tablones").alquilados} tablones ·{" "}
+          {rowBy("ruedasConFreno").alquilados} ruedas c/freno. Las riendas no se alquilan sueltas en 3C: se
+          calculan por receta (2 largas + 2 cortas por juego).
+        </p>
+        {depositoDirty && <p className="text-xs text-amber-600">⚠ Hay cambios sin guardar.</p>}
       </section>
 
+      {/* Buscador para los listados de abajo */}
       <div className="flex flex-col gap-4 sm:flex-row">
         <Input
-          placeholder="Buscar por orden, cliente, maquina, pieza o accesorio..."
+          placeholder="Buscar máquina, pieza o accesorio..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-xl"
@@ -435,77 +343,51 @@ export default function AndamiosPage() {
         </div>
       </div>
 
-      <section className="space-y-4">
-        <h2 className="text-xl font-semibold">Estructuras de andamio</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* ===== LISTADOS COLAPSABLES ===== */}
+      <details className="rounded-lg border">
+        <summary className="cursor-pointer px-4 py-3 font-medium">
+          Estructuras de andamio ({filteredMachines.length})
+        </summary>
+        <div className="px-4 pb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {filteredMachines.map((machine) => (
             <MachineCard key={machine.id} machine={machine} onDelete={handleDelete} />
           ))}
+          {filteredMachines.length === 0 && (
+            <p className="text-center text-muted-foreground">No se encontraron estructuras</p>
+          )}
         </div>
-        {filteredMachines.length === 0 && (
-          <p className="text-center text-muted-foreground">No se encontraron estructuras de andamio</p>
-        )}
-      </section>
+      </details>
 
-      <section className="space-y-4 border-t pt-6">
-        <h2 className="text-xl font-semibold">Partes y accesorios del andamio</h2>
-        {stockLoading ? (
-          <p className="text-muted-foreground">Cargando...</p>
-        ) : (
-          <div className="space-y-6">
-            {(["pieza", "accesorio"] as const).map((section) => {
-              const items = groupedItems.get(section) ?? []
-              const title = section === "pieza" ? "Piezas" : "Accesorios"
-              return (
-                <div key={section} className="space-y-3">
-                  <h3 className="text-base font-medium">{title}</h3>
-                  {items.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">No hay registros.</p>
-                  ) : (
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      {items.map((item) => (
-                        <Card
-                          key={item.id}
-                          className="cursor-pointer transition-shadow hover:shadow-md"
-                          onClick={() => router.push(`/inventory/${item.id}`)}
-                        >
-                          <CardHeader className="pb-2">
-                            <CardTitle className="text-lg">{item.name}</CardTitle>
-                            <p className="text-xs text-muted-foreground">
-                              {item.category}
-                              {item.size ? ` | Medida: ${item.size}` : ""}
-                            </p>
-                          </CardHeader>
-                          <CardContent className="space-y-1 text-sm">
-                            <p>Total: <strong>{item.stockTotal}</strong></p>
-                            <p className="text-green-600">Disponibles: <strong>{item.stockAvailable}</strong></p>
-                            <p className="text-blue-600">Alquilados: <strong>{item.stockRented}</strong></p>
-                          </CardContent>
-                        </Card>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-
-            <div className="rounded-lg border bg-muted/20 p-4">
-              <h3 className="text-base font-medium">Receta base de andamio</h3>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Estas son las piezas que el sistema usa como base para controlar un andamio completo.
-              </p>
-              <ul className="mt-3 space-y-1 text-sm">
-                {SCAFFOLD_RECIPE.map((component) => (
-                  <li key={`${component.name}-${component.size ?? "base"}`}>
-                    <strong>{component.quantity}x</strong> {component.name}
-                    {component.size ? ` (${component.size})` : ""}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        )}
-      </section>
+      <details className="rounded-lg border">
+        <summary className="cursor-pointer px-4 py-3 font-medium">
+          Piezas y accesorios ({filteredItems.length})
+        </summary>
+        <div className="px-4 pb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {filteredItems.map((item) => (
+            <Card
+              key={item.id}
+              className="cursor-pointer transition-shadow hover:shadow-md"
+              onClick={() => router.push(`/inventory/${item.id}`)}
+            >
+              <CardHeader className="pb-2">
+                <CardTitle className="text-lg">{item.name}</CardTitle>
+                <p className="text-xs text-muted-foreground">
+                  {item.category}
+                  {item.size ? ` | Medida: ${item.size}` : ""}
+                </p>
+              </CardHeader>
+              <CardContent className="space-y-1 text-sm">
+                <p>Total: <strong>{item.stockTotal}</strong></p>
+                <p className="text-green-600">Disponibles: <strong>{item.stockAvailable}</strong></p>
+                <p className="text-blue-600">Alquilados: <strong>{item.stockRented}</strong></p>
+              </CardContent>
+            </Card>
+          ))}
+          {filteredItems.length === 0 && (
+            <p className="text-center text-muted-foreground">No hay registros.</p>
+          )}
+        </div>
+      </details>
     </div>
   )
 }
