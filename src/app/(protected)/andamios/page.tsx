@@ -483,44 +483,6 @@ export default function AndamiosPage() {
           </div>
         </div>
       </section>
-
-      {/* Buscador para los listados de abajo */}
-      <div className="flex flex-col gap-4 sm:flex-row">
-        <Input
-          placeholder="Buscar máquina, pieza o accesorio..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="max-w-xl"
-        />
-        <div className="flex gap-2 flex-wrap">
-          {(["all", "available", "rented", "maintenance"] as const).map((s) => (
-            <Button
-              key={s}
-              variant={statusFilter === s ? "default" : "outline"}
-              size="sm"
-              onClick={() => setStatusFilter(s)}
-            >
-              {s === "all" ? "Todos" : statusLabels[s]}
-            </Button>
-          ))}
-        </div>
-      </div>
-
-      {/* ===== LISTADOS COLAPSABLES ===== */}
-      <details className="rounded-lg border">
-        <summary className="cursor-pointer px-4 py-3 font-medium">
-          Estructuras de andamio ({filteredMachines.length})
-        </summary>
-        <div className="px-4 pb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredMachines.map((machine) => (
-            <MachineCard key={machine.id} machine={machine} onDelete={handleDelete} />
-          ))}
-          {filteredMachines.length === 0 && (
-            <p className="text-center text-muted-foreground">No se encontraron estructuras</p>
-          )}
-        </div>
-      </details>
-
       <details className="rounded-lg border">
         <summary className="cursor-pointer px-4 py-3 font-medium">
           Piezas y accesorios ({filteredItems.length})
