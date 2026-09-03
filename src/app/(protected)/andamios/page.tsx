@@ -48,6 +48,7 @@ export default function AndamiosPage() {
   // ---- Control de stock: alquilados (remitos 3C) vs depósito (manual) ----
   const [deposito, setDeposito] = useState<Partial<Record<ScaffoldRowKey, number>>>({})
   const [alquiladosResumen, setAlquiladosResumen] = useState<Partial<Record<ScaffoldRowKey, number>>>({})
+  const [pasillerosAlq, setPasillerosAlq] = useState(0)
   const [depositoLoaded, setDepositoLoaded] = useState(false)
   const [savingDeposito, setSavingDeposito] = useState(false)
   const [depositoDirty, setDepositoDirty] = useState(false)
@@ -64,6 +65,7 @@ export default function AndamiosPage() {
       const r = stats.resumen
       const modulosComunes = Math.max(0, (r?.estructuras ?? 0) - (r?.pasilleros ?? 0))
       const pasilleros = r?.pasilleros ?? 0
+      setPasillerosAlq(pasilleros)
       setAlquiladosResumen({
         modulos: modulosComunes,
         pasilleros,
@@ -128,6 +130,32 @@ export default function AndamiosPage() {
     () => computeScaffoldTotals(alquiladosResumen, deposito),
     [alquiladosResumen, deposito],
   )
+
+  // Juegos de andamios (disponibles + alquilados) para comunes y pasilleros.
+  const { juegosComunesDisp, juegosComunesAlq, juegosPasillerosDisp, juegosPasillerosAlq } = useMemo(() => {
+    // Disponibles: lo que hay en depósito.
+    const disp = {
+      modulos: deposito.modulos ?? 0,
+      pasilleros: deposito.pasilleros ?? 0,
+      riendasLargas: deposito.riendasLargas ?? 0,
+      riendasCortas: deposito.riendasCortas ?? 0,
+    }
+    // Alquilados: lo que hay en remitos 3C.
+    const alq = {
+      modulos: Math.max(0, (alquiladosResumen.modulos ?? 0)),
+      pasilleros: pasillerosAlq,
+      riendasLargas: alquiladosResumen.riendasLargas ?? 0,
+      riendasCortas: alquiladosResumen.riendasCortas ?? 0,
+    }
+    const calcJuegos = (m: number, rl: number, rc: number) =>
+      Math.min(Math.floor(m / 2), Math.floor(rl / 2), Math.floor(rc / 2))
+    return {
+      juegosComunesDisp: calcJuegos(disp.modulos, disp.riendasLargas, disp.riendasCortas),
+      juegosComunesAlq: calcJuegos(alq.modulos, alq.riendasLargas, alq.riendasCortas),
+      juegosPasillerosDisp: calcJuegos(disp.pasilleros, disp.riendasLargas, disp.riendasCortas),
+      juegosPasillerosAlq: calcJuegos(alq.pasilleros, alq.riendasLargas, alq.riendasCortas),
+    }
+  }, [deposito, pasillerosAlq, alquiladosResumen])
 
   const handleSaveDeposito = async () => {
     setSavingDeposito(true)
@@ -226,43 +254,52 @@ export default function AndamiosPage() {
         </div>
       </div>
 
-      {/* ===== PLACAS PRINCIPALES ===== */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Card className="border-2 border-green-600 bg-green-50">
-          <CardHeader className="pb-1">
-            <CardTitle className="text-base font-semibold text-green-800">
-              ✅ TOTAL ANDAMIOS DISPONIBLES
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-6xl font-bold text-green-700">
-              {controlRows.juegos.comunes + controlRows.juegos.pasilleros}
-            </p>
-            <p className="text-sm text-muted-foreground mt-1">
-              {controlRows.juegos.comunes} comunes · {controlRows.juegos.pasilleros} pasilleros
-            </p>
-            <p className="text-xs text-muted-foreground mt-2">
-              Según lo guardado en depósito: cada juego = 2 paños + 2 riendas largas + 2 cortas
-            </p>
-          </CardContent>
-        </Card>
+      {/* ===== PLACAS ANDAMIOS: COMUNES + PASILLEROS ===== */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Andamios comunes */}
+        <div className="rounded-lg border bg-card p-4 space-y-3">
+          <p className="text-sm font-semibold text-muted-foreground">ANDAMIOS COMUNES</p>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <p className="text-xs text-muted-foreground">Alquilados</p>
+              <p className="text-2xl font-bold text-blue-600">{juegosComunesAlq}</p>
+              <p className="text-xs text-muted-foreground">{alquiladosResumen.modulos ?? 0} pa�os</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Disponibles</p>
+              <p className="text-2xl font-bold text-green-600">{juegosComunesDisp}</p>
+              <p className="text-xs text-muted-foreground">{deposito.modulos ?? 0} pa�os</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Total</p>
+              <p className="text-2xl font-bold">{(alquiladosResumen.modulos ?? 0) + (deposito.modulos ?? 0)}</p>
+              <p className="text-xs text-muted-foreground">pa�os</p>
+            </div>
+          </div>
+        </div>
 
-        <Card className="border-2 border-blue-600 bg-blue-50">
-          <CardHeader className="pb-1">
-            <CardTitle className="text-base font-semibold text-blue-800">
-              📤 TOTAL ANDAMIOS ALQUILADOS
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="text-6xl font-bold text-blue-700">{juegosAlquilados}</p>
-            <p className="text-sm text-muted-foreground mt-1">
-              {alquiladosResumen.modulos ?? 0} paños comunes · {alquiladosResumen.pasilleros ?? 0} pasilleros
-            </p>
-            <p className="text-xs text-muted-foreground mt-2">
-              Según remitos de alquiler de 3C
-            </p>
-          </CardContent>
-        </Card>
+        {/* Andamios pasilleros */}
+        <div className="rounded-lg border bg-card p-4 space-y-3">
+          <p className="text-sm font-semibold text-muted-foreground">ANDAMIOS PASILLEROS</p>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div>
+              <p className="text-xs text-muted-foreground">Alquilados</p>
+              <p className="text-2xl font-bold text-blue-600">{juegosPasillerosAlq}</p>
+              <p className="text-xs text-muted-foreground">{pasillerosAlq} pa�os</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Disponibles</p>
+              <p className="text-2xl font-bold text-green-600">{juegosPasillerosDisp}</p>
+              <p className="text-xs text-muted-foreground">{deposito.pasilleros ?? 0} pa�os</p>
+            </div>
+            <div>
+              <p className="text-xs text-muted-foreground">Total</p>
+              <p className="text-2xl font-bold">{pasillerosAlq + (deposito.pasilleros ?? 0)}</p>
+              <p className="text-xs text-muted-foreground">pa�os</p>
+            </div>
+          </div>
+        </div>
+      
       </div>
   )
 
@@ -461,3 +498,5 @@ export default function AndamiosPage() {
     </div>
   )
 }
+
+
