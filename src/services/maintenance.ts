@@ -193,7 +193,7 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
         clientName: data.clientName as string,
         clientCode: data.clientCode as string | undefined,
         machineName: data.machineName as string,
-        status: (data.status as string) || (typeof originalStatus === "string" ? originalStatus : "Recepción"),
+        status: (data.status as string) || (typeof originalStatus === "string" ? originalStatus : ""),
         docId: data.docId as string | undefined,
         itemId: typeof data.itemId === "number" ? data.itemId : null,
         articleId: data.articleId as string | undefined,

@@ -100,7 +100,8 @@ export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
         const m = Number(parts[1])
         let y = Number(parts[2])
         if (y < 100) y += 2000
-        const parsed = new Date(y, m - 1, d)
+        // mediodía local evita el corrimiento de día al serializar a UTC (UTC-3)
+        const parsed = new Date(y, m - 1, d, 12, 0, 0)
         if (!Number.isNaN(parsed.getTime())) return parsed
       }
       const parsed = new Date(value)
