@@ -37,6 +37,21 @@ export interface ScaffoldRentalStats {
     resumen?: ScaffoldRentalResumen
 }
 
+export interface PuntalAlquilados {
+    /** Puntal Barovo hasta 3,05 m (28510). */
+    barovo: number
+    /** Puntal marrón hasta 3,00 m (28318). */
+    marron: number
+    /** Puntal naranja hasta 3 m (28511). */
+    naranja: number
+    /** Puntal hasta 3,80 m (28512). */
+    largo380: number
+    /** Puntal MMQ a 3,05 m (PH305). */
+    mmq: number
+    /** Total de puntales (suma de todos los tipos). */
+    total: number
+}
+
 export interface ScaffoldRentalResumen {
     /** Estructuras de andamio alquiladas (módulos, incluye pasilleros). */
     estructuras: number
@@ -47,8 +62,8 @@ export interface ScaffoldRentalResumen {
     /** Juegos de ruedas (set de 4, código 29601). */
     juegosRuedas: number
     tablones: number
-    /** Puntales alquilados (estructuras telescópicas). */
-    puntalEstructuras: number
+    /** Puntales alquilados, desglosados por tipo/medida. */
+    puntalEstructuras: PuntalAlquilados
 }
 
 // Códigos 3C de ruedas y tablones que se alquilan junto al andamio.
@@ -194,7 +209,7 @@ export function parseScaffoldRentals(buffer: ArrayBuffer | Buffer): ScaffoldRent
         ruedasConFreno: 0,
         juegosRuedas: 0,
         tablones: 0,
-        puntalEstructuras: 0,
+        puntalEstructuras: { barovo: 0, marron: 0, naranja: 0, largo380: 0, mmq: 0, total: 0 },
     }
     for (const row of detalle) {
         const desc = row.descripcion.toLowerCase()
@@ -210,9 +225,20 @@ export function parseScaffoldRentals(buffer: ArrayBuffer | Buffer): ScaffoldRent
         } else if (isInCodeList(row.codigo, PLANK_CODES)) {
             resumen.tablones += row.cantidad
         } else if (isInCodeList(row.codigo, PUNTAL_CODES)) {
-            resumen.puntalEstructuras += row.cantidad
+            // Separar por tipo de puntal según código 3C.
+            const puntal = resumen.puntalEstructuras
+            switch (normalizeCode(row.codigo)) {
+                case "28510": puntal.barovo += row.cantidad; break
+                case "28318": puntal.marron += row.cantidad; break
+                case "28511": puntal.naranja += row.cantidad; break
+                case "28512": puntal.largo380 += row.cantidad; break
+                case "ph305": puntal.mmq += row.cantidad; break
+            }
         }
     }
+    // Calcular total de puntales.
+    const p = resumen.puntalEstructuras
+    p.total = p.barovo + p.marron + p.naranja + p.largo380 + p.mmq
 
     return {
         fechaSync: new Date().toISOString(),

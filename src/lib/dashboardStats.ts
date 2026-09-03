@@ -1,6 +1,15 @@
 import { db } from "@/lib/firebase"
 import { doc, getDoc } from "firebase/firestore"
 
+export interface PuntalAlquilados {
+    barovo: number
+    marron: number
+    naranja: number
+    largo380: number
+    mmq: number
+    total: number
+}
+
 export interface ScaffoldRentalStats {
     fechaSync: string
     cuerposAlquilados: number
@@ -21,7 +30,7 @@ export interface ScaffoldRentalStats {
         ruedasConFreno: number
         juegosRuedas: number
         tablones: number
-        puntalEstructuras: number
+        puntalEstructuras: PuntalAlquilados
     }
 }
 
