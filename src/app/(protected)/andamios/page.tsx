@@ -483,36 +483,7 @@ export default function AndamiosPage() {
           </div>
         </div>
       </section>
-      <details className="rounded-lg border">
-        <summary className="cursor-pointer px-4 py-3 font-medium">
-          Piezas y accesorios ({filteredItems.length})
-        </summary>
-        <div className="px-4 pb-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {filteredItems.map((item) => (
-            <Card
-              key={item.id}
-              className="cursor-pointer transition-shadow hover:shadow-md"
-              onClick={() => router.push(`/inventory/${item.id}`)}
-            >
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">{item.name}</CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  {item.category}
-                  {item.size ? ` | Medida: ${item.size}` : ""}
-                </p>
-              </CardHeader>
-              <CardContent className="space-y-1 text-sm">
-                <p>Total: <strong>{item.stockTotal}</strong></p>
-                <p className="text-green-600">Disponibles: <strong>{item.stockAvailable}</strong></p>
-                <p className="text-blue-600">Alquilados: <strong>{item.stockRented}</strong></p>
-              </CardContent>
-            </Card>
-          ))}
-          {filteredItems.length === 0 && (
-            <p className="text-center text-muted-foreground">No hay registros.</p>
-          )}
-        </div>
-      </details>
+
     </div>
   )
 }
