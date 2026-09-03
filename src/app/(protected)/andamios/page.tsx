@@ -53,15 +53,8 @@ export default function AndamiosPage() {
   const [depositoDirty, setDepositoDirty] = useState(false)
 
   // ---- Sector PUNTALES ----
-  const PUNTAL_ROWS: { key: string; label: string }[] = [
-    { key: "puntalEstructuras", label: "Puntales" },
-    { key: "puntalReguladores", label: "Reguladores" },
-    { key: "puntalBases", label: "Bases" },
-  ]
   const [depositoPuntal, setDepositoPuntal] = useState<Record<string, number>>({})
   const [puntalAlquilados, setPuntalAlquilados] = useState(0)
-  const [puntalReguladoresAlq, setPuntalReguladoresAlq] = useState(0)
-  const [puntalBasesAlq, setPuntalBasesAlq] = useState(0)
 
   // Alquilados desde remitos 3C.
   useEffect(() => {
@@ -84,10 +77,8 @@ export default function AndamiosPage() {
         juegosRuedas: r?.juegosRuedas ?? 0,
         tablones: r?.tablones ?? 0,
       })
-      // Puntales alquilados (remitos 3C).
+      // Puntal alquilado (remitos 3C).
       setPuntalAlquilados(r?.puntalEstructuras ?? 0)
-      setPuntalReguladoresAlq(r?.puntalReguladores ?? 0)
-      setPuntalBasesAlq(r?.puntalBases ?? 0)
     }).catch(() => {})
     return () => { cancelled = true }
   }, [])
@@ -116,9 +107,7 @@ export default function AndamiosPage() {
         if (body?.available && body.items && Object.keys(body.items).length > 0) {
           const all = body.items as Record<string, unknown>
           setDeposito(all as Partial<Record<ScaffoldRowKey, number>>)
-          const p: Record<string, number> = {}
-          for (const row of PUNTAL_ROWS) p[row.key] = Number(all[row.key]) || 0
-          setDepositoPuntal(p)
+          setDepositoPuntal({ puntalEstructuras: Number(all.puntalEstructuras) || 0 })
         } else {
           setDeposito({
             modulos: totals3C.estructuras,
@@ -371,7 +360,7 @@ export default function AndamiosPage() {
             <CardContent>
               <p className="text-6xl font-bold text-blue-700">{puntalAlquilados}</p>
               <p className="text-xs text-muted-foreground mt-2">
-                {puntalReguladoresAlq} reguladores · {puntalBasesAlq} bases — según remitos de 3C
+                Según remitos de alquiler de 3C
               </p>
             </CardContent>
           </Card>
@@ -380,26 +369,24 @@ export default function AndamiosPage() {
         {/* Zona de carga manual */}
         <div className="rounded-lg border p-4 bg-card space-y-4">
           <p className="text-sm text-muted-foreground">
-            Cargá la cantidad de cada artículo de puntal que hay en depósito.
+            Cargá la cantidad de puntales que hay en depósito.
           </p>
-          <div className="grid grid-cols-3 gap-4">
-            {PUNTAL_ROWS.map(({ key, label }) => (
-              <div key={key} className="rounded-lg border p-3">
-                <p className="text-sm font-medium">{label}</p>
-                <Input
-                  type="number"
-                  min={0}
-                  className="mt-2 h-12 text-2xl font-bold text-center"
-                  value={depositoPuntal[key] ?? 0}
-                  disabled={!depositoLoaded}
-                  onChange={(e) => {
-                    const v = Math.max(0, Number(e.target.value) || 0)
-                    setDepositoPuntal((prev) => ({ ...prev, [key]: v }))
-                    setDepositoDirty(true)
-                  }}
-                />
-              </div>
-            ))}
+          <div className="max-w-xs">
+            <div className="rounded-lg border p-3">
+              <p className="text-sm font-medium">Puntales</p>
+              <Input
+                type="number"
+                min={0}
+                className="mt-2 h-12 text-2xl font-bold text-center"
+                value={depositoPuntal.puntalEstructuras ?? 0}
+                disabled={!depositoLoaded}
+                onChange={(e) => {
+                  const v = Math.max(0, Number(e.target.value) || 0)
+                  setDepositoPuntal({ puntalEstructuras: v })
+                  setDepositoDirty(true)
+                }}
+              />
+            </div>
           </div>
         </div>
       </section>
