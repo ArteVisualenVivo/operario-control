@@ -90,26 +90,58 @@ export function DashboardResults({ results }: Props) {
 
       {resumenAndamios && (
         <Section title="Resumen de andamios">
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-            <div className="rounded-lg border p-3">
-              <p className="text-xs text-muted-foreground">Andamios completos</p>
-              <p className="text-3xl font-bold text-orange-600">{resumenAndamios.cuerposCompletos}</p>
+          <div className="space-y-4">
+            {/* Juegos de andamios */}
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-2">Juegos de andamios</p>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Comunes alquilados</p>
+                  <p className="text-3xl font-bold text-blue-600">{resumenAndamios.juegosComunesAlq}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Comunes disponibles</p>
+                  <p className="text-3xl font-bold text-green-600">{resumenAndamios.juegosComunesDisp}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Pasilleros alquilados</p>
+                  <p className="text-3xl font-bold text-blue-600">{resumenAndamios.juegosPasillerosAlq}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Pasilleros disponibles</p>
+                  <p className="text-3xl font-bold text-green-600">{resumenAndamios.juegosPasillerosDisp}</p>
+                </div>
+              </div>
             </div>
-            <div className="rounded-lg border p-3">
-              <p className="text-xs text-muted-foreground">Cuerpos alquilados</p>
-              <p className="text-3xl font-bold text-blue-600">{resumenAndamios.cuerposAlquilados}</p>
-            </div>
-            <div className="rounded-lg border p-3">
-              <p className="text-xs text-muted-foreground">Estructuras</p>
-              <p className="text-3xl font-bold">{resumenAndamios.estructuras}</p>
-            </div>
-            <div className="rounded-lg border p-3">
-              <p className="text-xs text-muted-foreground">Riendas largas</p>
-              <p className="text-3xl font-bold">{resumenAndamios.riendasLargas}</p>
-            </div>
-            <div className="rounded-lg border p-3">
-              <p className="text-xs text-muted-foreground">Riendas cortas</p>
-              <p className="text-3xl font-bold">{resumenAndamios.riendasCortas}</p>
+            {/* Puntales */}
+            <div>
+              <p className="text-sm font-medium text-muted-foreground mb-2">Puntales</p>
+              <div className="grid grid-cols-2 gap-4 sm:grid-cols-6">
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Total</p>
+                  <p className="text-3xl font-bold text-blue-600">{resumenAndamios.puntalTotal}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Barovo 3,05m</p>
+                  <p className="text-2xl font-bold">{resumenAndamios.puntalBarovo}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Marrón 3,00m</p>
+                  <p className="text-2xl font-bold">{resumenAndamios.puntalMarron}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Naranja 3m</p>
+                  <p className="text-2xl font-bold">{resumenAndamios.puntalNaranja}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">Largo 3,80m</p>
+                  <p className="text-2xl font-bold">{resumenAndamios.puntalLargo380}</p>
+                </div>
+                <div className="rounded-lg border p-3">
+                  <p className="text-xs text-muted-foreground">MMQ 3,05m</p>
+                  <p className="text-2xl font-bold">{resumenAndamios.puntalMmq}</p>
+                </div>
+              </div>
             </div>
           </div>
         </Section>

@@ -22,6 +22,23 @@ export interface ResumenAndamios {
     riendasLargas: number
     riendasCortas: number
     cuerposAlquilados: number
+    tablones: number
+    // Puntales
+    puntalTotal: number
+    puntalBarovo: number
+    puntalMarron: number
+    puntalNaranja: number
+    puntalLargo380: number
+    puntalMmq: number
+    // Juegos calculados
+    juegosComunesDisp: number
+    juegosComunesAlq: number
+    juegosPasillerosDisp: number
+    juegosPasillerosAlq: number
+    modulosAlq: number
+    modulosDisp: number
+    pasillerosAlq: number
+    pasillerosDisp: number
 }
 export interface MaterialRow { codigo: string; nombre: string; familia: string; marca: string; stock: number; disponible: number }
 export interface ComponenteRow { grupo: string; codigo: string; nombre: string; cantidad: number }
@@ -64,9 +81,12 @@ const MACHINE_FAMILIAS = [
 const ANDAMIO_TERMS = new Set([
     "andamio", "andamios", "and", "estructura", "estructuras", "rienda", "riendas",
     "corta", "cortas", "larga", "largas", "tablon", "tablones", "rueda", "ruedas",
-    "puntal", "puntales", "base", "bases", "baranda", "barandas", "caballete",
+    "base", "bases", "baranda", "barandas", "caballete",
     "caballetes", "regulador", "reguladores", "extension", "extensiones", "juego",
     "juegos", "diagonal", "diagonales", "plataforma", "plataformas", "scaffold",
+])
+const PUNTAL_TERMS = new Set([
+    "puntal", "puntales",
 ])
 // Términos que activan el grupo de máquinas
 const MAQUINA_TERMS = new Set(["maquina", "maquinas", "maquinasalquiladas", "alquiladas"])
@@ -110,6 +130,7 @@ export function searchGrouped(query: string, data: GroupedSearchData): GroupedRe
   if (tokens.length === 0) return empty
 
   const scaffoldTerm = tokens.some((tk) => ANDAMIO_TERMS.has(tk))
+  const puntalTerm = tokens.some((tk) => PUNTAL_TERMS.has(tk))
   const maquinaTerm = tokens.some((tk) => MAQUINA_TERMS.has(tk))
   const alquilerTerm = tokens.some((tk) => ALQUILER_TERMS.has(tk))
 
@@ -171,19 +192,64 @@ export function searchGrouped(query: string, data: GroupedSearchData): GroupedRe
     }
   }
 
-  // --- Resumen de andamios (solo si la búsqueda es de andamios) ---
+  // --- Resumen de andamios (solo si la búsqueda es de andamios o puntales) ---
   let resumenAndamios: ResumenAndamios | null = null
-  if (scaffoldTerm || componentes.length > 0) {
-    const sumBy = (set: Set<string>) => data.stockItems.filter((i) => set.has(normalize(i.codigo ?? ""))).reduce((s, i) => s + i.stockAvailable, 0)
-    const estructuras = sumBy(STRUCTURE_SET)
-    const riendasLargas = sumBy(RIENDA_LARGA)
-    const riendasCortas = sumBy(RIENDA_CORTA)
+  if (scaffoldTerm || puntalTerm || componentes.length > 0) {
+    // Datos desde Redis (remitos 3C + depósito manual)
+    const resumen = data.scaffoldRentals?.resumen
+    const deposito = data.scaffoldRentals?.deposito
+    
+    // Módulos alquilados (comunes = total - pasilleros)
+    const modulosAlq = Math.max(0, (resumen?.estructuras ?? 0) - (resumen?.pasilleros ?? 0))
+    const pasillerosAlq = resumen?.pasilleros ?? 0
+    
+    // Módulos en depósito
+    const modulosDisp = deposito?.modulos ?? 0
+    const pasillerosDisp = deposito?.pasilleros ?? 0
+    const riendasLargasDisp = deposito?.riendasLargas ?? 0
+    const riendasCortasDisp = deposito?.riendasCortas ?? 0
+    const tablonesDisp = deposito?.tablones ?? 0
+    
+    // Riendas alquiladas (calculadas por receta: 2 largas + 2 cortas por módulo)
+    const riendasLargasAlq = modulosAlq + pasillerosAlq
+    const riendasCortasAlq = modulosAlq + pasillerosAlq
+    const tablonesAlq = resumen?.tablones ?? 0
+    
+    // Cálculo de juegos: 1 juego = 2 módulos + 2 riendas L + 2 riendas C + 1 tablón
+    const calcJuegos = (m: number, rl: number, rc: number, t: number) =>
+      Math.min(Math.floor(m / 2), Math.floor(rl / 2), Math.floor(rc / 2), t)
+    
+    const juegosComunesDisp = calcJuegos(modulosDisp, riendasLargasDisp, riendasCortasDisp, tablonesDisp)
+    const juegosComunesAlq = calcJuegos(modulosAlq, riendasLargasAlq, riendasCortasAlq, tablonesAlq)
+    const juegosPasillerosDisp = calcJuegos(pasillerosDisp, riendasLargasDisp, riendasCortasDisp, tablonesDisp)
+    const juegosPasillerosAlq = calcJuegos(pasillerosAlq, riendasLargasAlq, riendasCortasAlq, tablonesAlq)
+    
+    // Puntales desde Redis
+    const puntalData = resumen?.puntalEstructuras as { barovo: number; marron: number; naranja: number; largo380: number; mmq: number; total: number } | undefined
+    
     resumenAndamios = {
-      cuerposCompletos: Math.min(Math.floor(estructuras / 2), Math.floor(riendasLargas / 2), Math.floor(riendasCortas / 2)),
-      estructuras,
-      riendasLargas,
-      riendasCortas,
-      cuerposAlquilados: data.scaffoldRentals?.cuerposAlquilados ?? 0,
+      cuerposCompletos: juegosComunesDisp + juegosPasillerosDisp,
+      estructuras: modulosDisp + pasillerosDisp,
+      riendasLargas: riendasLargasDisp,
+      riendasCortas: riendasCortasDisp,
+      cuerposAlquilados: modulosAlq + pasillerosAlq,
+      tablones: tablonesDisp + tablonesAlq,
+      // Puntales
+      puntalTotal: puntalData?.total ?? 0,
+      puntalBarovo: puntalData?.barovo ?? 0,
+      puntalMarron: puntalData?.marron ?? 0,
+      puntalNaranja: puntalData?.naranja ?? 0,
+      puntalLargo380: puntalData?.largo380 ?? 0,
+      puntalMmq: puntalData?.mmq ?? 0,
+      // Juegos calculados
+      juegosComunesDisp,
+      juegosComunesAlq,
+      juegosPasillerosDisp,
+      juegosPasillerosAlq,
+      modulosAlq,
+      modulosDisp,
+      pasillerosAlq,
+      pasillerosDisp,
     }
   }
 
