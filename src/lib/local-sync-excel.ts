@@ -232,7 +232,9 @@ export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
       // Máquina real: la línea "REPARACION: <máquina>" sin el prefijo
       machineName: esLineaReparacion ? texto.replace(/^reparaci[oó]n:\s*/i, "").trim() : texto,
       // Estado de 3C (Entreg./Factur., En taller, etc.) si el export lo incluye
-      status: COL.estado >= 0 ? (String(row[COL.estado] ?? "").trim() || "Recepción") : "Recepción",
+      // Estado real de 3C si el export lo incluye; si no existe columna,
+      // NO se inventa ni se usa "Recepción" como sustituto → queda sin estado.
+      status: COL.estado >= 0 ? String(row[COL.estado] ?? "").trim() : "",
       // Fecha de entrega (Entreg.) si el export la incluye
       returnDate: COL.entrega >= 0 ? toDate(row[COL.entrega]) : undefined,
       docId: String(row[COL.docId] ?? "").trim() || undefined,

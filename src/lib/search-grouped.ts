@@ -26,7 +26,7 @@ export interface ResumenAndamios {
 export interface MaterialRow { codigo: string; nombre: string; familia: string; marca: string; stock: number; disponible: number }
 export interface ComponenteRow { grupo: string; codigo: string; nombre: string; cantidad: number }
 export interface AlquilerRow { cliente: string; remito: string; cantidad: number; fecha: string; devolucion: string }
-export interface ReparacionRow { orden: string; cliente: string; maquina: string; fecha: string; descripcion: string }
+export interface ReparacionRow { orden: string; cliente: string; maquina: string; estado: string; fecha: string; descripcion: string }
 export interface MaquinaRow { codigo: string; nombre: string; familia: string; stock: number; disponible: number }
 
 export interface GroupedResults {
@@ -155,6 +155,7 @@ export function searchGrouped(query: string, data: GroupedSearchData): GroupedRe
         orden: o.orderNumber,
         cliente: o.clientName,
         maquina: (o.machineName || "").replace(/^reparaci[oó]n:\s*/i, ""),
+        estado: (o.status || "").trim(),
         fecha: o.entryDate instanceof Date ? o.entryDate.toLocaleDateString("es-AR") : String(o.entryDate ?? ""),
         descripcion: (o.observations || o.machineName || "").slice(0, 90),
       })

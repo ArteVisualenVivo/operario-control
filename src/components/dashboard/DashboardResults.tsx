@@ -161,11 +161,12 @@ export function DashboardResults({ results }: Props) {
       {reparaciones.length > 0 && (
         <Section title={`Reparaciones / Mantenimiento — ${reparaciones.length} órdenes`}>
           <SimpleTable
-            headers={["Orden", "Cliente", "Máquina", "Fecha", "Descripción"]}
+            headers={["Orden", "Cliente", "Máquina", "Estado", "Fecha", "Descripción"]}
             rows={reparaciones.map((r: ReparacionRow) => [
               <span key="o" className="font-mono text-xs">{r.orden}</span>,
               r.cliente,
               r.maquina || "—",
+              <span key="st" className={r.estado ? "font-medium" : "text-muted-foreground"}>{r.estado || "—"}</span>,
               r.fecha,
               <span key="d" className="text-muted-foreground">{r.descripcion}</span>,
             ])}
