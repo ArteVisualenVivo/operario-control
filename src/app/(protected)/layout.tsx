@@ -13,12 +13,12 @@ const navItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/stock", label: "Stock Global" },
   { href: "/machines", label: "Máquinas" },
-  { href: "/inventory", label: "Inventario" },
+  // { href: "/inventory", label: "Inventario" },
   { href: "/rentals", label: "Alquileres" },
   { href: "/repairs", label: "Reparaciones" },
   { href: "/spare-part-orders", label: "Pedidos Rep." },
-  { href: "/stock-movements", label: "Mov. Stock" },
-  { href: "/inventory-movements", label: "Mov. Materiales" },
+  // { href: "/stock-movements", label: "Mov. Stock" },
+  // { href: "/inventory-movements", label: "Mov. Materiales" },
   { href: "/maintenance", label: "Mantenimiento" },
 ]
 
