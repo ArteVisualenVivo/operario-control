@@ -32,52 +32,29 @@ export interface ScaffoldRentalStats {
         tablones: number
         puntalEstructuras: PuntalAlquilados
     }
+    deposito?: {
+        modulos: number
+        pasilleros: number
+        riendasLargas: number
+        riendasCortas: number
+        tablones: number
+        ruedasSinFreno: number
+        ruedasConFreno: number
+        juegosRuedas: number
+        puntalEstructuras: number
+    }
 }
-
-/**
- * Lee las estadísticas de alquileres de andamios desde Firestore
- * (dashboard_stats / scaffold_rentals). Devuelve null si no existe aún.
- * Solo lectura: no altera inventory_stock ni ningún otro dato.
- */
-export async function loadScaffoldRentalStats(): Promise<ScaffoldRentalStats | null> {
-    // 1) FUENTE PRIMARIA (Redis): datos recién procesados por el agente.
-    //    Funciona aunque Firestore esté sin cuota.
-    try {
-        const res = await fetch(`/api/sync-3c/data/alquileres`, { cache: "no-store" })
-        if (res.ok) {
-            const body = await res.json()
-            if (body?.available && body?.data) {
-                const data = body.data as ScaffoldRentalStats;
-                const deposito = await loadScaffoldDeposito();
-                if (deposito) data.deposito = deposito;
-                return data;
-            }
-        }
-    } catch {
-        // sigue a Firestore
-    }
-
-    // 2) FALLBACK: Firestore
-    try {
-        const ref = doc(db, "dashboard_stats", "scaffold_rentals")
-        const snap = await getDoc(ref)
-        if (!snap.exists()) return null
-        return snap.data() as ScaffoldRentalStats
-    } catch {
-        return null
-    }
-
 
 /**
  * Lee el stock manual de andamios guardado en depósito (Redis).
  */
 export async function loadScaffoldDeposito(): Promise<ScaffoldRentalStats['deposito'] | null> {
     try {
-        const res = await fetch('/api/andamios/deposito', { cache: 'no-store' });
+        const res = await fetch('/api/andamios/deposito', { cache: 'no-store' })
         if (res.ok) {
-            const body = await res.json();
+            const body = await res.json()
             if (body?.available && body.items) {
-                const i = body.items as Record<string, number>;
+                const i = body.items as Record<string, number>
                 return {
                     modulos: i.modulos ?? 0,
                     pasilleros: i.pasilleros ?? 0,
@@ -88,12 +65,43 @@ export async function loadScaffoldDeposito(): Promise<ScaffoldRentalStats['depos
                     ruedasConFreno: i.ruedasConFreno ?? 0,
                     juegosRuedas: i.juegosRuedas ?? 0,
                     puntalEstructuras: i.puntalEstructuras ?? 0,
-                };
+                }
             }
         }
     } catch {
         // ignora
     }
-    return null;
+    return null
 }
+
+/**
+ * Lee las estadísticas de alquileres de andamios desde Redis
+ * (scaffold_rentals). Devuelve null si no existe aún.
+ */
+export async function loadScaffoldRentalStats(): Promise<ScaffoldRentalStats | null> {
+    // 1) FUENTE PRIMARIA (Redis)
+    try {
+        const res = await fetch('/api/sync-3c/data/alquileres', { cache: 'no-store' })
+        if (res.ok) {
+            const body = await res.json()
+            if (body?.available && body?.data) {
+                const data = body.data as ScaffoldRentalStats
+                const deposito = await loadScaffoldDeposito()
+                if (deposito) data.deposito = deposito
+                return data
+            }
+        }
+    } catch {
+        // sigue a Firestore
+    }
+
+    // 2) FALLBACK: Firestore
+    try {
+        const ref = doc(db, 'dashboard_stats', 'scaffold_rentals')
+        const snap = await getDoc(ref)
+        if (!snap.exists()) return null
+        return snap.data() as ScaffoldRentalStats
+    } catch {
+        return null
+    }
 }
