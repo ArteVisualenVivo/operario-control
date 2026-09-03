@@ -27,7 +27,7 @@ const navItems = [
  * bloque principal de máquinas / reparación / stock.
  */
 const andamiosItems = [
-  { href: "/andamios", label: "Andamios" },
+  { href: "/andamios", label: "Puntales y Andamios" },
 ]
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
@@ -72,7 +72,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
           ))}
           <Separator orientation="vertical" className="h-6" />
           <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Andamios
+            Puntales y Andamios
           </span>
           {andamiosItems.map((item) => (
             <Link

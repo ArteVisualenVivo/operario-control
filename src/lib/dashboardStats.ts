@@ -22,8 +22,6 @@ export interface ScaffoldRentalStats {
         juegosRuedas: number
         tablones: number
         puntalEstructuras: number
-        puntalReguladores: number
-        puntalBases: number
     }
 }
 
