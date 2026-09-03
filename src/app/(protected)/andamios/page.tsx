@@ -16,6 +16,7 @@ import {
   computeScaffoldTotals,
   type ScaffoldRowKey,
 } from "@/lib/scaffoldTotals"
+import { type PuntalAlquilados } from "@/lib/sync-3c/scaffoldRentals"
 import { toast } from "sonner"
 
 // Artículos principales de la zona de carga (los que definen un juego).
@@ -55,7 +56,7 @@ export default function AndamiosPage() {
 
   // ---- Sector PUNTALES ----
   const [depositoPuntal, setDepositoPuntal] = useState<Record<string, number>>({})
-  const [puntalAlquilados, setPuntalAlquilados] = useState(0)
+  const [puntalAlquilados, setPuntalAlquilados] = useState<PuntalAlquilados | null>(null)
 
   // Alquilados desde remitos 3C.
   useEffect(() => {
@@ -79,8 +80,9 @@ export default function AndamiosPage() {
         juegosRuedas: r?.juegosRuedas ?? 0,
         tablones: r?.tablones ?? 0,
       })
-      // Puntal alquilado (remitos 3C).
-      setPuntalAlquilados(r?.puntalEstructuras ?? 0)
+      // Puntales alquilados (remitos 3C) con desglose por tipo.
+      const p = r?.puntalEstructuras
+      setPuntalAlquilados(p && typeof p === "object" ? p : null)
     }).catch(() => {})
     return () => { cancelled = true }
   }, [])
@@ -394,11 +396,30 @@ export default function AndamiosPage() {
                 📤 PUNTALES ALQUILADOS
               </CardTitle>
             </CardHeader>
-            <CardContent>
-              <p className="text-6xl font-bold text-blue-700">{puntalAlquilados}</p>
-              <p className="text-xs text-muted-foreground mt-2">
-                Según remitos de alquiler de 3C
-              </p>
+            <CardContent className="space-y-3">
+              <p className="text-5xl font-bold text-blue-700">{puntalAlquilados?.total ?? 0}</p>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded bg-white/60 p-2">
+                  <p className="font-medium">Barovo 3,05 m</p>
+                  <p className="text-lg font-bold">{puntalAlquilados?.barovo ?? 0}</p>
+                </div>
+                <div className="rounded bg-white/60 p-2">
+                  <p className="font-medium">Marrón 3,00 m</p>
+                  <p className="text-lg font-bold">{puntalAlquilados?.marron ?? 0}</p>
+                </div>
+                <div className="rounded bg-white/60 p-2">
+                  <p className="font-medium">Naranja 3 m</p>
+                  <p className="text-lg font-bold">{puntalAlquilados?.naranja ?? 0}</p>
+                </div>
+                <div className="rounded bg-white/60 p-2">
+                  <p className="font-medium">MMQ 3,05 m</p>
+                  <p className="text-lg font-bold">{puntalAlquilados?.mmq ?? 0}</p>
+                </div>
+                <div className="rounded bg-white/60 p-2">
+                  <p className="font-medium">Largo 3,80 m</p>
+                  <p className="text-lg font-bold">{puntalAlquilados?.largo380 ?? 0}</p>
+                </div>
+              </div>
             </CardContent>
           </Card>
         </div>
