@@ -115,6 +115,7 @@ export async function rentMachine(id: string, rental: MachineRental): Promise<vo
       clientName: rental.clientName,
       projectName: rental.projectName,
       reference: id,
+      machineName: (before?.["name"] as string) ?? "",
     })
   }
 
@@ -144,6 +145,7 @@ export async function returnMachine(id: string): Promise<void> {
       clientName: currentRentalData?.clientName as string | undefined,
       projectName: currentRentalData?.projectName as string | undefined,
       reference: id,
+      machineName: (before?.["name"] as string) ?? "",
     })
   }
 
