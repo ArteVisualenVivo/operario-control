@@ -52,6 +52,17 @@ export default function AndamiosPage() {
   const [savingDeposito, setSavingDeposito] = useState(false)
   const [depositoDirty, setDepositoDirty] = useState(false)
 
+  // ---- Sector PUNTALES ----
+  const PUNTAL_ROWS: { key: string; label: string }[] = [
+    { key: "puntalEstructuras", label: "Puntales" },
+    { key: "puntalReguladores", label: "Reguladores" },
+    { key: "puntalBases", label: "Bases" },
+  ]
+  const [depositoPuntal, setDepositoPuntal] = useState<Record<string, number>>({})
+  const [puntalAlquilados, setPuntalAlquilados] = useState(0)
+  const [puntalReguladoresAlq, setPuntalReguladoresAlq] = useState(0)
+  const [puntalBasesAlq, setPuntalBasesAlq] = useState(0)
+
   // Alquilados desde remitos 3C.
   useEffect(() => {
     let cancelled = false
@@ -73,6 +84,10 @@ export default function AndamiosPage() {
         juegosRuedas: r?.juegosRuedas ?? 0,
         tablones: r?.tablones ?? 0,
       })
+      // Puntales alquilados (remitos 3C).
+      setPuntalAlquilados(r?.puntalEstructuras ?? 0)
+      setPuntalReguladoresAlq(r?.puntalReguladores ?? 0)
+      setPuntalBasesAlq(r?.puntalBases ?? 0)
     }).catch(() => {})
     return () => { cancelled = true }
   }, [])
@@ -99,7 +114,11 @@ export default function AndamiosPage() {
       .then((body) => {
         if (cancelled) return
         if (body?.available && body.items && Object.keys(body.items).length > 0) {
-          setDeposito(body.items as Partial<Record<ScaffoldRowKey, number>>)
+          const all = body.items as Record<string, unknown>
+          setDeposito(all as Partial<Record<ScaffoldRowKey, number>>)
+          const p: Record<string, number> = {}
+          for (const row of PUNTAL_ROWS) p[row.key] = Number(all[row.key]) || 0
+          setDepositoPuntal(p)
         } else {
           setDeposito({
             modulos: totals3C.estructuras,
@@ -127,7 +146,7 @@ export default function AndamiosPage() {
       const res = await fetch("/api/andamios/deposito", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: deposito }),
+        body: JSON.stringify({ items: { ...deposito, ...depositoPuntal } }),
       })
       if (!res.ok) throw new Error()
       toast.success("Stock de depósito guardado")
@@ -319,6 +338,70 @@ export default function AndamiosPage() {
           calculan por receta (2 largas + 2 cortas por juego).
         </p>
         {depositoDirty && <p className="text-xs text-amber-600">⚠ Hay cambios sin guardar.</p>}
+      </section>
+
+      {/* ===== SECTOR PUNTALES ===== */}
+      <section className="space-y-4">
+        <h2 className="text-xl font-semibold">Puntales</h2>
+
+        {/* Placas de totales */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Card className="border-2 border-green-600 bg-green-50">
+            <CardHeader className="pb-1">
+              <CardTitle className="text-base font-semibold text-green-800">
+                ✅ PUNTALES DISPONIBLES
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-6xl font-bold text-green-700">
+                {depositoPuntal.puntalEstructuras ?? 0}
+              </p>
+              <p className="text-xs text-muted-foreground mt-2">
+                Según lo guardado en depósito
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="border-2 border-blue-600 bg-blue-50">
+            <CardHeader className="pb-1">
+              <CardTitle className="text-base font-semibold text-blue-800">
+                📤 PUNTALES ALQUILADOS
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <p className="text-6xl font-bold text-blue-700">{puntalAlquilados}</p>
+              <p className="text-xs text-muted-foreground mt-2">
+                {puntalReguladoresAlq} reguladores · {puntalBasesAlq} bases — según remitos de 3C
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Zona de carga manual */}
+        <div className="rounded-lg border p-4 bg-card space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Cargá la cantidad de cada artículo de puntal que hay en depósito.
+          </p>
+          <div className="grid grid-cols-3 gap-4">
+            {PUNTAL_ROWS.map(({ key, label }) => (
+              <div key={key} className="rounded-lg border p-3">
+                <p className="text-sm font-medium">{label}</p>
+                <Input
+                  type="number"
+                  min={0}
+                  className="mt-2 h-12 text-2xl font-bold text-center"
+                  value={depositoPuntal[key] ?? 0}
+                  disabled={!depositoLoaded}
+                  onChange={(e) => {
+                    const v = Math.max(0, Number(e.target.value) || 0)
+                    setDepositoPuntal((prev) => ({ ...prev, [key]: v }))
+                    setDepositoDirty(true)
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
       </section>
 
       {/* Buscador para los listados de abajo */}

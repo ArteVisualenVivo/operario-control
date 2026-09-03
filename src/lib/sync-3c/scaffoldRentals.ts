@@ -47,6 +47,12 @@ export interface ScaffoldRentalResumen {
     /** Juegos de ruedas (set de 4, código 29601). */
     juegosRuedas: number
     tablones: number
+    /** Puntales alquilados (estructuras telescópicas). */
+    puntalEstructuras: number
+    /** Reguladores de puntal alquilados (28502). */
+    puntalReguladores: number
+    /** Bases de puntal alquiladas (BASE600, NNQBASP). */
+    puntalBases: number
 }
 
 // Códigos 3C de ruedas y tablones que se alquilan junto al andamio.
@@ -54,6 +60,11 @@ const WHEEL_CODES_NOBRAKE = ["N7-1", "N71"]
 const WHEEL_CODES_BRAKE = ["29501"]
 const WHEEL_CODES_SET = ["29601"]
 const PLANK_CODES = ["TA02", "TA03", "28901", "29001", "29101", "29201"]
+
+// Puntales (telescópicos) y sus componentes.
+const PUNTAL_CODES = ["28318", "28510", "28511", "28512", "PH305"]
+const PUNTAL_REGULADOR_CODES = ["28502"]
+const PUNTAL_BASE_CODES = ["BASE600", "NNQBASP"]
 
 function isInCodeList(code: string, list: string[]): boolean {
     const normalized = normalizeCode(code)
@@ -149,9 +160,13 @@ export function parseScaffoldRentals(buffer: ArrayBuffer | Buffer): ScaffoldRent
                 isInCodeList(codigoRaw, WHEEL_CODES_BRAKE) ||
                 isInCodeList(codigoRaw, WHEEL_CODES_SET)
             const isPlank = isInCodeList(codigoRaw, PLANK_CODES)
+            const isPuntal =
+                isInCodeList(codigoRaw, PUNTAL_CODES) ||
+                isInCodeList(codigoRaw, PUNTAL_REGULADOR_CODES) ||
+                isInCodeList(codigoRaw, PUNTAL_BASE_CODES)
 
             const isStructure = matchCode && matchDesc
-            if (!isStructure && !isWheel && !isPlank) continue
+            if (!isStructure && !isWheel && !isPlank && !isPuntal) continue
 
             const normalizedCodigo = normalizeCode(codigoRaw)
 
@@ -187,6 +202,9 @@ export function parseScaffoldRentals(buffer: ArrayBuffer | Buffer): ScaffoldRent
         ruedasConFreno: 0,
         juegosRuedas: 0,
         tablones: 0,
+        puntalEstructuras: 0,
+        puntalReguladores: 0,
+        puntalBases: 0,
     }
     for (const row of detalle) {
         const desc = row.descripcion.toLowerCase()
@@ -201,6 +219,12 @@ export function parseScaffoldRentals(buffer: ArrayBuffer | Buffer): ScaffoldRent
             resumen.juegosRuedas += row.cantidad
         } else if (isInCodeList(row.codigo, PLANK_CODES)) {
             resumen.tablones += row.cantidad
+        } else if (isInCodeList(row.codigo, PUNTAL_CODES)) {
+            resumen.puntalEstructuras += row.cantidad
+        } else if (isInCodeList(row.codigo, PUNTAL_REGULADOR_CODES)) {
+            resumen.puntalReguladores += row.cantidad
+        } else if (isInCodeList(row.codigo, PUNTAL_BASE_CODES)) {
+            resumen.puntalBases += row.cantidad
         }
     }
 
