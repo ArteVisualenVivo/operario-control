@@ -131,29 +131,29 @@ export default function AndamiosPage() {
     [alquiladosResumen, deposito],
   )
 
-  // Juegos de andamios (disponibles + alquilados) para comunes y pasilleros.
+  // Juegos de andamios: 1 juego = 2 módulos + 2 riendas largas + 2 riendas cortas + 1 tablón.
   const { juegosComunesDisp, juegosComunesAlq, juegosPasillerosDisp, juegosPasillerosAlq } = useMemo(() => {
-    // Disponibles: lo que hay en depósito.
     const disp = {
       modulos: deposito.modulos ?? 0,
       pasilleros: deposito.pasilleros ?? 0,
       riendasLargas: deposito.riendasLargas ?? 0,
       riendasCortas: deposito.riendasCortas ?? 0,
+      tablones: deposito.tablones ?? 0,
     }
-    // Alquilados: lo que hay en remitos 3C.
     const alq = {
       modulos: Math.max(0, (alquiladosResumen.modulos ?? 0)),
       pasilleros: pasillerosAlq,
       riendasLargas: alquiladosResumen.riendasLargas ?? 0,
       riendasCortas: alquiladosResumen.riendasCortas ?? 0,
+      tablones: alquiladosResumen.tablones ?? 0,
     }
-    const calcJuegos = (m: number, rl: number, rc: number) =>
-      Math.min(Math.floor(m / 2), Math.floor(rl / 2), Math.floor(rc / 2))
+    const calcJuegos = (m: number, rl: number, rc: number, t: number) =>
+      Math.min(Math.floor(m / 2), Math.floor(rl / 2), Math.floor(rc / 2), t)
     return {
-      juegosComunesDisp: calcJuegos(disp.modulos, disp.riendasLargas, disp.riendasCortas),
-      juegosComunesAlq: calcJuegos(alq.modulos, alq.riendasLargas, alq.riendasCortas),
-      juegosPasillerosDisp: calcJuegos(disp.pasilleros, disp.riendasLargas, disp.riendasCortas),
-      juegosPasillerosAlq: calcJuegos(alq.pasilleros, alq.riendasLargas, alq.riendasCortas),
+      juegosComunesDisp: calcJuegos(disp.modulos, disp.riendasLargas, disp.riendasCortas, disp.tablones),
+      juegosComunesAlq: calcJuegos(alq.modulos, alq.riendasLargas, alq.riendasCortas, alq.tablones),
+      juegosPasillerosDisp: calcJuegos(disp.pasilleros, disp.riendasLargas, disp.riendasCortas, disp.tablones),
+      juegosPasillerosAlq: calcJuegos(alq.pasilleros, alq.riendasLargas, alq.riendasCortas, alq.tablones),
     }
   }, [deposito, pasillerosAlq, alquiladosResumen])
 
@@ -263,17 +263,17 @@ export default function AndamiosPage() {
             <div>
               <p className="text-xs text-muted-foreground">Alquilados</p>
               <p className="text-2xl font-bold text-blue-600">{juegosComunesAlq}</p>
-              <p className="text-xs text-muted-foreground">{alquiladosResumen.modulos ?? 0} pa�os</p>
+              <p className="text-xs text-muted-foreground">{juegosComunesAlq} juegos</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Disponibles</p>
               <p className="text-2xl font-bold text-green-600">{juegosComunesDisp}</p>
-              <p className="text-xs text-muted-foreground">{deposito.modulos ?? 0} pa�os</p>
+              <p className="text-xs text-muted-foreground">{juegosComunesDisp} juegos</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Total</p>
-              <p className="text-2xl font-bold">{(alquiladosResumen.modulos ?? 0) + (deposito.modulos ?? 0)}</p>
-              <p className="text-xs text-muted-foreground">pa�os</p>
+              <p className="text-2xl font-bold">{juegosComunesAlq + juegosComunesDisp}</p>
+              <p className="text-xs text-muted-foreground">juegos</p>
             </div>
           </div>
         </div>
@@ -285,17 +285,17 @@ export default function AndamiosPage() {
             <div>
               <p className="text-xs text-muted-foreground">Alquilados</p>
               <p className="text-2xl font-bold text-blue-600">{juegosPasillerosAlq}</p>
-              <p className="text-xs text-muted-foreground">{pasillerosAlq} pa�os</p>
+              <p className="text-xs text-muted-foreground">{juegosPasillerosAlq} juegos</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Disponibles</p>
               <p className="text-2xl font-bold text-green-600">{juegosPasillerosDisp}</p>
-              <p className="text-xs text-muted-foreground">{deposito.pasilleros ?? 0} pa�os</p>
+              <p className="text-xs text-muted-foreground">{juegosPasillerosDisp} juegos</p>
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Total</p>
-              <p className="text-2xl font-bold">{pasillerosAlq + (deposito.pasilleros ?? 0)}</p>
-              <p className="text-xs text-muted-foreground">pa�os</p>
+              <p className="text-2xl font-bold">{juegosPasillerosAlq + juegosPasillerosDisp}</p>
+              <p className="text-xs text-muted-foreground">juegos</p>
             </div>
           </div>
         </div>
@@ -358,7 +358,7 @@ export default function AndamiosPage() {
         </div>
 
         <p className="text-xs text-muted-foreground">
-          Alquilados (automático): {rowBy("modulos").alquilados} paños · {rowBy("riendasLargas").alquilados} riendas
+          Alquilados (automático): {rowBy("modulos").alquilados} módulos · {rowBy("riendasLargas").alquilados} riendas
           largas · {rowBy("riendasCortas").alquilados} cortas · {rowBy("tablones").alquilados} tablones ·{" "}
           {rowBy("ruedasConFreno").alquilados} ruedas c/freno. Las riendas no se alquilan sueltas en 3C: se
           calculan por receta (2 largas + 2 cortas por juego).
