@@ -47,7 +47,10 @@ export async function loadScaffoldRentalStats(): Promise<ScaffoldRentalStats | n
         if (res.ok) {
             const body = await res.json()
             if (body?.available && body?.data) {
-                return body.data as ScaffoldRentalStats
+                const data = body.data as ScaffoldRentalStats;
+                const deposito = await loadScaffoldDeposito();
+                if (deposito) data.deposito = deposito;
+                return data;
             }
         }
     } catch {
@@ -63,4 +66,34 @@ export async function loadScaffoldRentalStats(): Promise<ScaffoldRentalStats | n
     } catch {
         return null
     }
+
+
+/**
+ * Lee el stock manual de andamios guardado en depósito (Redis).
+ */
+export async function loadScaffoldDeposito(): Promise<ScaffoldRentalStats['deposito'] | null> {
+    try {
+        const res = await fetch('/api/andamios/deposito', { cache: 'no-store' });
+        if (res.ok) {
+            const body = await res.json();
+            if (body?.available && body.items) {
+                const i = body.items as Record<string, number>;
+                return {
+                    modulos: i.modulos ?? 0,
+                    pasilleros: i.pasilleros ?? 0,
+                    riendasLargas: i.riendasLargas ?? 0,
+                    riendasCortas: i.riendasCortas ?? 0,
+                    tablones: i.tablones ?? 0,
+                    ruedasSinFreno: i.ruedasSinFreno ?? 0,
+                    ruedasConFreno: i.ruedasConFreno ?? 0,
+                    juegosRuedas: i.juegosRuedas ?? 0,
+                    puntalEstructuras: i.puntalEstructuras ?? 0,
+                };
+            }
+        }
+    } catch {
+        // ignora
+    }
+    return null;
+}
 }
