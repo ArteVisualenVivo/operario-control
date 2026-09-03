@@ -55,7 +55,7 @@ export default function AndamiosPage() {
   const [depositoDirty, setDepositoDirty] = useState(false)
 
   // ---- Sector PUNTALES ----
-  const [depositoPuntal, setDepositoPuntal] = useState<Record<string, number>>({})
+  const [depositoPuntal, setDepositoPuntal] = useState<PuntalAlquilados>({ barovo: 0, marron: 0, naranja: 0, largo380: 0, mmq: 0, total: 0 })
   const [puntalAlquilados, setPuntalAlquilados] = useState<PuntalAlquilados | null>(null)
 
   // Alquilados desde remitos 3C.
@@ -111,7 +111,7 @@ export default function AndamiosPage() {
         if (body?.available && body.items && Object.keys(body.items).length > 0) {
           const all = body.items as Record<string, unknown>
           setDeposito(all as Partial<Record<ScaffoldRowKey, number>>)
-          setDepositoPuntal({ puntalEstructuras: Number(all.puntalEstructuras) || 0 })
+          setDepositoPuntal({ barovo: Number(all.barovo)||0, marron: Number(all.marron)||0, naranja: Number(all.naranja)||0, largo380: Number(all.largo380)||0, mmq: Number(all.mmq)||0, total: Number(all.total)||0 })
         } else {
           setDeposito({
             modulos: totals3C.estructuras,
@@ -165,7 +165,7 @@ export default function AndamiosPage() {
       const res = await fetch("/api/andamios/deposito", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: { ...deposito, ...depositoPuntal } }),
+        body: JSON.stringify({ items: { ...deposito, ...depositoPuntal, total: depositoPuntal.barovo+depositoPuntal.marron+depositoPuntal.naranja+depositoPuntal.largo380+depositoPuntal.mmq } }),
       })
       if (!res.ok) throw new Error()
       toast.success("Stock de depósito guardado")
@@ -382,7 +382,7 @@ export default function AndamiosPage() {
             </CardHeader>
             <CardContent>
               <p className="text-6xl font-bold text-green-700">
-                {depositoPuntal.puntalEstructuras ?? 0}
+                {depositoPuntal.barovo + depositoPuntal.marron + depositoPuntal.naranja + depositoPuntal.largo380 + depositoPuntal.mmq}
               </p>
               <p className="text-xs text-muted-foreground mt-2">
                 Según lo guardado en depósito
@@ -424,25 +424,60 @@ export default function AndamiosPage() {
           </Card>
         </div>
 
-        {/* Zona de carga manual */}
+        {/* Zona de carga manual por tipo */}
         <div className="rounded-lg border p-4 bg-card space-y-4">
           <p className="text-sm text-muted-foreground">
-            Cargá la cantidad de puntales que hay en depósito.
+            Cargá la cantidad de puntales que hay en depósito, separado por medida.
           </p>
-          <div className="max-w-xs">
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
             <div className="rounded-lg border p-3">
-              <p className="text-sm font-medium">Puntales</p>
+              <p className="text-sm font-medium">Barovo 3,05 m</p>
               <Input
-                type="number"
-                min={0}
+                type="number" min={0}
                 className="mt-2 h-12 text-2xl font-bold text-center"
-                value={depositoPuntal.puntalEstructuras ?? 0}
+                value={depositoPuntal.barovo}
                 disabled={!depositoLoaded}
-                onChange={(e) => {
-                  const v = Math.max(0, Number(e.target.value) || 0)
-                  setDepositoPuntal({ puntalEstructuras: v })
-                  setDepositoDirty(true)
-                }}
+                onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setDepositoPuntal((p) => ({ ...p, barovo: v })); setDepositoDirty(true) }}
+              />
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-sm font-medium">Marrón 3,00 m</p>
+              <Input
+                type="number" min={0}
+                className="mt-2 h-12 text-2xl font-bold text-center"
+                value={depositoPuntal.marron}
+                disabled={!depositoLoaded}
+                onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setDepositoPuntal((p) => ({ ...p, marron: v })); setDepositoDirty(true) }}
+              />
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-sm font-medium">Naranja 3 m</p>
+              <Input
+                type="number" min={0}
+                className="mt-2 h-12 text-2xl font-bold text-center"
+                value={depositoPuntal.naranja}
+                disabled={!depositoLoaded}
+                onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setDepositoPuntal((p) => ({ ...p, naranja: v })); setDepositoDirty(true) }}
+              />
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-sm font-medium">MMQ 3,05 m</p>
+              <Input
+                type="number" min={0}
+                className="mt-2 h-12 text-2xl font-bold text-center"
+                value={depositoPuntal.mmq}
+                disabled={!depositoLoaded}
+                onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setDepositoPuntal((p) => ({ ...p, mmq: v })); setDepositoDirty(true) }}
+              />
+            </div>
+            <div className="rounded-lg border p-3">
+              <p className="text-sm font-medium">Largo 3,80 m</p>
+              <Input
+                type="number" min={0}
+                className="mt-2 h-12 text-2xl font-bold text-center"
+                value={depositoPuntal.largo380}
+                disabled={!depositoLoaded}
+                onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setDepositoPuntal((p) => ({ ...p, largo380: v })); setDepositoDirty(true) }}
               />
             </div>
           </div>
