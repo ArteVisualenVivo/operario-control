@@ -68,6 +68,7 @@ async function loadFromPrimary()
       entryDate: new Date((item.entryDate as string) ?? new Date()),
       returnDate: item.returnDate ? new Date(item.returnDate as string) : undefined,
       repairDate: item.repairDate ? new Date(item.repairDate as string) : undefined,
+      statusDate: item.statusDate ? new Date(item.statusDate as string) : undefined,
       createdAt: new Date((item.createdAt as string) ?? new Date()),
       updatedAt: new Date((item.updatedAt as string) ?? new Date()),
     })) as MaintenanceRecord[]

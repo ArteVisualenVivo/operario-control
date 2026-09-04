@@ -13,7 +13,7 @@ import { fileURLToPath } from "url"
 import { parseExcel, parseArticulos } from "../src/lib/sync-3c/parser"
 import { parseScaffoldRentals, saveScaffoldRentalStats, type ScaffoldRentalStats } from "../src/lib/sync-3c/scaffoldRentals"
 import { loadInventoryIndexByCodes, syncItems, syncRepairsToMaintenance } from "../src/lib/sync-3c/engine"
-import { writeStockItemsIdempotent } from "../src/lib/sync-3c/firestoreSync"
+import { writeStockItemsIdempotent, writeMaintenanceStatusesIdempotent } from "../src/lib/sync-3c/firestoreSync"
 import {
     saveModuleData,
     enqueueOutbox,
@@ -25,6 +25,12 @@ import {
     type PrimaryModuleId,
 } from "../src/lib/sync-3c/redisPrimary"
 import { parseMaintenanceBuffer } from "../src/lib/local-sync-excel"
+import {
+    parseRepairStatusBuffer,
+    getLatestStatusByOrder,
+    mergeStatusIntoMaintenance,
+    type RepairStatusEntry,
+} from "../src/lib/repairStatus"
 import type { MaintenanceRecord } from "../src/services/maintenance"
 import type { Sync3CItem, Sync3CResult } from "../src/lib/sync-3c/types"
 
@@ -370,6 +376,7 @@ const EXPORT_RETRY_DELAY_MS = 1000
 const MODULE_SCRIPTS = {
     stock: "sync_3c.ahk",
     reparaciones: "sync_reparaciones.ahk",
+    reparaciones_facturadas: "sync_reparaciones_facturadas.ahk",
     articulos: "sync_articulos.ahk",
     alquileres: "sync_alquileres.ahk",
 }
@@ -673,7 +680,7 @@ function buildSparePartsSeedFromStock(items: Sync3CItem[]) {
 // ============================================================================
 // PROCESS SINGLE MODULE
 // ============================================================================
-type ModuleName = "stock" | "reparaciones" | "articulos" | "alquileres"
+type ModuleName = "stock" | "reparaciones" | "reparaciones_facturadas" | "articulos" | "alquileres"
 
 type ProcessModuleOptions = {
     diagnosticCallback?: (module: string, items: Sync3CItem[]) => void
@@ -875,6 +882,78 @@ async function processModule(
                     lastAttemptAt: Date.now(),
                     nextRetryAt: Date.now(),
                     lastError: maintMsg,
+                    dataKey: "sync-3c:data:maintenance",
+                    bufferBase64: buf.toString("base64"),
+                })
+            }
+        } else if (module === "reparaciones_facturadas") {
+            // Segundo Excel de Reparaciones: informe "facturadas" que aporta el
+            // ESTADO REAL de cada orden. Se cruza con el mantenimiento por número
+            // de orden y se selecciona siempre el ÚLTIMO estado (por fecha).
+            const syncId = `maintenance-status-${runStart}`
+            result = { success: true, created: 0, updated: 0, skipped: 0, warnings: [] }
+            let statusEntries: RepairStatusEntry[] = []
+            try {
+                statusEntries = await parseRepairStatusBuffer(buffer)
+                console.log(`[AGENT] Estados reparaciones facturadas: ${statusEntries.length} filas de estado`)
+            } catch (parseStatusErr) {
+                const sMsg = parseStatusErr instanceof Error ? parseStatusErr.message : String(parseStatusErr)
+                console.error(`[AGENT] No se pudo parsear el export de estados:`, sMsg)
+                result.warnings.push("No se pudo interpretar el export de estados de reparaciones: " + sMsg)
+            }
+
+            const latestByOrder = getLatestStatusByOrder(statusEntries)
+            console.log(`[AGENT] Último estado por orden: ${latestByOrder.size} órdenes`)
+
+            // Cruzar con el mantenimiento existente (fuente primaria Redis)
+            let maintenanceRecords: MaintenanceRecord[] = []
+            try {
+                const env = await readModuleData("maintenance", redis)
+                if (env && Array.isArray(env.data)) {
+                    maintenanceRecords = mergeStatusIntoMaintenance(
+                        env.data as MaintenanceRecord[],
+                        latestByOrder,
+                    )
+                }
+            } catch (mergeErr) {
+                console.error(`[AGENT] No se pudo fusionar estados con mantenimiento:`, mergeErr instanceof Error ? mergeErr.message : String(mergeErr))
+            }
+
+            // Fuente primaria: guardar el mantenimiento enriquecido (estado final)
+            try {
+                await saveModuleData(redis, {
+                    module: "maintenance",
+                    syncId: `maintenance-${runStart}`,
+                    data: maintenanceRecords,
+                    recordCount: maintenanceRecords.length,
+                    degraded: false,
+                    firestoreStatus: "pending",
+                    exportInfo,
+                })
+                result.updated = maintenanceRecords.length
+            } catch (saveMaintErr) {
+                console.error(`[AGENT] No se pudo guardar mantenimiento enriquecido:`, saveMaintErr instanceof Error ? saveMaintErr.message : String(saveMaintErr))
+            }
+
+            // Firestore (copia secundaria) + OUTBOX si falla
+            try {
+                await writeMaintenanceStatusesIdempotent(latestByOrder)
+                result.success = true
+            } catch (fbStatusErr) {
+                const fbMsg = fbStatusErr instanceof Error ? fbStatusErr.message : String(fbStatusErr)
+                console.error(`[AGENT] Firebase bloqueado: no se persistieron estados de reparaciones:`, fbMsg)
+                result.degraded = true
+                result.warnings.push("Firebase temporalmente bloqueado: estados de reparaciones no persistidos")
+                const buf = Buffer.from(buffer)
+                await enqueueOutbox(redis, {
+                    syncId,
+                    module: "maintenance",
+                    target: "maintenance_status",
+                    createdAt: Date.now(),
+                    attempts: 0,
+                    lastAttemptAt: Date.now(),
+                    nextRetryAt: Date.now(),
+                    lastError: fbMsg,
                     dataKey: "sync-3c:data:maintenance",
                     bufferBase64: buf.toString("base64"),
                 })
@@ -1094,6 +1173,20 @@ async function processOutbox(redis: Redis): Promise<void> {
                         console.warn(`[OUTBOX] maintenance ${syncId} sin bufferBase64 — se conserva pendiente`)
                         ok = false
                     }
+                } else if (item.target === "maintenance_status") {
+                    // Reintento del 2º Excel (estado de reparaciones): parsear el
+                    // buffer original, calcular el último estado por orden y aplicarlo.
+                    if (item.bufferBase64) {
+                        const buf = Buffer.from(item.bufferBase64, "base64")
+                        const entries = await parseRepairStatusBuffer(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer)
+                        const latestByOrder = getLatestStatusByOrder(entries)
+                        await writeMaintenanceStatusesIdempotent(latestByOrder)
+                        console.log(`[OUTBOX] maintenance_status ${syncId} → ${latestByOrder.size} órdenes actualizadas`)
+                        ok = true
+                    } else {
+                        console.warn(`[OUTBOX] maintenance_status ${syncId} sin bufferBase64 — se conserva pendiente`)
+                        ok = false
+                    }
                 } else if (item.target === "dashboard_stats/scaffold_rentals") {
                     // Reintento de ALQUILERES
                     const env = await readModuleData("alquileres", redis)
@@ -1126,7 +1219,7 @@ async function processOutbox(redis: Redis): Promise<void> {
             if (ok) {
                 // marcar la fuente primaria como sincronizada y quitar del outbox
                 const syncTargetModule: PrimaryModuleId =
-                  item.target === "maintenance"
+                  item.target === "maintenance" || item.target === "maintenance_status"
                     ? "maintenance"
                     : item.target === "dashboard_stats/scaffold_rentals"
                       ? "alquileres"

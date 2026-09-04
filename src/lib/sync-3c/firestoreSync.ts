@@ -1,4 +1,5 @@
 import type { Sync3CItem } from "./types"
+import type { RepairStatusEntry } from "../repairStatus"
 import { getFirebaseAdmin, loadInventoryIndex } from "./engine"
 
 // ============================================================================
@@ -79,6 +80,47 @@ export async function writeStockItemsIdempotent(
         createdAt: new Date(),
       })
     }
+    counter++
+    if (counter >= BATCH_LIMIT) {
+      await batch.commit()
+      batch = db.batch()
+      counter = 0
+    }
+  }
+  if (counter > 0) await batch.commit()
+}
+
+/**
+ * Aplica el estado real (último estado de 3C) a los documentos de la colección
+ * `maintenance`. Idempotente: usa el número de orden como id de documento
+ * (la misma identidad que usa syncRepairsToMaintenance) y hace merge, sin
+ * sobrescribir el resto de campos (cliente, máquina, fechas, ítems...).
+ *
+ * El outbox se procesa con esta misma función (reintentos sin duplicar).
+ */
+export async function writeMaintenanceStatusesIdempotent(
+  latestByOrder: Map<string, RepairStatusEntry>,
+): Promise<void> {
+  if (!latestByOrder || latestByOrder.size === 0) return
+  getFirebaseAdmin()
+  const { getFirestore } = await import("firebase-admin/firestore")
+  const db = getFirestore()
+  const collection = db.collection("maintenance")
+
+  const BATCH_LIMIT = 400
+  let batch = db.batch()
+  let counter = 0
+
+  for (const [orderNumber, entry] of latestByOrder.entries()) {
+    const payload: Record<string, unknown> = {
+      status: entry.status || null,
+      statusDate: entry.statusDate ?? null,
+      statusDescription: entry.statusDescription || null,
+      statusUser: entry.statusUser || null,
+      updatedAt: new Date(),
+    }
+    // identity lógica de mantenimiento: doc id = número de orden normalizado
+    batch.set(collection.doc(orderNumber), payload, { merge: true })
     counter++
     if (counter >= BATCH_LIMIT) {
       await batch.commit()

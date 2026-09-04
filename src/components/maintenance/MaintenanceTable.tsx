@@ -65,7 +65,7 @@ export function MaintenanceTable({ initialOrders }: Props) {
       // Estado: derivado del campo Estado de 3C cuando el export lo incluye
       if (estadoFilter !== "all") {
         const st = (order.status || "").toLowerCase()
-        const finalizada = st.includes("entreg") || st.includes("factur")
+        const finalizada = st.includes("entreg") || st.includes("factur") || st.includes("retir")
         if (estadoFilter === "finalizada" && !finalizada) return false
         if (estadoFilter === "recepcion" && !st.includes("recepc")) return false
         if (estadoFilter === "taller" && (finalizada || st.includes("recepc"))) return false
@@ -174,6 +174,17 @@ export function MaintenanceTable({ initialOrders }: Props) {
                           >
                             {statusConfig.label}
                           </span>
+
+                          {order.statusDate && (
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              {formatDate(order.statusDate)}
+                            </span>
+                          )}
+                          {order.statusDescription && (
+                            <span className="block mt-1 text-xs text-muted-foreground">
+                              {order.statusDescription}
+                            </span>
+                          )}
 
                           {isNoReparado && (
                             <span className="ml-2 text-xs text-red-700 font-medium">

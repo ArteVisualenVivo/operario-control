@@ -22,6 +22,9 @@ export interface MaintenanceRecord {
   clientCode?: string
   machineName: string
   status: string
+  statusDate?: Date
+  statusDescription?: string
+  statusUser?: string
   brand?: string
   model?: string
   serial?: string
@@ -67,6 +70,9 @@ export interface MaintenanceInput {
   clientCode?: string
   machineName: string
   status: string
+  statusDate?: Date
+  statusDescription?: string
+  statusUser?: string
   brand?: string
   model?: string
   serial?: string

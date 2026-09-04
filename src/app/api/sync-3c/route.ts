@@ -6,8 +6,8 @@ export const runtime = "nodejs"
 export const maxDuration = 120
 
 // Orden de ejecución del pipeline de sincronización
-// Dependencias: stock → articulos → alquileres → reparaciones
-const SYNC_PIPELINE: string[] = ["stock", "articulos", "alquileres", "reparaciones"]
+// Dependencias: stock → articulos → alquileres → reparaciones → reparaciones_facturadas
+const SYNC_PIPELINE: string[] = ["stock", "articulos", "alquileres", "reparaciones", "reparaciones_facturadas"]
 
 function getRedis() {
   return new Redis({
