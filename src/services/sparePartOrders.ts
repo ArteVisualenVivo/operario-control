@@ -397,29 +397,6 @@ export function splitMachineModel(name: unknown): { machine: string; model: stri
 }
 
 /**
- * Extrae un posible CÓDIGO de repuesto desde un comentario/descripción de 3C.
- * - Si hay un patrón tipo "CÓDIGO — NOMBRE" o "CÓDIGO.nombre" lo toma.
- * - Si no, busca una secuencia alfanumérica con guiones/puntos que parezca código.
- * Devuelve `null` si no encuentra nada (se usará "S/C").
- */
-export function extractPartCodeFromText(text: unknown): string | null {
-  const raw = String(text ?? "").trim()
-  if (!raw) return null
-  // Formato "XXXXX — NOMBRE" (código antes del guión largo/emdash/trazo)
-  const em = raw.match(/^\s*([A-Z0-9][A-Z0-9.\-/]{2,})\s*[—–-]\s/i)
-  if (em) return em[1].toUpperCase()
-  // Buscar token alfanumérico con guiones que parezca código (>=4 chars, con dígito o letra+número)
-  const tm = raw.match(/\b([A-Z0-9]{1,4}[−–-]?[0-9]{2,}[A-Z0-9\-.]*|\d{2,}[A-Z0-9][A-Z0-9\-.]*)\b/i)
-  if (tm) {
-    const tok = tm[1].toUpperCase()
-    // Evitar falsos positivos: si es solo números tipo años/horas, ignorar
-    if (/^\d{4}$/.test(tok)) return null
-    return tok
-  }
-  return null
-}
-
-/**
  * Importa a "Pedidos de Repuestos" los repuestos que están en espera según las
  * Órdenes de Reparación de 3C (estado "A la Espera Repuestos" en Mantenimiento).
  *
