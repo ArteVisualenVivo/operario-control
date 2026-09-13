@@ -25,6 +25,7 @@ function docToOrder(snap: { id: string; data: () => Record<string, unknown> }): 
     orderNumber: (d.orderNumber as string) ?? "",
     machineId: (d.machineId as string) ?? "",
     machineName: (d.machineName as string) ?? "",
+    machineModel: (d.machineModel as string | null | undefined) ?? null,
     sparePartId: (d.sparePartId as string) || undefined,
     code: (d.code as string) ?? "",
     description: (d.description as string) ?? "",
@@ -117,6 +118,7 @@ export async function createOrder(input: CreateSparePartOrderInput): Promise<str
     orderNumber: input.orderNumber ?? "",
     machineId: input.machineId,
     machineName: input.machineName ?? "",
+    machineModel: input.machineModel ?? null,
     sparePartId: input.sparePartId ?? null,
     code: String(input.code).trim(),
     description: String(input.description).trim(),
@@ -321,6 +323,14 @@ export async function updateOrderNotes(id: string, notes: string): Promise<void>
   await createAuditLog("update", "spare_part_order", id, before, { ...before, ...updates })
 }
 // Normaliza el número de orden para comparar sin "X" ni espacios.
+function normOrderKey(value: unknown): string {
+  return String(value ?? "")
+    .toUpperCase()
+    .replace(/^X\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
 /**
  * REGLA 3C: solo el ESTADO "A la Espera Repuestos" genera Pedidos Rep.
  * Los comentarios de otros estados pertenecen al historial de la reparación.
@@ -333,12 +343,57 @@ export function isSpareWaitingStatus(status: unknown): boolean {
     .replace(/[̀-ͯ]/g, "")
   return t.includes("espera") && t.includes("repuesto")
 }
-function normOrderKey(value: unknown): string {
-  return String(value ?? "")
+
+/**
+ * Conceptos de MANO DE OBRA / códigos internos: NUNCA son repuestos.
+ * Ej: "MO CES", "MO CESA", "mano de obra".
+ */
+export function isLaborText(text: unknown): boolean {
+  const t = String(text ?? "")
+    .trim()
     .toUpperCase()
-    .replace(/^X\s*/i, "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+  if (!t) return true
+  if (/^MO\b/.test(t)) return true // MO CES, MO CESA, MO ...
+  if (/MANO\s+DE\s+OBRA/.test(t)) return true
+  return false
+}
+
+/**
+ * Códigos internos de mano de obra (solo dígitos, ej: "1012") NUNCA son
+ * códigos de repuesto. Los códigos reales de 3C llevan letras y/o formato
+ * ("1619P16276", "600 A01 L7D").
+ */
+export function isInternalCode(code: unknown): boolean {
+  const c = String(code ?? "").replace(/\s+/g, "")
+  return /^\d{1,6}$/.test(c)
+}
+
+/**
+ * Separa máquina y modelo desde la descripción de 3C.
+ * Ej: "Amoladora bosch 230 GWS- 25-23" → { machine: "Amoladora bosch 230", model: "GWS-25-23" }
+ * "ROTOMARTILLO BOSCH" → { machine: "ROTOMARTILLO BOSCH", model: null }
+ * Solo detecta modelos escritos en MAYÚSCULAS con dígitos (GBH220, GWS-25-23).
+ * La falla del cliente NUNCA se interpreta como modelo.
+ */
+export function splitMachineModel(name: unknown): { machine: string; model: string | null } {
+  const raw = String(name ?? "")
+    .replace(/^reparaci[oó]n:\s*/i, "")
     .replace(/\s+/g, " ")
     .trim()
+  if (!raw) return { machine: "", model: null }
+  const m = raw.match(
+    /^(.+?)\s+([A-ZÁÉÍÓÚÑ]{2,6}\s?[-\/]?\s?\d{2,}(?:\s?[-\/.]\s?\d+)*[A-Z0-9]*)$/,
+  )
+  if (m && m[1].trim().length >= 3) {
+    const model = m[2]
+      .replace(/\s*([\-\/.])\s*/g, "$1")
+      .replace(/\s+/g, " ")
+      .trim()
+    return { machine: m[1].trim(), model }
+  }
+  return { machine: raw, model: null }
 }
 
 /**
@@ -677,8 +732,40 @@ function extractCode(line: string): string {
  * Parsea MOTIVO_ESTADO_REP y extrae ÚNICAMENTE repuestos/materiales concretos.
  * Filtra diagnósticos, fallas, síntomas y observaciones.
  */
+/**
+ * Quita el prefijo "FALTA" cuando el resto identifica un repuesto concreto
+ * ("FALTA FILTRO DE AIRE" -> "FILTRO DE AIRE").
+ * NO aplica si el resto es genérico ("FALTA DE REPUESTOS" se queda igual).
+ */
+export function stripFaltaPrefix(text: string): string {
+  const t = text.trim()
+  const m = t.match(/^falta\s+(de\s+)?(.+)$/i)
+  if (!m) return t
+  const rest = m[2].trim()
+  if (/^repuestos?\b/i.test(rest)) return t // "FALTA DE REPUESTOS" no es repuesto
+  return containsSparePart(rest) ? rest : t
+}
+
+/** División en " Y " cuando ambas mitades identifican repuestos. */
+function splitConjunction(segment: string): string[] {
+  const halves = segment.split(/\s+[YE]\s+/i)
+  if (halves.length < 2) return [segment]
+  const out: string[] = []
+  for (const h of halves) {
+    const t = stripFaltaPrefix(h.trim())
+    if (!t) continue
+    if (isAdminText(t) || isDiagnosis(t) || isLaborText(t)) {
+      // Si una mitad NO es repuesto, no dividir: procesar el segmento entero.
+      if (!containsSparePart(stripFaltaPrefix(h.trim()))) return [segment]
+      continue
+    }
+    out.push(t)
+  }
+  return out.length > 0 ? out : [segment]
+}
+
 export function parseSparePartsFromMotivo(motivo: string): { code: string | null; description: string }[] {
-  if (!motivo || isAdminText(motivo)) return []
+  if (!motivo || isAdminText(motivo) || isLaborText(motivo)) return []
 
   const lines = cleanLine(motivo)
   if (lines.length === 0) return []
@@ -694,87 +781,32 @@ export function parseSparePartsFromMotivo(motivo: string): { code: string | null
       const sentences = line.split(/\.\s*/)
       for (const sentence of sentences) {
         const trimmed = sentence.trim()
-        if (!trimmed || isAdminText(trimmed) || isDiagnosis(trimmed)) continue
+        if (!trimmed || isAdminText(trimmed) || isLaborText(trimmed)) continue
 
-        // Si contiene delimitadores, usar splitAndParse
-        if (/[-;,]/.test(trimmed)) {
-          parts.push(...splitAndParse(trimmed))
-          continue
-        }
-
-        if (!containsSparePart(trimmed)) continue
-
-        // Intentar extraer código y descripción
-        const inlineCode = trimmed.match(/^(.+?)\s+([A-Z]?\d{4,}[A-Z0-9]*)(?:\s*\(([^)]+)\))?$/i)
-        if (inlineCode && inlineCode[2] && inlineCode[2].length >= 4) {
-          const descPart = inlineCode[3] ? `${inlineCode[1].trim()} (${inlineCode[3]})` : inlineCode[1].trim()
-          if (looksLikeCode(inlineCode[2]) && containsSparePart(descPart)) {
-            parts.push({ code: inlineCode[2].toUpperCase(), description: descPart })
-            continue
-          }
-        }
-
-        const cleaned = cleanDescription(trimmed)
-        if (cleaned && containsSparePart(cleaned) && !isDiagnosis(cleaned)) {
-          parts.push({ code: null, description: cleaned })
-        }
+        // splitAndParse maneja: conjunciones ("Y"/"e"), prefijo "FALTA ",
+        // delimitadores, códigos inline y filtros de diagnóstico.
+        parts.push(...splitAndParse(trimmed))
       }
       continue
     }
 
-    // Si la línea contiene delimitadores (-, ;, ,), intentar dividir y procesar cada parte
-    if (/[-;,]/.test(line)) {
-      const splitParts = splitAndParse(line)
-      parts.push(...splitParts)
-      continue
-    }
-
-    // Verificar si la línea contiene un repuesto identificable
-    if (!containsSparePart(line)) continue
-
-    // Detectar patrón "CÓDIGO [modelo] descripción" (código al inicio)
-    const codeFirst = line.match(/^([A-Z]\d{4,})(?:\s+\d{1,3})?\s{1,3}(.+)$/i)
-    if (codeFirst && codeFirst[2] && codeFirst[2].length > 3 && containsSparePart(codeFirst[2])) {
-      parts.push({ code: codeFirst[1].toUpperCase(), description: codeFirst[2].trim() })
-      continue
-    }
-
-    // Detectar patrón "descripción CÓDIGO" (código al final con paréntesis opcional)
-    const inlineCode = line.match(/^(.+?)\s+([A-Z]?\d{4,}[A-Z0-9]*)(?:\s*\(([^)]+)\))?$/i)
-    if (inlineCode && inlineCode[2] && inlineCode[2].length >= 4) {
-      const potentialCode = inlineCode[2]
-      const descPart = inlineCode[3]
-        ? `${inlineCode[1].trim()} (${inlineCode[3]})`
-        : inlineCode[1].trim()
-      if (looksLikeCode(potentialCode) && containsSparePart(descPart)) {
-        parts.push({ code: potentialCode.toUpperCase(), description: descPart })
-        continue
-      }
-    }
-
-    // Detectar patrón "CÓDIGO descripción" con código al inicio (letra + dígitos)
-    const codeAtStart = line.match(/^([A-Z]\d{4,})\s+(.+)$/i)
-    if (codeAtStart && codeAtStart[2] && containsSparePart(codeAtStart[2])) {
-      parts.push({ code: codeAtStart[1].toUpperCase(), description: codeAtStart[2].trim() })
-      continue
-    }
-
-    // La línea contiene un repuesto pero no tiene código identificable
-    // Limpiar la descripción de verbos y prefijos
-    const cleaned = cleanDescription(line)
-    if (cleaned && containsSparePart(cleaned) && !isDiagnosis(cleaned)) {
-      parts.push({ code: null, description: cleaned })
-    }
+    // La línea completa también pasa por splitAndParse (conjunciones,
+    // "FALTA ", códigos inline, etc.)
+    parts.push(...splitAndParse(line))
   }
 
-  // Eliminar duplicados por descripción normalizada
+  // Eliminar duplicados por descripción normalizada y aplicar reglas de
+  // mano de obra / códigos internos (nunca son repuestos ni códigos de repuesto).
   const seen = new Set<string>()
-  return parts.filter((p) => {
-    const key = `${p.code || ""}||${p.description.toUpperCase().replace(/\s+/g, " ")}`
-    if (seen.has(key)) return false
-    seen.add(key)
-    return true
-  })
+  return parts
+    .filter((p) => !isLaborText(p.description))
+    .map((p) => ({ code: p.code && !isInternalCode(p.code) ? p.code : null, description: p.description }))
+    .filter((p) => {
+      const key = `${p.code || ""}||${p.description.toUpperCase().replace(/\s+/g, " ")}`
+      if (seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
 }
 
 /**
@@ -790,23 +822,32 @@ function splitAndParse(text: string): { code: string | null; description: string
   for (const segment of segments) {
     const trimmed = segment.trim()
     if (!trimmed) continue
-    if (isAdminText(trimmed) || isDiagnosis(trimmed)) continue
-    if (!containsSparePart(trimmed)) continue
+    // Separar conjunciones entre piezas: "INDUCIDO Y PUNTERA DE PROTECCION"
+    // o "campo e inducido". También quita prefijo "FALTA " ("FALTA FILTRO DE AIRE").
+    for (const piece of splitConjunction(trimmed)) {
+      const pieceTrimmed = piece.trim()
+      if (!pieceTrimmed) continue
+      // Quitar "FALTA " antes de clasificar: "FALTA FILTRO DE AIRE" es un
+      // repuesto (FILTRO DE AIRE), no un diagnóstico.
+      const candidate = stripFaltaPrefix(pieceTrimmed)
+      if (!candidate || isAdminText(candidate) || isDiagnosis(candidate) || isLaborText(candidate)) continue
+      if (!containsSparePart(candidate)) continue
 
-    // Intentar extraer código y descripción
-    const inlineCode = trimmed.match(/^(.+?)\s+([A-Z]?\d{4,}[A-Z0-9]*)(?:\s*\(([^)]+)\))?$/i)
-    if (inlineCode && inlineCode[2] && inlineCode[2].length >= 4) {
-      const descPart = inlineCode[3] ? `${inlineCode[1].trim()} (${inlineCode[3]})` : inlineCode[1].trim()
-      if (looksLikeCode(inlineCode[2]) && containsSparePart(descPart)) {
-        parts.push({ code: inlineCode[2].toUpperCase(), description: descPart })
-        continue
+      // Intentar extraer código y descripción
+      const inlineCode = pieceTrimmed.match(/^(.+?)\s+([A-Z]?\d{4,}[A-Z0-9]*)(?:\s*\(([^)]+)\))?$/i)
+      if (inlineCode && inlineCode[2] && inlineCode[2].length >= 4) {
+        const descPart = inlineCode[3] ? `${inlineCode[1].trim()} (${inlineCode[3]})` : inlineCode[1].trim()
+        if (looksLikeCode(inlineCode[2]) && containsSparePart(descPart)) {
+          parts.push({ code: inlineCode[2].toUpperCase(), description: descPart })
+          continue
+        }
       }
-    }
 
-    // Descripción sin código
-    const cleaned = cleanDescription(trimmed)
-    if (cleaned && containsSparePart(cleaned) && !isDiagnosis(cleaned)) {
-      parts.push({ code: null, description: cleaned })
+      // Descripción sin código
+      const cleaned = cleanDescription(candidate)
+      if (cleaned && containsSparePart(cleaned) && !isDiagnosis(cleaned)) {
+        parts.push({ code: null, description: cleaned })
+      }
     }
   }
 
@@ -979,17 +1020,19 @@ export async function importSparePartsFromRepairMotivo(): Promise<{
       }
 
       // Crear nuevo pedido
+      const { machine, model } = splitMachineModel(rec.machineName)
       await createOrder({
         repairId: rec.id ?? rec.orderNumber,
         orderNumber: rec.orderNumber,
         machineId: rec.orderNumber,
-        machineName: rec.machineName ?? "",
+        machineName: machine,
+        machineModel: model,
         code: part.code ?? "",
         description: part.description,
         unit: "unidad",
         quantity: 1,
         requestedAt: rec.entryDate ?? new Date(),
-        notes: `Importado desde MOTIVO_ESTADO_REP (3C)\nOrden: ${rec.orderNumber}\nCliente: ${rec.clientName}\nEstado: ${rec.status}\n---\nMOTIVO original: ${motivo}`,
+        notes: `Importado desde Órdenes de Reparación (3C): repuesto en espera\nOrden: ${rec.orderNumber}\nCliente: ${rec.clientName}\nEstado: ${rec.status}\n---\nMOTIVO original: ${motivo}`,
       })
 
       seen.set(dedupKey, {
@@ -997,7 +1040,8 @@ export async function importSparePartsFromRepairMotivo(): Promise<{
         repairId: rec.id ?? rec.orderNumber,
         orderNumber: rec.orderNumber,
         machineId: rec.orderNumber,
-        machineName: rec.machineName ?? "",
+        machineName: machine,
+        machineModel: model,
         code: part.code ?? "",
         description: part.description,
         unit: "unidad",

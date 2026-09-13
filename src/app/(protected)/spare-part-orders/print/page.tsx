@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
-import { getAllOrders } from "@/services/sparePartOrders"
+import { getAllOrders, splitMachineModel } from "@/services/sparePartOrders"
 import { getRepairs } from "@/services/repairs"
 import type { SparePartOrder, MachineRepair } from "@/types"
 
@@ -89,32 +89,34 @@ export default function PurchaseListPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                 <thead>
                   <tr>
-                    {["", "Maquina", "Modelo", "Repuesto", "Codigo", "Cant.", "Orden", "Cliente", "Fecha pedido"].map((h) => (
+                    {["", "N° Orden", "Máquina", "Modelo", "Repuesto", "Código repuesto", "Pedido", "Entrega"].map((h) => (
                       <th key={h} style={{ border: "1px solid #999", padding: "4px 6px", textAlign: "left", background: "#f3f3f3" }}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
                   {orders.map((o) => {
-                    const repair = repairsMap.get(o.repairId)
+                    const split = splitMachineModel(o.machineName)
+                    const machine = o.machineName || split.machine
+                    const model = o.machineModel ?? split.model
+                    const code = o.code && o.code !== "S/C" ? o.code : ""
                     return (
                       <tr key={o.id}>
                         <td style={{ border: "1px solid #999", padding: "4px 6px", width: 24 }}></td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px" }}>{o.machineName}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px" }}>{repair?.machineModel ?? ""}</td>
+                        <td style={{ border: "1px solid #999", padding: "4px 6px", whiteSpace: "nowrap" }}>{o.orderNumber || "—"}</td>
+                        <td style={{ border: "1px solid #999", padding: "4px 6px" }}>{machine || "—"}</td>
+                        <td style={{ border: "1px solid #999", padding: "4px 6px" }}>{model ?? "—"}</td>
                         <td style={{ border: "1px solid #999", padding: "4px 6px" }}>{o.description}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px", fontFamily: "monospace" }}>{o.code}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px", textAlign: "right" }}>{o.quantityRequested}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px" }}>{o.orderNumber || o.repairId.replace("maintenance:", "")}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px" }}>{repair?.clientName ?? ""}</td>
+                        <td style={{ border: "1px solid #999", padding: "4px 6px", fontFamily: "monospace" }}>{code || "—"}</td>
                         <td style={{ border: "1px solid #999", padding: "4px 6px", whiteSpace: "nowrap" }}>{fmtDate(o.requestedAt)}</td>
+                        <td style={{ border: "1px solid #999", padding: "4px 6px", whiteSpace: "nowrap" }}>{fmtDate(o.receivedAt)}</td>
                       </tr>
                     )
                   })}
                 </tbody>
               </table>
               <div style={{ marginTop: 8, fontSize: 11 }}>
-                Total items: {orders.length} - Total unidades: {orders.reduce((a, o) => a + o.quantityRequested, 0)}
+                Total items: {orders.length}
               </div>
             </>
           )}

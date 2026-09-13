@@ -12,6 +12,7 @@ export interface SparePartOrder {
   orderNumber: string
   machineId: string
   machineName: string
+  machineModel?: string | null
   sparePartId?: string
   code: string
   description: string
@@ -43,6 +44,7 @@ export interface CreateSparePartOrderInput {
   orderNumber?: string
   machineId: string
   machineName?: string
+  machineModel?: string | null
   sparePartId?: string
   code: string
   description: string
