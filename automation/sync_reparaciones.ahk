@@ -52,17 +52,12 @@ NavigateReparaciones() {
     Sleep(afterClick)
     ValidarFoco()
 
-    ; 6 — Excel con ítems
-    ClickAt("RepExcelItems")
-    Sleep(afterClick)
-    ValidarFoco()
-
-    ; 7 — Click imprimir
+    ; 6 — Click imprimir
     ClickAt("RepImprimir")
     Sleep(afterClick)
     ValidarFoco()
 
-    ; 8 — Seleccionar formato Excel
+    ; 7 — Seleccionar formato Excel
     ClickAt("RepExcelFormat")
     Sleep(afterExcel)
 
