@@ -59,6 +59,9 @@ export interface MaintenanceRecord {
   vendedor?: string
   costo?: string
   reason?: string
+  // Información de repuestos detectada en MOTIVO_ESTADO_REP del Excel de 3C
+  motivoEstadoRep?: string
+  sparePartsDetected?: { code: string; description: string }[]
   // Información CONSOLIDADA de todos los Excel de 3C
   states?: { status: string; statusDate?: string; statusDescription?: string; statusUser?: string; sourceFile?: string }[]
   workItems?: string[]

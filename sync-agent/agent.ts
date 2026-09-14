@@ -26,6 +26,7 @@ import {
     type PrimaryModuleId,
 } from "../src/lib/sync-3c/redisPrimary"
 import { parseMaintenanceBuffer } from "../src/lib/local-sync-excel"
+import { importSparePartsFromRepairMotivo } from "../src/services/sparePartOrders"
 import {
     parseRepairStatusBuffer,
     getLatestStatusByOrder,
@@ -968,6 +969,29 @@ async function processModule(
 
             // —— CONSOLIDACIÓN: cruzar TODOS los Excel de 3C disponibles ——
             await consolidateMaintenanceFromExports(redis, exportInfo, runStart)
+
+            // —— IMPORTACIÓN DE REPUESTOS DESDE MOTIVO_ESTADO_REP ——
+            // Detecta repuestos/materiales en la columna MOTIVO_ESTADO_REP
+            // y los envía a Pedidos Rep. (spare_part_orders)
+            try {
+              const sparePartsResult = await importSparePartsFromRepairMotivo()
+              console.log(`[AGENT] Spare parts from MOTIVO_ESTADO_REP: created=${sparePartsResult.created}, updated=${sparePartsResult.updated}, skippedAdmin=${sparePartsResult.skippedAdmin}`)
+              if (sparePartsResult.createdOrders.length > 0) {
+                console.log(`[AGENT] Spare parts detail:`, sparePartsResult.createdOrders)
+              }
+              result = {
+                ...result,
+                sparePartsCreated: sparePartsResult.created,
+                sparePartsUpdated: sparePartsResult.updated,
+              }
+            } catch (spareErr) {
+              const spareMsg = spareErr instanceof Error ? spareErr.message : String(spareErr)
+              console.error(`[AGENT] Spare parts import failed:`, spareMsg)
+              result = {
+                ...result,
+                sparePartsError: spareMsg,
+              }
+            }
         } else if (module === "reparaciones_facturadas") {
             // 2º Excel de Reparaciones (informe "facturadas"): aporta el ESTADO
             // real. Se CONSOLIDA con TODOS los Excel presentes en 3c_exports

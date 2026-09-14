@@ -411,3 +411,279 @@ export async function importPendingPartsFromMaintenance(): Promise<{
   return { created: createdOrders.length, skippedExisting, createdOrders }
 }
 
+// ============================================================================
+// PARSING DE REPUESTOS DESDE MOTIVO_ESTADO_REP
+// ============================================================================
+
+/**
+ * Patrones que indican texto administrativo/comunicaciones que NO son repuestos.
+ * Si el texto completo coincide con alguno de estos patrones, se descarta.
+ */
+const ADMIN_PATTERNS = [
+  /^FVta\s*:/i,
+  /^FAIV\s*:/i,
+  /^retira\s/i,
+  /^retirad[oa]/i,
+  /^retiro\s/i,
+  /^retirad[oa]\s+por\b/i,
+  /^NO\s+SE\s+REPARA?\s*POR?\s*FALTA\s+DE\s+REPUESTOS?\b/i,
+  /^NO\s+SE\s+PUEDE\s+REPARAR\s*POR?\s*FALTA\s+DE\s+REPUESTOS?\b/i,
+  /^FALTA\s+DE\s+REPUESTOS?\b/i,
+  /^REPUESTO\s+NO\s+DISPONIBLE\b/i,
+  /^NO\s+SE\s+CONSIGUE\s+(EL\s+)?REPUESTO\b/i,
+  /^NO\s+ACEPTO\s+PRESUPUESTO\b/i,
+  /^FUERA\s+DE\s+PRESUPUESTO\b/i,
+  /^PENDIENTE\s+PARA\s+REVISAR\b/i,
+  /^SE\s+LLAM[OÓ]\s+AL\s+CLIENTE\b/i,
+  /^DONADA?\s*POR\b/i,
+  /^NO\s+SE\s+REPARA\b/i,
+  /^REPARACION\s+DE\b/i,
+  /^NO\s+SE\s+CAMBIO\s+(NINGUN|NINGUNO|NADA)\b/i,
+  /NO\s+SE\s+CAMBIO\s+(NINGUN|NINGUNO|NADA)\b/i,
+  /^LIMPIEZA\s+Y\s+LUBRICACION\b/i,
+  /^REPARADA\s+LIMPIEZA\b/i,
+]
+
+/** Verifica si un texto es puramente administrativo (no contiene repuestos). */
+function isAdminText(text: string): boolean {
+  const trimmed = text.trim()
+  if (!trimmed) return true
+  return ADMIN_PATTERNS.some((p) => p.test(trimmed))
+}
+
+/** Limpia y normaliza una línea de texto. */
+function cleanLine(text: string): string[] {
+  return text
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/[\r\n]+/g, "\n")
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean)
+}
+
+/**
+ * Detecta si una línea parece un código de repuesto (no una descripción).
+ * Códigos típicos: "1619P15184", "600 A01 L7D", "619 P06 232", "604 611 024"
+ */
+function looksLikeCode(line: string): boolean {
+  const t = line.trim()
+  if (!t) return false
+  // Empieza con letra seguida de varios dígitos: "R9939675", "A1234"
+  if (/^[A-Z]\d{4,}/i.test(t)) return true
+  // Formato con espacios: "600 A01 L7D", "619 P06 232", "1 600 A01 L7D"
+  if (/^\d{1,4}\s+[A-Z0-9]{2,4}(\s+[A-Z0-9]{2,})+$/i.test(t)) return true
+  // Alfanumérico con guiones/puntos: "1619P15184", "1619-P15-184"
+  if (/^\d{3,4}[-.]?[A-Z0-9]{2,}[-.]?[A-Z0-9]*$/i.test(t)) return true
+  // Mayormente dígitos con separadores
+  if (/^[\d\s.]{5,}$/.test(t) && /\d{4,}/.test(t)) return true
+  return false
+}
+
+/** Limpia la descripción de prefijos verbales comunes. */
+function cleanDescription(desc: string): string {
+  if (!desc) return desc
+  return desc
+    .replace(/^(se\s+)?(cambia(r)?|coloca(r)?|pone(r)?|repara(r)?|necesita|requiere|comprar)\s+(el|la|los|las|un|una)\s+/i, "")
+    .replace(/^(se\s+cambio)\b/i, "")
+    .trim()
+    .replace(/^(se\s+)?(cambia(r)?|coloca(r)?|pone(r)?|repara(r)?|necesita|requiere|comprar|cambie)\s+/i, "")
+    .replace(/^de\s+/i, "")
+    .replace(/^[\d]+[.,]?\d*\s*(mts?|metros?|kg|g|cm|mm|unid|lts?|litros?)\s*(de\s+)?/i, "")
+    .replace(/^[""]/, "")
+    .replace(/(\d)x(\d)/gi, "$1X$2")
+    .trim()
+}
+
+/** Extrae código de una línea, eliminando cantidad inicial si existe. */
+function extractCode(line: string): string {
+  const t = line.trim()
+  // Quitar cantidad inicial: "1 600 A01 L7D" → "600 A01 L7D"
+  const cleaned = t.replace(/^\d{1,3}\s+(?=\d)/, "")
+  return cleaned.toUpperCase()
+}
+
+/**
+ * Parsea MOTIVO_ESTADO_REP y extrae repuestos/materiales concretos.
+ * Soporta código en línea separada, código en misma línea, múltiples repuestos,
+ * y repuestos sin código.
+ */
+export function parseSparePartsFromMotivo(motivo: string): { code: string | null; description: string }[] {
+  if (!motivo || isAdminText(motivo)) return []
+
+  const lines = cleanLine(motivo)
+  if (lines.length === 0) return []
+
+  const parts: { code: string | null; description: string }[] = []
+  let currentDesc: string | null = null
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    if (!line || isAdminText(line)) continue
+
+    // Detectar patrón "CÓDIGO [modelo] descripción" (código al inicio)
+    // Ej: "R9939675 92 JGO DE CARBONES 92 p/9993896"
+    const codeFirst = line.match(/^([A-Z]\d{4,})(?:\s+\d{1,3})?\s{1,3}(.+)$/i)
+    if (codeFirst && codeFirst[2] && codeFirst[2].length > 3) {
+      const potentialCode = codeFirst[1].trim()
+      if (looksLikeCode(potentialCode)) {
+        parts.push({ code: potentialCode.toUpperCase(), description: codeFirst[2].trim() })
+        continue
+      }
+    }
+
+    // Detectar patrón "descripción CÓDIGO" (código al final con paréntesis opcional)
+    const inlineCode = line.match(/^(.+?)\s+([A-Z]?\d{3,}[A-Z0-9]*)(?:\s*\(([^)]+)\))?$/i)
+    if (inlineCode && inlineCode[2] && inlineCode[2].length >= 4) {
+      const potentialCode = inlineCode[2]
+      if (inlineCode[1].trim().length > 0 && looksLikeCode(potentialCode)) {
+        parts.push({ code: potentialCode.toUpperCase(), description: inlineCode[3] ? `${inlineCode[1].trim()} (${inlineCode[3]})` : inlineCode[1].trim() })
+        continue
+      }
+    }
+
+    // Si la línea parece código
+    if (looksLikeCode(line)) {
+      const code = extractCode(line)
+      if (currentDesc) { parts.push({ code: code, description: currentDesc }); currentDesc = null }
+      else parts.push({ code: code, description: `Repuesto ${line}` })
+    } else {
+      // Es una descripción (no código)
+      if (currentDesc && !isAdminText(currentDesc)) {
+        parts.push({ code: null, description: currentDesc })
+      }
+      currentDesc = line
+    }
+  }
+
+  // Guardar última descripción pendiente
+  if (currentDesc && !isAdminText(currentDesc)) {
+    parts.push({ code: null, description: currentDesc })
+  }
+
+  // Si no se generó nada pero el texto no es admin, usarlo tal cual
+  if (parts.length === 0 && !isAdminText(motivo.trim())) {
+    parts.push({ code: null, description: motivo.trim() })
+  }
+
+  return parts
+    .map((p) => ({
+      code: p.code,
+      description: cleanDescription(p.description),
+    }))
+    .filter((p) => p.description && !isAdminText(p.description))
+}
+
+/**
+ * Importa repuestos/materiales detectados en MOTIVO_ESTADO_REP hacia Pedidos Rep.
+ *
+ * Lógica:
+ * - Lee todos los MaintenanceRecords (fuente primaria Redis / Firestore)
+ * - Filtra los que tienen motivoEstadoRep no vacío
+ * - Parsea cada motivo para identificar repuestos concretos
+ * - Crea/actualiza spare_part_orders por cada repuesto detectado
+ * - Es idempotente: no duplica si ya existe (orden + código/descripción)
+ */
+export async function importSparePartsFromRepairMotivo(): Promise<{
+  created: number
+  updated: number
+  skippedAdmin: number
+  createdOrders: { orderNumber: string; code: string | null; description: string }[]
+}> {
+  const { loadMaintenanceRecords } = await import("@/lib/local-sync")
+  const maintenance = await loadMaintenanceRecords()
+
+  const existing = await getAllOrders()
+  const seen = new Map<string, SparePartOrder>()
+  for (const o of existing) {
+    const key = `${normOrderKey(o.orderNumber)}||${(o.code || o.description).trim().toLowerCase()}`
+    seen.set(key, o)
+  }
+
+  const createdOrders: { orderNumber: string; code: string | null; description: string }[] = []
+  let updated = 0
+  let skippedAdmin = 0
+
+  for (const record of maintenance) {
+    const motivo = record.motivoEstadoRep?.trim()
+    if (!motivo) continue
+
+    // Saltar si todo el texto es administrativo
+    if (isAdminText(motivo)) {
+      skippedAdmin++
+      continue
+    }
+
+    const spareParts = parseSparePartsFromMotivo(motivo)
+    if (spareParts.length === 0) {
+      skippedAdmin++
+      continue
+    }
+
+    for (const part of spareParts) {
+      const codeNorm = part.code ? part.code.toUpperCase().replace(/\s+/g, " ") : ""
+      const descNorm = part.description.trim().toLowerCase()
+
+      // Clave de deduplicación: orden + código (si hay) o descripción normalizada
+      const dedupKey = codeNorm
+        ? `${normOrderKey(record.orderNumber)}||${codeNorm}`
+        : `${normOrderKey(record.orderNumber)}||${descNorm}`
+
+      const existingOrder = seen.get(dedupKey)
+      if (existingOrder) {
+        // Actualizar existente si cambió algo relevante
+        const updates: Record<string, unknown> = {}
+        if (!existingOrder.notes || !existingOrder.notes.includes(motivo)) {
+          updates.notes = existingOrder.notes
+            ? `${existingOrder.notes}\n---\nMOTIVO_ESTADO_REP: ${motivo}`
+            : `MOTIVO_ESTADO_REP: ${motivo}`
+        }
+        if (Object.keys(updates).length > 0) {
+          const ref = doc(db, COLLECTION, existingOrder.id)
+          await updateDoc(ref, { ...updates, updatedAt: new Date() })
+          updated++
+        }
+        continue
+      }
+
+      // Crear nuevo pedido
+      await createOrder({
+        repairId: record.id ?? record.orderNumber,
+        orderNumber: record.orderNumber,
+        machineId: record.orderNumber,
+        machineName: record.machineName ?? "",
+        code: part.code ?? "",
+        description: part.description,
+        unit: "unidad",
+        quantity: 1,
+        requestedAt: record.entryDate ?? new Date(),
+        notes: `Importado desde MOTIVO_ESTADO_REP (3C)\nOrden: ${record.orderNumber}\nCliente: ${record.clientName}\nEstado: ${record.status}\n---\nMOTIVO original: ${motivo}`,
+      })
+
+      seen.set(dedupKey, {
+        id: "pending",
+        repairId: record.id ?? record.orderNumber,
+        orderNumber: record.orderNumber,
+        machineId: record.orderNumber,
+        machineName: record.machineName ?? "",
+        code: part.code ?? "",
+        description: part.description,
+        unit: "unidad",
+        quantityRequested: 1,
+        quantityReceived: 0,
+        quantityUsed: 0,
+        status: "SOLICITADO",
+        requestedAt: record.entryDate ?? new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+
+      createdOrders.push({
+        orderNumber: record.orderNumber,
+        code: part.code,
+        description: part.description,
+      })
+    }
+  }
+
+  return { created: createdOrders.length, updated, skippedAdmin, createdOrders }
+}

@@ -167,6 +167,7 @@ export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
     // incluye las columnas ESTADO / ENTREGA en la grilla.
     estado: c(["estado", "estado_repara_txt", "situacion"], -1),
     entrega: c(["entrega", "fecha_entrega", "fecha_retiro"], -1),
+    motivoEstadoRep: c(["motivo_estado_rep", "motivo_estado"], -1),
   }
   const num = (v: unknown): number | null => {
     if (typeof v === "number" && Number.isFinite(v)) return v
@@ -196,6 +197,10 @@ export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
     const unitPrice = num(row[COL.precioUnitario]) ?? 0
     const totalPrice = num(row[COL.precioTotal]) ?? 0
 
+    // MOTIVO_ESTADO_REP: columna [4] del Excel de 3C con info de repuestos/materiales
+    const motivoEstadoRepRaw = COL.motivoEstadoRep >= 0 ? String(row[COL.motivoEstadoRep] ?? "").trim() : ""
+    const motivoEstadoRep = motivoEstadoRepRaw || undefined
+
     const existing = byOrder.get(key)
     if (existing) {
       // Ítem adicional de la misma orden.
@@ -218,11 +223,23 @@ export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
       existing.exempt = (existing.exempt ?? 0) + (num(row[COL.exento]) ?? 0)
       const d = toDate(row[COL.fecha])
       if (d && d.getTime() < existing.entryDate.getTime()) existing.entryDate = d
+      // Actualizar MOTIVO_ESTADO_REP si existe y no está duplicado
+      if (motivoEstadoRep) {
+        const prev = existing.motivoEstadoRep
+        if (prev) {
+          if (!prev.toLowerCase().includes(motivoEstadoRep.toLowerCase())) {
+            existing.motivoEstadoRep = `${prev}\n${motivoEstadoRep}`
+          }
+        } else {
+          existing.motivoEstadoRep = motivoEstadoRep
+        }
+      }
       continue
     }
 
     const esLineaReparacion = /^reparaci[oó]n:/i.test(texto)
     if (esLineaReparacion) conReparacion.add(key)
+
     byOrder.set(key, {
       id: orderNumber,
       orderNumber,
@@ -248,6 +265,7 @@ export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
       notTaxed: num(row[COL.noGravado]),
       exempt: num(row[COL.exento]),
       originalData: { row: row.slice(0, 19) },
+      motivoEstadoRep,
       createdAt: entryDate,
       updatedAt: today,
       technician: undefined,

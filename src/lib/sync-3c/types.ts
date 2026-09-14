@@ -43,6 +43,9 @@ export interface Sync3CResult {
   maintenanceSkipped?: number
   maintenanceWarnings?: string[]
   maintenanceError?: string
+  sparePartsCreated?: number
+  sparePartsUpdated?: number
+  sparePartsError?: string
   scaffoldCuerposAlquilados?: number
   scaffoldDetalleCount?: number
 }
