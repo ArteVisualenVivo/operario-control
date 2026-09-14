@@ -52,6 +52,9 @@ export function SparePartOrderPanel({ repair }: Props) {
     }
   }
 
+  // Determinar si la reparación está en estado de espera de repuestos
+  const isAwaitingParts = /espera.*repuesto|repuesto.*espera|esperando.*repuesto/i.test(repair.repairPerformed ?? "")
+
   return (
     <div className="border-t pt-3 space-y-3">
       <div className="flex items-center justify-between">
@@ -62,8 +65,20 @@ export function SparePartOrderPanel({ repair }: Props) {
       {loading ? (
         <p className="text-sm text-muted-foreground">Cargando pedidos...</p>
       ) : orders.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No hay pedidos de repuestos para esta orden.</p>
+        isAwaitingParts ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+            <p className="text-sm font-medium text-amber-800">Repuestos pendientes</p>
+            <p className="text-sm text-amber-700 mt-1">No hay repuestos identificados para esta orden.</p>
+            <p className="text-xs text-amber-600 mt-2">El estado indica que se esperan repuestos, pero no se han detectado repuestos específicos. Puede agregarlos manualmente o revisar el campo MOTIVO_ESTADO_REP de la orden.</p>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">No hay pedidos de repuestos para esta orden.</p>
+        )
       ) : (
+        <div className="space-y-2">
+          {isAwaitingParts && (
+            <p className="text-sm font-medium text-amber-800">Repuestos pendientes</p>
+          )}
         <div className="overflow-hidden rounded-lg border">
           <table className="w-full text-sm">
             <thead>
@@ -110,6 +125,7 @@ export function SparePartOrderPanel({ repair }: Props) {
               ))}
             </tbody>
           </table>
+        </div>
         </div>
       )}
 

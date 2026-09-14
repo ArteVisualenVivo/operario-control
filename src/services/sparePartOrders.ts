@@ -58,13 +58,51 @@ export async function getAllOrders(): Promise<SparePartOrder[]> {
 export async function getOrdersByRepair(repairId: string): Promise<SparePartOrder[]> {
   if (!repairId) return []
   try {
-    const q = query(
+    // Buscar por repairId (id interno de la reparación)
+    const q1 = query(
       collection(db, COLLECTION),
       where("repairId", "==", repairId),
       orderBy("requestedAt", "desc"),
     )
-    const snap = await getDocs(q)
-    return snap.docs.map(docToOrder)
+    const snap1 = await getDocs(q1)
+
+    // También buscar por orderNumber (número de orden de 3C, ej: "X 0001-00011170")
+    // Normalizar el ID: quitar prefijo "local:" y espacios extra
+    const normalizedId = repairId.replace(/^local:\s*/i, "").trim()
+    const orderNumbers = [normalizedId]
+
+    // Si el ID original tenía prefijo "local:", también buscar sin él
+    if (repairId.startsWith("local:")) {
+      orderNumbers.push(normalizedId)
+    }
+    // Si el ID no tiene prefijo "X", también buscar con prefijo
+    if (!normalizedId.toUpperCase().startsWith("X") && /^\d{4}/.test(normalizedId)) {
+      orderNumbers.push(`X ${normalizedId}`)
+    }
+
+    const results = new Map<string, SparePartOrder>()
+
+    // Agregar resultados de búsqueda por repairId
+    for (const doc of snap1.docs) {
+      const order = docToOrder(doc)
+      results.set(order.id, order)
+    }
+
+    // Buscar por cada variante de orderNumber
+    for (const orderNum of [...new Set(orderNumbers)]) {
+      const q2 = query(
+        collection(db, COLLECTION),
+        where("orderNumber", "==", orderNum),
+        orderBy("requestedAt", "desc"),
+      )
+      const snap2 = await getDocs(q2)
+      for (const doc of snap2.docs) {
+        const order = docToOrder(doc)
+        results.set(order.id, order)
+      }
+    }
+
+    return Array.from(results.values()).sort((a, b) => b.requestedAt.getTime() - a.requestedAt.getTime())
   } catch (err) {
     if (LOCAL_MODE) return []
     throw err
