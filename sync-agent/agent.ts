@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 
-import dotenv from "dotenv"
-
-dotenv.config({
-    path: fileURLToPath(new URL("../.env.local", import.meta.url)),
-})
+// Importamos "./env" PRIMERO. En ESM, los imports estáticos se evalúan por
+// orden de profundidad: dotenv.config() (en env.ts) corre antes de que
+// cualquier import que toque Firebase/Auth (engine.ts -> firebase.ts ->
+// getAuth) se evalúe, evitando "auth/invalid-api-key".
+import "./env"
 import { Redis } from "@upstash/redis"
 import { spawn, execSync } from "child_process"
 import fs from "fs"
