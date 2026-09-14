@@ -57,56 +57,30 @@ export async function getAllOrders(): Promise<SparePartOrder[]> {
 
 export async function getOrdersByRepair(repairId: string): Promise<SparePartOrder[]> {
   if (!repairId) return []
+
+  // Normaliza un valor (local:/maintenance:, X inicial, mayúsculas, espacios)
+  // a la clave canónica para comparar.
+  const normFor = (value: unknown): string => normOrderKey(
+    String(value ?? "").replace(/^(local:|maintenance:)\s*/i, ""),
+  )
+
+  // Generar las posibles claves objetivo para esta reparación: con y sin "X".
+  const base = normFor(repairId)
+  const baseDigits = /^\d/.test(base) ? base : base.replace(/^X\s+/, "").trim()
+  const targetKeys = new Set<string>([base, baseDigits])
+
   try {
-    // Buscar por repairId (id interno de la reparación)
-    const q1 = query(
-      collection(db, COLLECTION),
-      where("repairId", "==", repairId),
-      orderBy("requestedAt", "desc"),
-    )
-    const snap1 = await getDocs(q1)
-
-    // Normalizar el ID para generar todas las variantes posibles de número de orden
-    // que podrían estar guardadas en spare_part_orders.
-    const trimmed = repairId.trim()
-    // Quitar prefijo "local:" / "maintenance:" y colapsar espacios
-    const core = trimmed
-      .replace(/^(local:|maintenance:)\s*/i, "")
-      .replace(/\s+/g, " ")
-      .trim()
-    const upper = core.toUpperCase()
-
-    // Variantes: quitar "X" prefijo, agregar "X" prefijo
-    const hasX = /^X\s+\d/.test(upper)
-    const withX = hasX ? upper : `X ${upper}`
-    const withoutX = hasX ? upper.replace(/^X\s+/, "") : upper
-
-    // Unir todas las variantes (sin duplicados)
-    const orderNumbers = [...new Set([upper, withX, withoutX])].filter(Boolean)
-
-    const results = new Map<string, SparePartOrder>()
-
-    // Agregar resultados de búsqueda por repairId
-    for (const doc of snap1.docs) {
-      const order = docToOrder(doc)
-      results.set(order.id, order)
-    }
-
-    // Buscar por cada variante de orderNumber
-    for (const orderNum of orderNumbers) {
-      const q2 = query(
-        collection(db, COLLECTION),
-        where("orderNumber", "==", orderNum),
-        orderBy("requestedAt", "desc"),
-      )
-      const snap2 = await getDocs(q2)
-      for (const doc of snap2.docs) {
-        const order = docToOrder(doc)
-        results.set(order.id, order)
-      }
-    }
-
-    return Array.from(results.values()).sort((a, b) => b.requestedAt.getTime() - a.requestedAt.getTime())
+    // Evitamos búsquedas Firestore compuestas (where + orderBy) que requieren
+    // índices compuestos y, si faltan, lanzan error devolviendo vacío. En su
+    // lugar cargamos todos los pedidos (consulta simple con orderBy ya
+    // utilizada por getAllOrders) y filtramos en memoria por orden normalizada.
+    const all = await getAllOrders()
+    return all.filter((o) => {
+      const match =
+        targetKeys.has(normFor(o.repairId)) ||
+        targetKeys.has(normFor(o.orderNumber))
+      return match
+    })
   } catch (err) {
     if (LOCAL_MODE) return []
     throw err
