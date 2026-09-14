@@ -66,19 +66,23 @@ export async function getOrdersByRepair(repairId: string): Promise<SparePartOrde
     )
     const snap1 = await getDocs(q1)
 
-    // También buscar por orderNumber (número de orden de 3C, ej: "X 0001-00011170")
-    // Normalizar el ID: quitar prefijo "local:" y espacios extra
-    const normalizedId = repairId.replace(/^local:\s*/i, "").trim()
-    const orderNumbers = [normalizedId]
+    // Normalizar el ID para generar todas las variantes posibles de número de orden
+    // que podrían estar guardadas en spare_part_orders.
+    const trimmed = repairId.trim()
+    // Quitar prefijo "local:" / "maintenance:" y colapsar espacios
+    const core = trimmed
+      .replace(/^(local:|maintenance:)\s*/i, "")
+      .replace(/\s+/g, " ")
+      .trim()
+    const upper = core.toUpperCase()
 
-    // Si el ID original tenía prefijo "local:", también buscar sin él
-    if (repairId.startsWith("local:")) {
-      orderNumbers.push(normalizedId)
-    }
-    // Si el ID no tiene prefijo "X", también buscar con prefijo
-    if (!normalizedId.toUpperCase().startsWith("X") && /^\d{4}/.test(normalizedId)) {
-      orderNumbers.push(`X ${normalizedId}`)
-    }
+    // Variantes: quitar "X" prefijo, agregar "X" prefijo
+    const hasX = /^X\s+\d/.test(upper)
+    const withX = hasX ? upper : `X ${upper}`
+    const withoutX = hasX ? upper.replace(/^X\s+/, "") : upper
+
+    // Unir todas las variantes (sin duplicados)
+    const orderNumbers = [...new Set([upper, withX, withoutX])].filter(Boolean)
 
     const results = new Map<string, SparePartOrder>()
 
@@ -89,7 +93,7 @@ export async function getOrdersByRepair(repairId: string): Promise<SparePartOrde
     }
 
     // Buscar por cada variante de orderNumber
-    for (const orderNum of [...new Set(orderNumbers)]) {
+    for (const orderNum of orderNumbers) {
       const q2 = query(
         collection(db, COLLECTION),
         where("orderNumber", "==", orderNum),

@@ -17,12 +17,14 @@ interface Props {
 
 export function SparePartOrderPanel({ repair }: Props) {
   const router = useRouter()
-  const { orders, loading, create, markOrdered, markReceived, markUsed, cancel } = useSparePartOrders(repair.id)
+  // La relación con Pedidos Rep. se hace por número de orden.
+  // Para reparaciones de 3C, repair.externalId es el número de orden (ej: "X 0001-00011170").
+  // Para reparaciones manuales, externalId es undefined y se usa repair.id.
+  const orderNumber = repair.externalId ?? repair.id
+  const { orders, loading, create, markOrdered, markReceived, markUsed, cancel } = useSparePartOrders(orderNumber)
   const [createOpen, setCreateOpen] = useState(false)
   const [action, setAction] = useState<{ type: "receive" | "use"; order: SparePartOrder } | null>(null)
   const [orderedTarget, setOrderedTarget] = useState<SparePartOrder | null>(null)
-
-  const orderNumber = repair.externalId ?? repair.id
 
   const handleCreate = async (input: CreateSparePartOrderInput) => {
     await create(input)
@@ -55,30 +57,47 @@ export function SparePartOrderPanel({ repair }: Props) {
   // Determinar si la reparación está en estado de espera de repuestos
   const isAwaitingParts = /espera.*repuesto|repuesto.*espera|esperando.*repuesto/i.test(repair.repairPerformed ?? "")
 
+  // Repuestos pendientes de recibir (no cancelados ni totalmente utilizados)
+  const pendingOrders = orders.filter((o) => {
+    if (o.status === "CANCELADO" || o.status === "UTILIZADO") return false
+    return (o.quantityRequested - o.quantityReceived) > 0
+  })
+
   return (
     <div className="border-t pt-3 space-y-3">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium">Repuestos ({orders.length})</p>
+        <p className="text-sm font-medium">Repuestos ({pendingOrders.length})</p>
         <Button size="sm" onClick={() => setCreateOpen(true)}>+ Pedir repuesto</Button>
       </div>
+
+      {/* Subsección específica cuando el estado es "A la Espera Repuestos" */}
+      {isAwaitingParts && (
+        <div className={`rounded-lg border p-3 ${pendingOrders.length > 0 ? "border-amber-200 bg-amber-50" : "border-muted bg-muted/30"}`}>
+          <p className="text-sm font-medium text-amber-800">Repuestos pendientes</p>
+          {pendingOrders.length === 0 ? (
+            <p className="text-sm text-amber-700 mt-1">No hay repuestos pendientes identificados para esta orden.</p>
+          ) : (
+            <ul className="mt-2 space-y-1.5">
+              {pendingOrders.map((o) => (
+                <li key={o.id} className="text-sm">
+                  <span className="font-medium">{o.description}</span>
+                  {o.code && <span className="font-mono text-xs text-muted-foreground ml-1">— {o.code}</span>}
+                  <span className="block text-xs text-muted-foreground">
+                    Estado: {o.status === "SOLICITADO" ? "Solicitado" : o.status === "PEDIDO" ? "Pedido" : o.status === "ENCARGADO" ? "Encargado" : o.status}
+                    {" · "}Pendiente de recibir: {Math.max(0, o.quantityRequested - o.quantityReceived)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Cargando pedidos...</p>
       ) : orders.length === 0 ? (
-        isAwaitingParts ? (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3">
-            <p className="text-sm font-medium text-amber-800">Repuestos pendientes</p>
-            <p className="text-sm text-amber-700 mt-1">No hay repuestos identificados para esta orden.</p>
-            <p className="text-xs text-amber-600 mt-2">El estado indica que se esperan repuestos, pero no se han detectado repuestos específicos. Puede agregarlos manualmente o revisar el campo MOTIVO_ESTADO_REP de la orden.</p>
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">No hay pedidos de repuestos para esta orden.</p>
-        )
+        !isAwaitingParts && <p className="text-sm text-muted-foreground">No hay pedidos de repuestos para esta orden.</p>
       ) : (
-        <div className="space-y-2">
-          {isAwaitingParts && (
-            <p className="text-sm font-medium text-amber-800">Repuestos pendientes</p>
-          )}
         <div className="overflow-hidden rounded-lg border">
           <table className="w-full text-sm">
             <thead>
@@ -125,7 +144,6 @@ export function SparePartOrderPanel({ repair }: Props) {
               ))}
             </tbody>
           </table>
-        </div>
         </div>
       )}
 
