@@ -442,7 +442,147 @@ const ADMIN_PATTERNS = [
   /NO\s+SE\s+CAMBIO\s+(NINGUN|NINGUNO|NADA)\b/i,
   /^LIMPIEZA\s+Y\s+LUBRICACION\b/i,
   /^REPARADA\s+LIMPIEZA\b/i,
+  /^REPARADA\s+LIMPIEZA\b/i,
+  /^gastos\s+varios/i,
+  /^MO\s+/i,
+  /^REVISAR?\s*$/i,
+  /^A\s+REVISAR\b/i,
 ]
+
+/**
+ * Patrones de diagnósticos, fallas, síntomas y observaciones que NO son repuestos.
+ * Estos textos describen problemas, no piezas/materiales.
+ */
+const DIAGNOSIS_PATTERNS = [
+  /^NO\s+FUNCIONA?\b/i,
+  /^NO\s+PERCUTA?\b/i,
+  /^NO\s+ENCIENDE?\b/i,
+  /^NO\s+ANDA?\b/i,
+  /^NO\s+TIENE\s+/i,
+  /^NO\s+CARGA?\b/i,
+  /^NO\s+SALE?\b/i,
+  /^NO\s+SUBE?\b/i,
+  /^NO\s+BAJA?\b/i,
+  /^FUNCIONA\s+PERO\s+NO\b/i,
+  /^ENCIENDE\s+PERO\s+NO\b/i,
+  /^HACE\s+(MUCHO\s+)?RUIDO\b/i,
+  /^RUIDO\s+RARO/i,
+  /^PIERDE\s+/i,
+  /^SALE?\s+OLOR\s+A\s+QUEMADO/i,
+  /^SALE?\s+HUMO\b/i,
+  /^SALE?\s+ACEITE\b/i,
+  /^PROBLEMA\s+DE\b/i,
+  /^PROBLEMA\s+CON\b/i,
+  /^FALTA\s+/i,
+  /^ESTA?\s+QUEMAD[OA]/i,
+  /^ESTA?\s+ROT[OA]/i,
+  /^ESTA?\s+TRABAD[OA]/i,
+  /^ESTA?\s+SUELT[OA]/i,
+  /^ROTA?\s+/i,
+  /^ROTO\s+/i,
+  /^TRABAD[OA]\s+/i,
+  /^SUELT[OA]\s+/i,
+  /^VIBRA\b/i,
+  /^CALIENTA\b/i,
+  /^SE\s+APAGA\b/i,
+  /^SE\s+TRABA\b/i,
+  /^SE\s+SALE\b/i,
+  /^NO\s+SUJETA\b/i,
+  /^NO\s+AJUSTA\b/i,
+  /^FLOJ[OA]\b/i,
+  /^MAL\s+ESTADO\b/i,
+  /^MAL[OA]\s+/i,
+  /^ROMPID[OA]\b/i,
+  /^CORTAD[OA]\b/i,
+  /^CORT[OA]\s+EL?\b/i,
+  /^CORTÓ\s+/i,
+  /^CORTO\s+/i,
+  /^SE\s+CORT[OAÓ]\s+/i,
+  /^PERCUTA?\s+MAL\b/i,
+  /^PERCUTA?\s+POCO\b/i,
+  /^NO\s+PERCUTA?\s+BIEN\b/i,
+  /^FUNCIONA\s+PERO\b/i,
+  /^ENCIENDE\s+Y\s+ANDA\b/i,
+  /^ENCIENDE\s+PERO\b/i,
+  /^ANDA\s+PERO\b/i,
+  /^ANDA\s+BIEN\b/i,
+  /^FUNCIONA\s+BIEN\b/i,
+  /^SIN\s+VAINA\b/i,
+  /^SIN\s+CABLE\b/i,
+  /^SIN\s+PROTECC?ION\b/i,
+  /^MO\s+/i,
+  /^REVISAR?\s+/i,
+  /^REVIS[AO]\s+/i,
+  /^REVISADO\s+/i,
+  /^A\s+REVISAR\b/i,
+  /^PARA\s+REVISAR\b/i,
+  /^PENDIENTE\b/i,
+  /^SE\s+SACA?\s+/i,
+  /^PARA\s+USAR\s+EN\s+ORDEN\b/i,
+  /^SE\s+RETIRA?\s+/i,
+  /^SE\s+RETIRE\s+/i,
+  /^OBSERVACION\b/i,
+  /^NOTA\s*:/i,
+  /^CLIENTE\b/i,
+  /^SEÑOR[OA]?\b/i,
+  /^SR[TA]?\.?\s+\w/i,
+  /^DON\s+\w/i,
+  /^DOÑA\s+\w/i,
+]
+
+/**
+ * Verifica si un texto es un diagnóstico/falla/síntoma (NO es un repuesto).
+ */
+function isDiagnosis(text: string): boolean {
+  const t = text.trim()
+  if (!t) return true
+  return DIAGNOSIS_PATTERNS.some((p) => p.test(t))
+}
+
+/**
+ * Verifica si un texto contiene algún repuesto identificable.
+ * Busca palabras clave que indican piezas/materiales concretas.
+ */
+function containsSparePart(text: string): boolean {
+  const t = text.trim().toUpperCase()
+  if (!t) return false
+
+  // Si es solo diagnóstico, no contiene repuesto
+  if (isDiagnosis(text)) return false
+
+  // Palabras clave que indican repuestos/materiales
+  const spareKeywords = [
+    "INDUCIDO", "CAMPO", "RODAMIENTO", "VENTILADOR", "CARBON", "CARBONES",
+    "BUJE", "DISCO", "FILTRO", "CORREA", "MANGUERA", "CABLE", "FICHA",
+    "ENCHUFE", "BOTON", "PULSADOR", "INTERRUPTOR", "LAMPARA", "LED",
+    "RESISTENCIA", "CONDENSADOR", "CAPACITOR", "DIODO", "TRANSISTOR",
+    "INTEGRADO", "CIRCUITO", "PLACA", "TARJETA", "MOTOR", "BOMBA",
+    "COMPRESOR", "CILINDRO", "PISTON", "VALVULA", "RETEN", "SELLO",
+    "JUNTA", "TORNILLO", "TUERCA", "ARANDALE", "MUELLE", "RESORTE",
+    "PERNO", "SEGURO", "ANILLO", "RODILLO", "RUEDA", "ENGRANAJE",
+    "CORONA", "CADENA", "CREMALLERA", "BIELA", "MANIJA", "EMPUÑADURA",
+    "CARCASA", "CUERPO", "TAPA", "BASE", "SOPORTE", "ABRAZADERA",
+    "PROTECTOR", "VAINA", "CUBIERTA", "PROTECCION", "CUBRE",
+    "JGO", "JUEGO", "KIT", "SET",
+    "ACEITE", "GRASA", "COMBUSTIBLE", "GASOSELNA",
+    "PUNTERA", "PUNTA", "BROCA", "MECHA", "HOJA",
+    "BANDA", "FAJA",
+    "EJE", "EJES", "MAZA", "LLANTA",
+    "ASIENTO", "ASIENTOS", "GUÍA", "GUIAS",
+    "RETENEDOR", "RETENEDORA",
+    "ORING", "O-RING", "O.RING",
+    "SILICONA", "SELLADOR", "PEGAMENTO", "ADHESIVO",
+    "PORTA", "TRABA", "ENCENDIDO", "NUCLEO", "ALMA", "AGUJA",
+    "TANQUE", "REGULADOR", "MEDIDOR", "INDICADOR",
+  ]
+
+  // Verificar si contiene alguna palabra clave de repuesto
+  return spareKeywords.some((kw) => {
+    // Buscar como palabra completa o al inicio/fin de palabra
+    const regex = new RegExp(`(^|\\W)${kw}($|\\W)`, "i")
+    return regex.test(t)
+  })
+}
 
 /** Verifica si un texto es puramente administrativo (no contiene repuestos). */
 function isAdminText(text: string): boolean {
@@ -491,6 +631,8 @@ function cleanDescription(desc: string): string {
     .replace(/^[\d]+[.,]?\d*\s*(mts?|metros?|kg|g|cm|mm|unid|lts?|litros?)\s*(de\s+)?/i, "")
     .replace(/^[""]/, "")
     .replace(/(\d)x(\d)/gi, "$1X$2")
+    .replace(/\s+REVISAR?\s*$/i, "")
+    .replace(/\s+REVISAR?\s+Y\s+/i, "")
     .trim()
 }
 
@@ -503,9 +645,8 @@ function extractCode(line: string): string {
 }
 
 /**
- * Parsea MOTIVO_ESTADO_REP y extrae repuestos/materiales concretos.
- * Soporta código en línea separada, código en misma línea, múltiples repuestos,
- * y repuestos sin código.
+ * Parsea MOTIVO_ESTADO_REP y extrae ÚNICAMENTE repuestos/materiales concretos.
+ * Filtra diagnósticos, fallas, síntomas y observaciones.
  */
 export function parseSparePartsFromMotivo(motivo: string): { code: string | null; description: string }[] {
   if (!motivo || isAdminText(motivo)) return []
@@ -514,63 +655,133 @@ export function parseSparePartsFromMotivo(motivo: string): { code: string | null
   if (lines.length === 0) return []
 
   const parts: { code: string | null; description: string }[] = []
-  let currentDesc: string | null = null
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim()
-    if (!line || isAdminText(line)) continue
+    if (!line) continue
+
+    // Si la línea contiene puntos (.), dividir en frases y procesar cada una
+    if (line.includes(".")) {
+      const sentences = line.split(/\.\s*/)
+      for (const sentence of sentences) {
+        const trimmed = sentence.trim()
+        if (!trimmed || isAdminText(trimmed) || isDiagnosis(trimmed)) continue
+
+        // Si contiene delimitadores, usar splitAndParse
+        if (/[-;,]/.test(trimmed)) {
+          parts.push(...splitAndParse(trimmed))
+          continue
+        }
+
+        if (!containsSparePart(trimmed)) continue
+
+        // Intentar extraer código y descripción
+        const inlineCode = trimmed.match(/^(.+?)\s+([A-Z]?\d{4,}[A-Z0-9]*)(?:\s*\(([^)]+)\))?$/i)
+        if (inlineCode && inlineCode[2] && inlineCode[2].length >= 4) {
+          const descPart = inlineCode[3] ? `${inlineCode[1].trim()} (${inlineCode[3]})` : inlineCode[1].trim()
+          if (looksLikeCode(inlineCode[2]) && containsSparePart(descPart)) {
+            parts.push({ code: inlineCode[2].toUpperCase(), description: descPart })
+            continue
+          }
+        }
+
+        const cleaned = cleanDescription(trimmed)
+        if (cleaned && containsSparePart(cleaned) && !isDiagnosis(cleaned)) {
+          parts.push({ code: null, description: cleaned })
+        }
+      }
+      continue
+    }
+
+    // Si la línea contiene delimitadores (-, ;, ,), intentar dividir y procesar cada parte
+    if (/[-;,]/.test(line)) {
+      const splitParts = splitAndParse(line)
+      parts.push(...splitParts)
+      continue
+    }
+
+    // Verificar si la línea contiene un repuesto identificable
+    if (!containsSparePart(line)) continue
 
     // Detectar patrón "CÓDIGO [modelo] descripción" (código al inicio)
-    // Ej: "R9939675 92 JGO DE CARBONES 92 p/9993896"
     const codeFirst = line.match(/^([A-Z]\d{4,})(?:\s+\d{1,3})?\s{1,3}(.+)$/i)
-    if (codeFirst && codeFirst[2] && codeFirst[2].length > 3) {
-      const potentialCode = codeFirst[1].trim()
-      if (looksLikeCode(potentialCode)) {
-        parts.push({ code: potentialCode.toUpperCase(), description: codeFirst[2].trim() })
-        continue
-      }
+    if (codeFirst && codeFirst[2] && codeFirst[2].length > 3 && containsSparePart(codeFirst[2])) {
+      parts.push({ code: codeFirst[1].toUpperCase(), description: codeFirst[2].trim() })
+      continue
     }
 
     // Detectar patrón "descripción CÓDIGO" (código al final con paréntesis opcional)
-    const inlineCode = line.match(/^(.+?)\s+([A-Z]?\d{3,}[A-Z0-9]*)(?:\s*\(([^)]+)\))?$/i)
+    const inlineCode = line.match(/^(.+?)\s+([A-Z]?\d{4,}[A-Z0-9]*)(?:\s*\(([^)]+)\))?$/i)
     if (inlineCode && inlineCode[2] && inlineCode[2].length >= 4) {
       const potentialCode = inlineCode[2]
-      if (inlineCode[1].trim().length > 0 && looksLikeCode(potentialCode)) {
-        parts.push({ code: potentialCode.toUpperCase(), description: inlineCode[3] ? `${inlineCode[1].trim()} (${inlineCode[3]})` : inlineCode[1].trim() })
+      const descPart = inlineCode[3]
+        ? `${inlineCode[1].trim()} (${inlineCode[3]})`
+        : inlineCode[1].trim()
+      if (looksLikeCode(potentialCode) && containsSparePart(descPart)) {
+        parts.push({ code: potentialCode.toUpperCase(), description: descPart })
         continue
       }
     }
 
-    // Si la línea parece código
-    if (looksLikeCode(line)) {
-      const code = extractCode(line)
-      if (currentDesc) { parts.push({ code: code, description: currentDesc }); currentDesc = null }
-      else parts.push({ code: code, description: `Repuesto ${line}` })
-    } else {
-      // Es una descripción (no código)
-      if (currentDesc && !isAdminText(currentDesc)) {
-        parts.push({ code: null, description: currentDesc })
-      }
-      currentDesc = line
+    // Detectar patrón "CÓDIGO descripción" con código al inicio (letra + dígitos)
+    const codeAtStart = line.match(/^([A-Z]\d{4,})\s+(.+)$/i)
+    if (codeAtStart && codeAtStart[2] && containsSparePart(codeAtStart[2])) {
+      parts.push({ code: codeAtStart[1].toUpperCase(), description: codeAtStart[2].trim() })
+      continue
+    }
+
+    // La línea contiene un repuesto pero no tiene código identificable
+    // Limpiar la descripción de verbos y prefijos
+    const cleaned = cleanDescription(line)
+    if (cleaned && containsSparePart(cleaned) && !isDiagnosis(cleaned)) {
+      parts.push({ code: null, description: cleaned })
     }
   }
 
-  // Guardar última descripción pendiente
-  if (currentDesc && !isAdminText(currentDesc)) {
-    parts.push({ code: null, description: currentDesc })
-  }
+  // Eliminar duplicados por descripción normalizada
+  const seen = new Set<string>()
+  return parts.filter((p) => {
+    const key = `${p.code || ""}||${p.description.toUpperCase().replace(/\s+/g, " ")}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
 
-  // Si no se generó nada pero el texto no es admin, usarlo tal cual
-  if (parts.length === 0 && !isAdminText(motivo.trim())) {
-    parts.push({ code: null, description: motivo.trim() })
+/**
+ * Divide un texto por delimitadores comunes (-, ;, ,) y procesa cada parte
+ * para extraer repuestos individuales.
+ */
+function splitAndParse(text: string): { code: string | null; description: string }[] {
+  const parts: { code: string | null; description: string }[] = []
+
+  // Dividir por delimitadores comunes
+  const segments = text.split(/\s*[-;,]\s*/)
+
+  for (const segment of segments) {
+    const trimmed = segment.trim()
+    if (!trimmed) continue
+    if (isAdminText(trimmed) || isDiagnosis(trimmed)) continue
+    if (!containsSparePart(trimmed)) continue
+
+    // Intentar extraer código y descripción
+    const inlineCode = trimmed.match(/^(.+?)\s+([A-Z]?\d{4,}[A-Z0-9]*)(?:\s*\(([^)]+)\))?$/i)
+    if (inlineCode && inlineCode[2] && inlineCode[2].length >= 4) {
+      const descPart = inlineCode[3] ? `${inlineCode[1].trim()} (${inlineCode[3]})` : inlineCode[1].trim()
+      if (looksLikeCode(inlineCode[2]) && containsSparePart(descPart)) {
+        parts.push({ code: inlineCode[2].toUpperCase(), description: descPart })
+        continue
+      }
+    }
+
+    // Descripción sin código
+    const cleaned = cleanDescription(trimmed)
+    if (cleaned && containsSparePart(cleaned) && !isDiagnosis(cleaned)) {
+      parts.push({ code: null, description: cleaned })
+    }
   }
 
   return parts
-    .map((p) => ({
-      code: p.code,
-      description: cleanDescription(p.description),
-    }))
-    .filter((p) => p.description && !isAdminText(p.description))
 }
 
 /**
