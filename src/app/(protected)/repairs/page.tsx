@@ -31,6 +31,13 @@ function linksToOrder(repair: MachineRepair, orderKey: string): boolean {
   return Boolean(key) && normKey(key) === normKey(orderKey)
 }
 
+// N° de orden de 3C. Para reparaciones fuente 3C, externalId (o machineId)
+// contiene el número de orden real (ej: "X 0001-00011170"). Para manuales no hay.
+function orderNumberFor(repair: MachineRepair): string {
+  const v = repair.externalId ?? (repair.source === "3c" ? repair.machineId : "")
+  return v ?? ""
+}
+
 function daysUntil(date: Date | undefined | null): number | null {
   if (!date) return null
   return Math.ceil((new Date(date).getTime() - Date.now()) / (1000 * 60 * 60 * 24))
@@ -60,8 +67,14 @@ export default function RepairsPage() {
       if (orderFilter && !linksToOrder(r, orderFilter)) return false
 
       const q = search.toLowerCase()
+      // Normalización del número de orden (quita prefijo "X", mayúsculas, espacios)
+      const qNorm = normKey(q)
+      const orderNo = normKey(orderNumberFor(r))
+      const matchesOrder = qNorm.length >= 2 && orderNo.length > 0 && orderNo.includes(qNorm)
+
       const matchesSearch =
         !q ||
+        matchesOrder ||
         r.clientName.toLowerCase().includes(q) ||
         r.machineName.toLowerCase().includes(q) ||
         (r.machineModel ?? "").toLowerCase().includes(q) ||
@@ -153,6 +166,7 @@ export default function RepairsPage() {
       <Table>
         <TableHeader>
           <TableRow>
+            <TableHead>N° Orden</TableHead>
             <TableHead>Cliente</TableHead>
             <TableHead>Máquina</TableHead>
             <TableHead>Modelo</TableHead>
@@ -167,6 +181,7 @@ export default function RepairsPage() {
         <TableBody>
           {filtered.map((r) => (
             <TableRow key={r.id} onClick={() => router.push(`/repairs/${r.id}`)}>
+              <TableCell className="font-mono text-xs">{orderNumberFor(r) || "—"}</TableCell>
               <TableCell>{r.clientName}</TableCell>
               <TableCell>{r.machineName}</TableCell>
               <TableCell>{r.machineModel}</TableCell>

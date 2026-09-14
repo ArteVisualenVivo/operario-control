@@ -140,6 +140,10 @@ export default function RepairDetailPage() {
         <CardContent className="space-y-4">
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div>
+              <span className="text-muted-foreground">N° de orden:</span>
+              <p className="font-medium font-mono">{(repair.externalId ?? (repair.source === "3c" ? repair.machineId : "")) || "—"}</p>
+            </div>
+            <div>
               <span className="text-muted-foreground">Cliente:</span>
               <p className="font-medium">{repair.clientName}</p>
               {repair.clientNumber && <p className="text-xs text-muted-foreground">N° cliente: {repair.clientNumber}</p>}
