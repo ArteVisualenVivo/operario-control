@@ -976,11 +976,18 @@ async function processModule(
             // auto-importados de estados que NO son de espera) y luego se
             // importan los válidos.
             try {
-              const { reconcileSpareOrdersFromWaitingStatus } = await import("../src/services/sparePartOrders")
+              const { reconcileSpareOrdersFromWaitingStatus, cleanupInvalidSpareOrders } = await import("../src/services/sparePartOrders")
               const reconciled = await reconcileSpareOrdersFromWaitingStatus()
               console.log(`[AGENT] Spare parts reconcile: deleted=${reconciled.deleted}`)
               if (reconciled.deletedOrders.length > 0) {
                 console.log(`[AGENT] Spare parts reconciled out:`, reconciled.deletedOrders)
+              }
+              // Limpieza de pedidos auto-importados que NO son repuestos reales
+              // (código S/C/vacío, mano de obra, fallas/diagnósticos). NO toca
+              // pedidos manuales ni maintenance.
+              const cleaned = await cleanupInvalidSpareOrders()
+              if (cleaned.deleted > 0) {
+                console.log(`[AGENT] Spare parts cleanup: delete=${cleaned.deleted}, kept=${cleaned.kept} (invalidos eliminados)`)
               }
               const sparePartsResult = await importSparePartsFromRepairMotivo()
               console.log(`[AGENT] Spare parts from MOTIVO_ESTADO_REP: created=${sparePartsResult.created}, updated=${sparePartsResult.updated}, skippedAdmin=${sparePartsResult.skippedAdmin}`)

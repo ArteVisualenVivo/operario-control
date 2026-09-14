@@ -437,10 +437,11 @@ export async function importPendingPartsFromMaintenance(): Promise<{
   }
 
   for (const rec of awaiting) {
-    const partDesc = (rec.statusDescription ?? rec.status ?? "").trim()
-    // Ítems reales de la orden (código + nombre). Si no hay, usar el comentario.
-    const items = (rec.workItems ?? []).filter(Boolean)
-    const sources = items.length > 0 ? items : partDesc ? [partDesc] : []
+    // SOLO se importan repuestos reales de 3C (workItems con formato
+    // "código — nombre"). NO se usa statusDescription como origen: es un
+    // comentario de falla del cliente y producía pedidos basura del tipo
+    // "NO FUNCIONA", "PROTECTOR SUELTO...", "MO CES", etc.
+    const sources = (rec.workItems ?? []).filter(Boolean)
 
     for (const rawItem of sources) {
       const { code, name } = splitItem(rawItem)
@@ -904,6 +905,70 @@ export async function reconcileSpareOrdersFromWaitingStatus(): Promise<{
   return { deleted, deletedOrders }
 }
 
+/**
+ * Limpia Pedidos Rep. auto-importados inválidos que NO son repuestos reales.
+ *
+ * Regla (alineada al flujo de 3C):
+ * - SOLO procesa pedidos con la marca de importación automática (notes
+ *   contiene "Importado desde"). Los pedidos manuales NO se tocan.
+ * - CONSERVA un pedido si tiene código de repuesto REAL (no vacío/S/C, no
+ *   interno de mano de obra como "1012") y su descripción es un repuesto
+ *   concreto (no falla/diagnóstico/observación/mano de obra).
+ * - ELIMINA si:
+ *     a) código vacío o "S/C", o
+ *     b) código interno de mano de obra ("1012", ej.), o
+ *     c) la descripción es falla/diagnóstico/mano de obra/observación.
+ *
+ * NO borra datos de maintenance/Reparaciones ni pedidos manuales.
+ */
+export async function cleanupInvalidSpareOrders(): Promise<{
+  deleted: number
+  kept: number
+  deletedOrders: { orderNumber: string; code: string; description: string }[]
+}> {
+  const existing = await getAllOrders()
+  const deletedOrders: { orderNumber: string; code: string; description: string }[] = []
+  let deleted = 0
+  let kept = 0
+
+  for (const o of existing) {
+    const notes = String(o.notes ?? "")
+    const auto = notes.includes("Importado desde")
+    if (!auto) {
+      kept++ // manual: nunca se toca
+      continue
+    }
+
+    const code = String(o.code ?? "").trim()
+    const desc = String(o.description ?? "").trim()
+
+    // Un repuesto real de 3C siempre tiene código propio (no vacío/S/C) y su
+    // descripción es una pieza concreta (no falla/diagnóstico/MO/observación).
+    const noCode = !code || code.toUpperCase() === "S/C"
+    const internalLaborCode = code !== "" && isInternalCode(code) // ej: "1012"
+    const badDesc =
+      isLaborText(desc) ||
+      isAdminText(desc) ||
+      isDiagnosis(desc) ||
+      !containsSparePart(desc)
+
+    const invalid = noCode || internalLaborCode || badDesc
+
+    if (invalid) {
+      try {
+        await deleteOrders([o.id])
+        deleted++
+        deletedOrders.push({ orderNumber: o.orderNumber, code, description: desc })
+      } catch {
+        // no frenar por un documento puntual
+      }
+    } else {
+      kept++
+    }
+  }
+
+  return { deleted, kept, deletedOrders }
+}
 /**
  * Importa repuestos desde los motivos del estado "A la Espera Repuestos"
  * hacia "Pedidos Rep." (spare_part_orders).
