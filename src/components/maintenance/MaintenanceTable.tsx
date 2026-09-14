@@ -27,9 +27,20 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
 
 interface Props {
   initialOrders: MaintenanceRecord[]
+  focusOrder?: string | null
 }
 
-export function MaintenanceTable({ initialOrders }: Props) {
+// Normalización de número de orden (misma estrategia del proyecto):
+// mayúsculas, sin prefijo "X ", espacios colapsados.
+function normKey(value?: string | null): string {
+  return (value ?? "")
+    .toUpperCase()
+    .replace(/^X\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
+export function MaintenanceTable({ initialOrders, focusOrder }: Props) {
   const [search, setSearch] = useState("")
   const [estadoFilter, setEstadoFilter] = useState<"all" | "taller" | "recepcion" | "finalizada">("all")
   const [desde, setDesde] = useState("")
@@ -50,11 +61,23 @@ export function MaintenanceTable({ initialOrders }: Props) {
     fetchRepairs()
   }, [])
 
+  // Cuando llega focusOrder (desde /repairs ?order=<N° de orden>), abrir su detalle
+  // automáticamente.
+  useEffect(() => {
+    if (!focusOrder) return
+    const target = initialOrders.find((o) => normKey(o.orderNumber) === normKey(focusOrder))
+    if (target) {
+      setSelectedOrder(target)
+    }
+  }, [focusOrder, initialOrders])
+
   const visibleOrders = useMemo(() => {
     const q = search.trim().toLowerCase()
     const desdeTs = desde ? new Date(desde + "T00:00:00").getTime() : null
     const hastaTs = hasta ? new Date(hasta + "T23:59:59").getTime() : null
     return initialOrders.filter((order) => {
+      // Si se recibió una orden específica desde /repairs, mostrar solo esa orden
+      if (focusOrder && normKey(order.orderNumber) !== normKey(focusOrder)) return false
       if (q) {
         const match =
           order.orderNumber.toLowerCase().includes(q) ||
@@ -76,7 +99,7 @@ export function MaintenanceTable({ initialOrders }: Props) {
       if (hastaTs !== null && ts > hastaTs) return false
       return true
     })
-  }, [initialOrders, search, estadoFilter, desde, hasta])
+  }, [initialOrders, search, estadoFilter, desde, hasta, focusOrder])
 
   return (
     <div className="space-y-6">
