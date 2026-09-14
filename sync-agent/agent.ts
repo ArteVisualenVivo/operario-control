@@ -971,9 +971,17 @@ async function processModule(
             await consolidateMaintenanceFromExports(redis, exportInfo, runStart)
 
             // —— IMPORTACIÓN DE REPUESTOS DESDE MOTIVO_ESTADO_REP ——
-            // Detecta repuestos/materiales en la columna MOTIVO_ESTADO_REP
-            // y los envía a Pedidos Rep. (spare_part_orders)
+            // REGLA 3C: solo los motivos del estado "A la Espera Repuestos"
+            // generan Pedidos Rep. Primero se reconcilia (elimina pedidos
+            // auto-importados de estados que NO son de espera) y luego se
+            // importan los válidos.
             try {
+              const { reconcileSpareOrdersFromWaitingStatus } = await import("../src/services/sparePartOrders")
+              const reconciled = await reconcileSpareOrdersFromWaitingStatus()
+              console.log(`[AGENT] Spare parts reconcile: deleted=${reconciled.deleted}`)
+              if (reconciled.deletedOrders.length > 0) {
+                console.log(`[AGENT] Spare parts reconciled out:`, reconciled.deletedOrders)
+              }
               const sparePartsResult = await importSparePartsFromRepairMotivo()
               console.log(`[AGENT] Spare parts from MOTIVO_ESTADO_REP: created=${sparePartsResult.created}, updated=${sparePartsResult.updated}, skippedAdmin=${sparePartsResult.skippedAdmin}`)
               if (sparePartsResult.createdOrders.length > 0) {

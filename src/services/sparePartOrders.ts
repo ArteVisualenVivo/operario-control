@@ -7,6 +7,7 @@ import { loadMaintenanceRecords } from "@/lib/local-sync"
 import { createAuditLog } from "./audit"
 import { restockPart, usePart as consumePart } from "./spareParts"
 import type { SparePartOrder, CreateSparePartOrderInput, SparePartOrderStatus, MarkOrderedInput } from "@/types"
+import type { MaintenanceRecord } from "./maintenance"
 
 const COLLECTION = "spare_part_orders"
 
@@ -320,6 +321,18 @@ export async function updateOrderNotes(id: string, notes: string): Promise<void>
   await createAuditLog("update", "spare_part_order", id, before, { ...before, ...updates })
 }
 // Normaliza el número de orden para comparar sin "X" ni espacios.
+/**
+ * REGLA 3C: solo el ESTADO "A la Espera Repuestos" genera Pedidos Rep.
+ * Los comentarios de otros estados pertenecen al historial de la reparación.
+ */
+export function isSpareWaitingStatus(status: unknown): boolean {
+  const t = String(status ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+  return t.includes("espera") && t.includes("repuesto")
+}
 function normOrderKey(value: unknown): string {
   return String(value ?? "")
     .toUpperCase()
@@ -801,12 +814,89 @@ function splitAndParse(text: string): { code: string | null; description: string
 }
 
 /**
- * Importa repuestos/materiales detectados en MOTIVO_ESTADO_REP hacia Pedidos Rep.
+ * Reconcilia Pedidos Rep. auto-importados: elimina los que NO provienen
+ * del estado "A la Espera Repuestos". Solo toca registros con la marca de
+ * importación automática en notes. Los pedidos manuales no se tocan.
+ */
+export async function reconcileSpareOrdersFromWaitingStatus(): Promise<{
+  deleted: number
+  deletedOrders: { orderNumber: string; code: string; description: string }[]
+}> {
+  const { loadMaintenanceRecords } = await import("@/lib/local-sync")
+  const maintenance = await loadMaintenanceRecords()
+  const existing = await getAllOrders()
+
+  const validKeys = new Set<string>()
+  const orderHasWaiting = new Map<string, boolean>()
+  for (const record of maintenance) {
+    const rec = record as MaintenanceRecord & {
+      motivoByStatus?: { status: string; motivo: string }[]
+    }
+    const ok = normOrderKey(rec.orderNumber)
+    const entries = Array.isArray(rec.motivoByStatus)
+      ? rec.motivoByStatus
+      : []
+    const waiting = entries.filter(
+      (e) => isSpareWaitingStatus(e.status) && e.motivo?.trim(),
+    )
+    if (waiting.length > 0) orderHasWaiting.set(ok, true)
+    else if (!orderHasWaiting.has(ok)) orderHasWaiting.set(ok, false)
+    for (const e of waiting) {
+      const parts = parseSparePartsFromMotivo(e.motivo.trim())
+      for (const p of parts) {
+        const c = p.code ? p.code.toUpperCase().replace(/\s+/g, " ") : ""
+        const d = p.description.trim().toLowerCase()
+        validKeys.add(c ? `${ok}||${c}` : `${ok}||${d}`)
+      }
+    }
+  }
+
+  const deletedOrders: { orderNumber: string; code: string; description: string }[] = []
+  let deleted = 0
+  for (const o of existing) {
+    const notes = String(o.notes ?? "")
+    const auto =
+      notes.includes("Importado desde") &&
+      (notes.includes("MOTIVO_ESTADO_REP") || notes.includes("repuesto en espera"))
+    if (!auto) continue
+    const ok = normOrderKey(o.orderNumber)
+    // Solo reconciliar órdenes de las que CONOCEMOS sus estados de 3C
+    // (motivoByStatus). Si no hay datos de estados, no tocar la orden.
+    const rec = maintenance.find(
+      (r) => normOrderKey(r.orderNumber) === ok,
+    ) as (MaintenanceRecord & { motivoByStatus?: { status: string; motivo: string }[] }) | undefined
+    const known = Array.isArray(rec?.motivoByStatus) && (rec?.motivoByStatus?.length ?? 0) > 0
+    if (!known) continue
+    const codeN = o.code ? o.code.toUpperCase().replace(/\s+/g, " ") : ""
+    const descN = String(o.description ?? "").trim().toLowerCase()
+    const key = codeN
+      ? `${ok}||${codeN}`
+      : `${ok}||${descN}`
+    // Eliminar si: no fue revalidado como repuesto válido de un estado
+    // "A la Espera Repuestos", O la orden ya no tiene ningún estado de espera.
+    if (validKeys.has(key) && orderHasWaiting.get(ok) === true) continue
+    try {
+      await deleteOrders([o.id])
+      deleted++
+      deletedOrders.push({ orderNumber: o.orderNumber, code: o.code, description: o.description })
+    } catch {
+      // No frenar por un documento puntual.
+    }
+  }
+  return { deleted, deletedOrders }
+}
+
+/**
+ * Importa repuestos desde los motivos del estado "A la Espera Repuestos"
+ * hacia "Pedidos Rep." (spare_part_orders).
+ *
+ * REGLA 3C: solo los registros cuyo ESTADO sea "A la Espera Repuestos"
+ * generan pedidos. Los motivos de otros estados quedan en el historial.
  *
  * Lógica:
  * - Lee todos los MaintenanceRecords (fuente primaria Redis / Firestore)
- * - Filtra los que tienen motivoEstadoRep no vacío
- * - Parsea cada motivo para identificar repuestos concretos
+ * - Usa motivoByStatus (ESTADO_REPARA_TXT + MOTIVO_ESTADO_REP por registro)
+ * - Parsea cada motivo del estado de espera para identificar repuestos
  * - Crea/actualiza spare_part_orders por cada repuesto detectado
  * - Es idempotente: no duplica si ya existe (orden + código/descripción)
  */
@@ -831,8 +921,25 @@ export async function importSparePartsFromRepairMotivo(): Promise<{
   let skippedAdmin = 0
 
   for (const record of maintenance) {
-    const motivo = record.motivoEstadoRep?.trim()
-    if (!motivo) continue
+    const rec = record as MaintenanceRecord & {
+      motivoByStatus?: { status: string; motivo: string }[]
+    }
+    // Solo los motivos del estado "A la Espera Repuestos" generan pedidos.
+    const entries = Array.isArray(rec.motivoByStatus) && rec.motivoByStatus.length > 0
+      ? rec.motivoByStatus
+      : rec.motivoEstadoRep?.trim()
+        ? [{ status: rec.status ?? "", motivo: rec.motivoEstadoRep.trim() }]
+        : []
+    const waitingMotivos = [
+      ...new Set(
+        entries
+          .filter((e) => isSpareWaitingStatus(e.status) && e.motivo?.trim())
+          .map((e) => e.motivo.trim()),
+      ),
+    ]
+    if (waitingMotivos.length === 0) continue
+
+    for (const motivo of waitingMotivos) {
 
     // Saltar si todo el texto es administrativo
     if (isAdminText(motivo)) {
@@ -850,10 +957,9 @@ export async function importSparePartsFromRepairMotivo(): Promise<{
       const codeNorm = part.code ? part.code.toUpperCase().replace(/\s+/g, " ") : ""
       const descNorm = part.description.trim().toLowerCase()
 
-      // Clave de deduplicación: orden + código (si hay) o descripción normalizada
       const dedupKey = codeNorm
-        ? `${normOrderKey(record.orderNumber)}||${codeNorm}`
-        : `${normOrderKey(record.orderNumber)}||${descNorm}`
+        ? `${normOrderKey(rec.orderNumber)}||${codeNorm}`
+        : `${normOrderKey(rec.orderNumber)}||${descNorm}`
 
       const existingOrder = seen.get(dedupKey)
       if (existingOrder) {
@@ -874,24 +980,24 @@ export async function importSparePartsFromRepairMotivo(): Promise<{
 
       // Crear nuevo pedido
       await createOrder({
-        repairId: record.id ?? record.orderNumber,
-        orderNumber: record.orderNumber,
-        machineId: record.orderNumber,
-        machineName: record.machineName ?? "",
+        repairId: rec.id ?? rec.orderNumber,
+        orderNumber: rec.orderNumber,
+        machineId: rec.orderNumber,
+        machineName: rec.machineName ?? "",
         code: part.code ?? "",
         description: part.description,
         unit: "unidad",
         quantity: 1,
-        requestedAt: record.entryDate ?? new Date(),
-        notes: `Importado desde MOTIVO_ESTADO_REP (3C)\nOrden: ${record.orderNumber}\nCliente: ${record.clientName}\nEstado: ${record.status}\n---\nMOTIVO original: ${motivo}`,
+        requestedAt: rec.entryDate ?? new Date(),
+        notes: `Importado desde MOTIVO_ESTADO_REP (3C)\nOrden: ${rec.orderNumber}\nCliente: ${rec.clientName}\nEstado: ${rec.status}\n---\nMOTIVO original: ${motivo}`,
       })
 
       seen.set(dedupKey, {
         id: "pending",
-        repairId: record.id ?? record.orderNumber,
-        orderNumber: record.orderNumber,
-        machineId: record.orderNumber,
-        machineName: record.machineName ?? "",
+        repairId: rec.id ?? rec.orderNumber,
+        orderNumber: rec.orderNumber,
+        machineId: rec.orderNumber,
+        machineName: rec.machineName ?? "",
         code: part.code ?? "",
         description: part.description,
         unit: "unidad",
@@ -899,16 +1005,17 @@ export async function importSparePartsFromRepairMotivo(): Promise<{
         quantityReceived: 0,
         quantityUsed: 0,
         status: "SOLICITADO",
-        requestedAt: record.entryDate ?? new Date(),
+        requestedAt: rec.entryDate ?? new Date(),
         createdAt: new Date(),
         updatedAt: new Date(),
       })
 
       createdOrders.push({
-        orderNumber: record.orderNumber,
+        orderNumber: rec.orderNumber,
         code: part.code,
         description: part.description,
       })
+    }
     }
   }
 

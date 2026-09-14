@@ -121,6 +121,16 @@ function calculateAutoDates(
   }
 }
 
+// Estado de 3C "A la Espera Repuestos": es un ESTADO, no una reparación realizada.
+function isEstadoNoReparacion(status: unknown): boolean {
+  const t = String(status ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+  return t.includes("espera") && t.includes("repuesto")
+}
+
 function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRecords>>[number]): MachineRepair {
   const originalReturn = asDate(findDateLikeValue(record.originalData, ["entrega", "egreso", "salida", "retiro", "return"]))
   const originalRepair = asDate(findDateLikeValue(record.originalData, ["reparacion", "reparaciÃ³n", "taller", "repair"]))
@@ -147,7 +157,9 @@ function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRec
     clientNumber: record.clientCode,
     reportedIssue: record.originalData?.texto ? String(record.originalData.texto) : record.machineName,
     diagnosis: undefined,
-    repairPerformed: record.status,
+    // "Reparación realizada" = trabajos reales, NO el nombre del estado de 3C.
+    // "A la Espera Repuestos" es un ESTADO (visible en Estados de mantenimiento).
+    repairPerformed: isEstadoNoReparacion(record.status) ? "" : record.status,
     technician: "",
     entryDate: record.entryDate,
     exitDate,

@@ -326,6 +326,10 @@ export function consolidatedToMaintenanceRecords(
       states: rec.states,
       workItems: rec.workItems,
       sourceFiles: rec.sourceFiles,
+      // Preservar motivo + estado de 3C del parse del Excel de Detalle
+      // (necesario para la regla "A la Espera Repuestos" → Pedidos Rep.)
+      motivoEstadoRep: prev?.motivoEstadoRep,
+      motivoByStatus: prev?.motivoByStatus,
     } as MaintenanceRecord
     result.push(merged)
     existingByOrder.delete(orderKey)

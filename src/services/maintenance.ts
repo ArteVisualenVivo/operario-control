@@ -61,6 +61,9 @@ export interface MaintenanceRecord {
   reason?: string
   // Información de repuestos detectada en MOTIVO_ESTADO_REP del Excel de 3C
   motivoEstadoRep?: string
+  // Comentarios de 3C con su ESTADO de origen: [{ status, motivo }].
+  // REGLA: solo el estado "A la Espera Repuestos" genera Pedidos Rep.
+  motivoByStatus?: { status: string; motivo: string }[]
   sparePartsDetected?: { code: string; description: string }[]
   // Información CONSOLIDADA de todos los Excel de 3C
   states?: { status: string; statusDate?: string; statusDescription?: string; statusUser?: string; sourceFile?: string }[]

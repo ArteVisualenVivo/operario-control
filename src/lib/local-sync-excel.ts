@@ -200,6 +200,8 @@ export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
     // MOTIVO_ESTADO_REP: columna [4] del Excel de 3C con info de repuestos/materiales
     const motivoEstadoRepRaw = COL.motivoEstadoRep >= 0 ? String(row[COL.motivoEstadoRep] ?? "").trim() : ""
     const motivoEstadoRep = motivoEstadoRepRaw || undefined
+    // ESTADO_REPARA_TXT de la fila (regla 3C: solo "A la Espera Repuestos" genera pedidos)
+    const rowStatus = COL.estado >= 0 ? String(row[COL.estado] ?? "").trim() : ""
 
     const existing = byOrder.get(key)
     if (existing) {
@@ -233,6 +235,13 @@ export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
         } else {
           existing.motivoEstadoRep = motivoEstadoRep
         }
+        // Registrar el motivo junto a su ESTADO de 3C (regla: solo
+        // "A la Espera Repuestos" genera Pedidos Rep.)
+        const list = existing.motivoByStatus ?? []
+        if (!list.some((e) => e.motivo.toLowerCase() === motivoEstadoRep.toLowerCase())) {
+          list.push({ status: rowStatus, motivo: motivoEstadoRep })
+        }
+        existing.motivoByStatus = list
       }
       continue
     }
@@ -252,7 +261,7 @@ export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
       // Estado de 3C (Entreg./Factur., En taller, etc.) si el export lo incluye
       // Estado real de 3C si el export lo incluye; si no existe columna,
       // NO se inventa ni se usa "Recepción" como sustituto → queda sin estado.
-      status: COL.estado >= 0 ? String(row[COL.estado] ?? "").trim() : "",
+      status: rowStatus,
       // Fecha de entrega (Entreg.) si el export la incluye
       returnDate: COL.entrega >= 0 ? toDate(row[COL.entrega]) : undefined,
       docId: String(row[COL.docId] ?? "").trim() || undefined,
@@ -266,6 +275,7 @@ export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
       exempt: num(row[COL.exento]),
       originalData: { row: row.slice(0, 19) },
       motivoEstadoRep,
+      motivoByStatus: motivoEstadoRep ? [{ status: rowStatus, motivo: motivoEstadoRep }] : [],
       createdAt: entryDate,
       updatedAt: today,
       technician: undefined,
