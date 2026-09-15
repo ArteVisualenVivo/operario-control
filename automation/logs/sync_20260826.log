@@ -1,0 +1,126 @@
+[2026-08-26 23:14:31] === INICIO REPARACIONES ===
+[2026-08-26 23:14:32] Ventana '3C' detectada y activada
+[2026-08-26 23:14:32] Resync: enviando Ctrl+Home
+[2026-08-26 23:14:32] Click en Ventas (413,188)
+[2026-08-26 23:14:33] Click en Reparaciones (448,346)
+[2026-08-26 23:14:34] Click en PrintAll (1450,829)
+[2026-08-26 23:14:35] Click en Imprimir (896,254)
+[2026-08-26 23:14:35] Click en ExcelFormat (936,577)
+[2026-08-26 23:14:40] Exportaci�n de reparaciones completada. Esperando Excel...
+[2026-08-26 23:14:40] Esperando Excel (timeout: 30s)...
+[2026-08-26 23:14:40] Excel detectado correctamente
+[2026-08-26 23:14:40] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-08-26 23:14:41] [WATCHER] ARCHIVO DETECTADO:
+[2026-08-26 23:14:41] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc9194534668278540487.xls
+[2026-08-26 23:14:41] [WATCHER] Fecha: 20260826231439
+[2026-08-26 23:14:41] [WATCHER] Tamaño: 424 KB
+[2026-08-26 23:14:41] [ERROR] No se pudo copiar el archivo a exports
+[2026-08-26 23:14:42] Click en SalirRep (942,254)
+[2026-08-26 23:14:43] [NAV] Main menu restored (Reparaciones)
+[2026-08-26 23:14:43] === FIN REPARACIONES ===
+[2026-08-26 23:19:26] === INICIO REPARACIONES ===
+[2026-08-26 23:19:28] Ventana '3C' detectada y activada
+[2026-08-26 23:19:28] Resync: enviando Ctrl+Home
+[2026-08-26 23:19:28] Click en Ventas (413,188)
+[2026-08-26 23:19:28] Click en Reparaciones (448,346)
+[2026-08-26 23:19:30] Click en PrintAll (1450,829)
+[2026-08-26 23:19:30] Click en Imprimir (896,254)
+[2026-08-26 23:19:31] Click en ExcelFormat (936,577)
+[2026-08-26 23:19:36] Exportaci�n de reparaciones completada. Esperando Excel...
+[2026-08-26 23:19:36] Esperando Excel (timeout: 30s)...
+[2026-08-26 23:19:36] Excel detectado correctamente
+[2026-08-26 23:19:36] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-08-26 23:19:37] [WATCHER] ARCHIVO DETECTADO:
+[2026-08-26 23:19:37] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc8794537231070030450.xls
+[2026-08-26 23:19:37] [WATCHER] Fecha: 20260826231933
+[2026-08-26 23:19:37] [WATCHER] Tamaño: 424 KB
+[2026-08-26 23:19:37] [ERROR] No se pudo copiar el archivo a exports
+[2026-08-26 23:19:38] Click en SalirRep (942,254)
+[2026-08-26 23:19:39] [NAV] Main menu restored (Reparaciones)
+[2026-08-26 23:19:39] === FIN REPARACIONES ===
+[2026-08-26 23:28:08] === INICIO REPARACIONES ===
+[2026-08-26 23:28:09] Ventana '3C' detectada y activada
+[2026-08-26 23:28:09] Resync: enviando Ctrl+Home
+[2026-08-26 23:28:09] Click en Ventas (413,188)
+[2026-08-26 23:28:10] Click en Reparaciones (448,346)
+[2026-08-26 23:28:11] Click en PrintAll (1450,829)
+[2026-08-26 23:28:12] Click en Imprimir (896,254)
+[2026-08-26 23:28:12] Click en ExcelFormat (936,577)
+[2026-08-26 23:28:17] Exportaci�n de reparaciones completada. Esperando Excel...
+[2026-08-26 23:28:17] Esperando Excel (timeout: 30s)...
+[2026-08-26 23:28:17] Excel detectado correctamente
+[2026-08-26 23:28:17] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-08-26 23:28:18] [WATCHER] ARCHIVO DETECTADO:
+[2026-08-26 23:28:18] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc6452206509951518088.xls
+[2026-08-26 23:28:18] [WATCHER] Fecha: 20260826232815
+[2026-08-26 23:28:18] [WATCHER] Tamaño: 424 KB
+[2026-08-26 23:28:18] [ERROR] No se pudo copiar el archivo a exports
+[2026-08-26 23:28:20] Click en SalirRep (942,254)
+[2026-08-26 23:28:21] [NAV] Main menu restored (Reparaciones)
+[2026-08-26 23:28:21] === FIN REPARACIONES ===
+[2026-08-26 23:51:33] === INICIO STOCK ===
+[2026-08-26 23:51:34] Ventana '3C' detectada y activada
+[2026-08-26 23:51:34] Resync: enviando Ctrl+Home
+[2026-08-26 23:51:34] Click en Almacenes (888,189)
+[2026-08-26 23:51:35] Click en Informes (921,370)
+[2026-08-26 23:51:36] Click en Existencias (1105,401)
+[2026-08-26 23:51:36] Click en Depositos (704,476)
+[2026-08-26 23:51:37] Click en SeleccionarTodos (962,858)
+[2026-08-26 23:51:37] Click en Consulta (440,341)
+[2026-08-26 23:51:37] Click en Aceptar (1196,902)
+[2026-08-26 23:51:39] Click en Excel (940,575)
+[2026-08-26 23:51:44] Exportaci�n completada. Esperando Excel...
+[2026-08-26 23:51:44] Esperando Excel (timeout: 30s)...
+[2026-08-26 23:51:50] Excel detectado correctamente
+[2026-08-26 23:51:50] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-08-26 23:51:51] [WATCHER] ARCHIVO DETECTADO:
+[2026-08-26 23:51:51] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc5566331803499004348.xls
+[2026-08-26 23:51:51] [WATCHER] Fecha: 20260826235149
+[2026-08-26 23:51:51] [WATCHER] Tamaño: 962 KB
+[2026-08-26 23:51:51] [ERROR] No se pudo copiar el archivo a exports
+[2026-08-26 23:51:53] Click en Salir (946,250)
+[2026-08-26 23:51:54] [NAV] Main menu restored
+[2026-08-26 23:51:54] === FIN STOCK ===
+[2026-08-26 23:52:07] === INICIO ARTICULOS ===
+[2026-08-26 23:52:08] Ventana '3C' detectada y activada
+[2026-08-26 23:52:08] Resync: enviando Ctrl+Home
+[2026-08-26 23:52:08] Click en ServiciosArt (1145,186)
+[2026-08-26 23:52:10] Click en ArticulosMenu (1181,219)
+[2026-08-26 23:52:11] Click en ArticulosLista (1288,220)
+[2026-08-26 23:52:11] Click en ImprimirArt (898,253)
+[2026-08-26 23:52:13] Click en Generar (948,761)
+[2026-08-26 23:52:14] Click en ExcelArt (951,574)
+[2026-08-26 23:52:19] Exportacion de articulos completada. Esperando Excel...
+[2026-08-26 23:52:19] Esperando Excel (timeout: 30s)...
+[2026-08-26 23:52:19] Excel detectado correctamente
+[2026-08-26 23:52:19] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-08-26 23:52:20] [WATCHER] ARCHIVO DETECTADO:
+[2026-08-26 23:52:20] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc2226142056643925501.xls
+[2026-08-26 23:52:20] [WATCHER] Fecha: 20260826235218
+[2026-08-26 23:52:20] [WATCHER] Tamaño: 1791 KB
+[2026-08-26 23:52:20] [ERROR] No se pudo copiar el archivo a exports
+[2026-08-26 23:52:21] Click en SalirArt2 (949,762)
+[2026-08-26 23:52:21] Click en SalirArt (944,253)
+[2026-08-26 23:52:22] [NAV] Main menu restored (Articulos)
+[2026-08-26 23:52:22] === FIN ARTICULOS ===
+[2026-08-26 23:52:36] === INICIO ALQUILERES ===
+[2026-08-26 23:52:37] Ventana '3C' detectada y activada
+[2026-08-26 23:52:37] Resync: enviando Ctrl+Home
+[2026-08-26 23:52:37] Click en Ventas (413,188)
+[2026-08-26 23:52:38] Click en Informes (921,370)
+[2026-08-26 23:52:38] Click en Remitos (680,531)
+[2026-08-26 23:52:39] Click en AlquileresPendientes (915,559)
+[2026-08-26 23:52:39] Click en Aceptar (1196,902)
+[2026-08-26 23:52:41] Click en ExcelFormat (936,577)
+[2026-08-26 23:52:46] Exportaci�n de alquileres completada. Esperando Excel...
+[2026-08-26 23:52:46] Esperando Excel (timeout: 30s)...
+[2026-08-26 23:53:16] WARNING: Excel no detectado tras 30s
+[2026-08-26 23:53:16] [WATCHER] Directorio fijo 3C: C:\Users\Cesar\AppData\Local\Temp\tresc
+[2026-08-26 23:53:17] [WATCHER] ARCHIVO DETECTADO:
+[2026-08-26 23:53:17] [WATCHER] Ruta: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc2226142056643925501.xls
+[2026-08-26 23:53:17] [WATCHER] Fecha: 20260826235216
+[2026-08-26 23:53:17] [WATCHER] Tamaño: 1791 KB
+[2026-08-26 23:53:17] [ERROR] No se pudo copiar el archivo a exports
+[2026-08-26 23:53:18] Click en Salir (946,250)
+[2026-08-26 23:53:19] [NAV] Main menu restored (Alquileres)
+[2026-08-26 23:53:19] === FIN ALQUILERES ===

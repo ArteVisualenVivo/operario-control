@@ -1,0 +1,307 @@
+[AGENT] Listener error: [TypeError: fetch failed] {
+  [cause]: Error: getaddrinfo ENOTFOUND eternal-unicorn-184364.upstash.io
+      at GetAddrInfoReqWrap.onlookupall [as oncomplete] (node:dns:122:26) {
+    errno: -3008,
+    code: 'ENOTFOUND',
+    syscall: 'getaddrinfo',
+    hostname: 'eternal-unicorn-184364.upstash.io'
+  }
+}
+========== FIREBASE ERROR ==========
+Error: Value for argument "data" is not a valid Firestore document. Cannot use "undefined" as a Firestore value (found in field "deposito"). If you want to ignore undefined values, enable `ignoreUndefinedProperties`.
+    at validateUserInput (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\serializer.js:420:19)
+    at validateUserInput (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\serializer.js:412:13)
+    at validateDocumentData (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\write-batch.js:612:40)
+    at WriteBatch.set (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\write-batch.js:267:9)
+    at syncItems (C:\Users\Cesar\Desktop\operario-control\src\lib\sync-3c\engine.ts:303:15)
+    at processModule (C:\Users\Cesar\Desktop\operario-control\sync-agent\agent.ts:1064:36)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async startAgentListener (C:\Users\Cesar\Desktop\operario-control\sync-agent\agent.ts:1541:26)
+    at async main (C:\Users\Cesar\Desktop\operario-control\sync-agent\agent.ts:1567:9)
+message: Value for argument "data" is not a valid Firestore document. Cannot use "undefined" as a Firestore value (found in field "deposito"). If you want to ignore undefined values, enable `ignoreUndefinedProperties`.
+code: unknown
+stack: Error: Value for argument "data" is not a valid Firestore document. Cannot use "undefined" as a Firestore value (found in field "deposito"). If you want to ignore undefined values, enable `ignoreUndefinedProperties`.
+    at validateUserInput (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\serializer.js:420:19)
+    at validateUserInput (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\serializer.js:412:13)
+    at validateDocumentData (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\write-batch.js:612:40)
+    at WriteBatch.set (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\write-batch.js:267:9)
+    at syncItems (C:\Users\Cesar\Desktop\operario-control\src\lib\sync-3c\engine.ts:303:15)
+    at processModule (C:\Users\Cesar\Desktop\operario-control\sync-agent\agent.ts:1064:36)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async startAgentListener (C:\Users\Cesar\Desktop\operario-control\sync-agent\agent.ts:1541:26)
+    at async main (C:\Users\Cesar\Desktop\operario-control\sync-agent\agent.ts:1567:9)
+===================================
+[AGENT] Spare parts import failed: Missing or insufficient permissions.
+[2026-09-14T01:16:26.222Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x8d5d47b3 error. Code: 1 Message: 1 CANCELLED: Disconnecting idle stream. Timed out waiting for new targets.
+[AGENT] No se pudo cargar inventoryIndex (cuota/auth?): continuando con persistencia primaria + outbox. 16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+========== FIREBASE ERROR ==========
+Error: 16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+    at callErrorFromStatus (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\call.ts:84:17)
+    at Object.onReceiveStatus (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\client.ts:612:51)
+    at Object.onReceiveStatus (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\client-interceptors.ts:424:48)
+    at <anonymous> (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\resolving-call.ts:170:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:85:11)
+for call at
+    at ServiceClientImpl.makeServerStreamRequest (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\client.ts:595:42)
+    at ServiceClientImpl.<anonymous> (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\make-client.ts:189:15)
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\v1\firestore_client.js:257:29
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\streamingCalls\streamingApiCaller.js:39:28
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\normalCalls\timeout.js:44:16
+    at Object.request (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\streamingCalls\streaming.js:248:40)
+    at makeRequest (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\retry-request\index.js:159:28)
+    at retryRequest (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\retry-request\index.js:119:5)
+    at StreamProxy.setStream (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\streamingCalls\streaming.js:239:37)
+    at StreamingApiCaller.call (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\streamingCalls\streamingApiCaller.js:55:16)
+Caused by: Error
+    at QueryUtil._getResponse (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\reference\query-util.js:47:23)
+    at CollectionReference._getResponse (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\reference\query.js:905:32)
+    at CollectionReference._get (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\reference\query.js:898:35)
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\reference\query.js:866:43
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:125:30
+    at NoopContextManager.with (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\context\NoopContextManager.ts:20:15)
+    at ContextAPI.with (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\api\context.ts:68:42)
+    at NoopTracer.startActiveSpan (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\trace\NoopTracer.ts:87:27)
+    at ProxyTracer.startActiveSpan (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\trace\ProxyTracer.ts:51:20)
+    at EnabledTraceUtil.startActiveSpan (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:117:28) {
+  code: 16,
+  details: 'Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.',
+  metadata: Metadata {
+    internalRepr: Map(4) {
+      'google.rpc.errorinfo-bin' => [Array],
+      'grpc-status-details-bin' => [Array],
+      'www-authenticate' => [Array],
+      'x-debug-tracking-id' => [Array]
+    },
+    opaqueData: Map(0) {},
+    options: {}
+  },
+  statusDetails: [
+    ErrorInfo {
+      metadata: [Object],
+      reason: 'ACCESS_TOKEN_EXPIRED',
+      domain: 'googleapis.com'
+    }
+  ],
+  reason: 'ACCESS_TOKEN_EXPIRED',
+  domain: 'googleapis.com',
+  errorInfoMetadata: {
+    service: 'firestore.googleapis.com',
+    method: 'google.firestore.v1.Firestore.RunQuery'
+  }
+}
+message: 16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+code: 16
+stack: Error: 16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+    at callErrorFromStatus (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\call.ts:84:17)
+    at Object.onReceiveStatus (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\client.ts:612:51)
+    at Object.onReceiveStatus (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\client-interceptors.ts:424:48)
+    at <anonymous> (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\resolving-call.ts:170:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:85:11)
+for call at
+    at ServiceClientImpl.makeServerStreamRequest (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\client.ts:595:42)
+    at ServiceClientImpl.<anonymous> (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\make-client.ts:189:15)
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\v1\firestore_client.js:257:29
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\streamingCalls\streamingApiCaller.js:39:28
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\normalCalls\timeout.js:44:16
+    at Object.request (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\streamingCalls\streaming.js:248:40)
+    at makeRequest (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\retry-request\index.js:159:28)
+    at retryRequest (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\retry-request\index.js:119:5)
+    at StreamProxy.setStream (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\streamingCalls\streaming.js:239:37)
+    at StreamingApiCaller.call (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\streamingCalls\streamingApiCaller.js:55:16)
+Caused by: Error
+    at QueryUtil._getResponse (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\reference\query-util.js:47:23)
+    at CollectionReference._getResponse (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\reference\query.js:905:32)
+    at CollectionReference._get (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\reference\query.js:898:35)
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\reference\query.js:866:43
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:125:30
+    at NoopContextManager.with (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\context\NoopContextManager.ts:20:15)
+    at ContextAPI.with (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\api\context.ts:68:42)
+    at NoopTracer.startActiveSpan (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\trace\NoopTracer.ts:87:27)
+    at ProxyTracer.startActiveSpan (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\trace\ProxyTracer.ts:51:20)
+    at EnabledTraceUtil.startActiveSpan (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:117:28)
+===================================
+[OUTBOX] stock-1789420102237 falló (intento 1): 16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+[OUTBOX] stock-1789420102237: error de AUTENTICACIÓN (UNAUTHENTICATED). Reintento lento. Revisar service-account.json. Dato conservado en outbox.
+[AGENT] No se pudo cargar inventoryIndex (cuota/auth?): continuando con persistencia primaria + outbox. 16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+========== FIREBASE ERROR ==========
+Error: 16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+    at callErrorFromStatus (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\call.ts:84:17)
+    at Object.onReceiveStatus (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\client.ts:612:51)
+    at Object.onReceiveStatus (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\client-interceptors.ts:424:48)
+    at <anonymous> (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\resolving-call.ts:170:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:85:11)
+for call at
+    at ServiceClientImpl.makeServerStreamRequest (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\client.ts:595:42)
+    at ServiceClientImpl.<anonymous> (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\make-client.ts:189:15)
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\v1\firestore_client.js:257:29
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\streamingCalls\streamingApiCaller.js:39:28
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\normalCalls\timeout.js:44:16
+    at Object.request (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\streamingCalls\streaming.js:248:40)
+    at makeRequest (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\retry-request\index.js:159:28)
+    at retryRequest (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\retry-request\index.js:119:5)
+    at StreamProxy.setStream (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\streamingCalls\streaming.js:239:37)
+    at StreamingApiCaller.call (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\streamingCalls\streamingApiCaller.js:55:16)
+Caused by: Error
+    at QueryUtil._getResponse (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\reference\query-util.js:47:23)
+    at CollectionReference._getResponse (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\reference\query.js:905:32)
+    at CollectionReference._get (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\reference\query.js:898:35)
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\reference\query.js:866:43
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:125:30
+    at NoopContextManager.with (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\context\NoopContextManager.ts:20:15)
+    at ContextAPI.with (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\api\context.ts:68:42)
+    at NoopTracer.startActiveSpan (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\trace\NoopTracer.ts:87:27)
+    at ProxyTracer.startActiveSpan (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\trace\ProxyTracer.ts:51:20)
+    at EnabledTraceUtil.startActiveSpan (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:117:28) {
+  code: 16,
+  details: 'Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.',
+  metadata: Metadata {
+    internalRepr: Map(4) {
+      'google.rpc.errorinfo-bin' => [Array],
+      'grpc-status-details-bin' => [Array],
+      'www-authenticate' => [Array],
+      'x-debug-tracking-id' => [Array]
+    },
+    opaqueData: Map(0) {},
+    options: {}
+  },
+  statusDetails: [
+    ErrorInfo {
+      metadata: [Object],
+      reason: 'ACCESS_TOKEN_EXPIRED',
+      domain: 'googleapis.com'
+    }
+  ],
+  reason: 'ACCESS_TOKEN_EXPIRED',
+  domain: 'googleapis.com',
+  errorInfoMetadata: {
+    method: 'google.firestore.v1.Firestore.RunQuery',
+    service: 'firestore.googleapis.com'
+  }
+}
+message: 16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+code: 16
+stack: Error: 16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+    at callErrorFromStatus (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\call.ts:84:17)
+    at Object.onReceiveStatus (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\client.ts:612:51)
+    at Object.onReceiveStatus (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\client-interceptors.ts:424:48)
+    at <anonymous> (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\resolving-call.ts:170:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:85:11)
+for call at
+    at ServiceClientImpl.makeServerStreamRequest (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\client.ts:595:42)
+    at ServiceClientImpl.<anonymous> (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\make-client.ts:189:15)
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\v1\firestore_client.js:257:29
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\streamingCalls\streamingApiCaller.js:39:28
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\normalCalls\timeout.js:44:16
+    at Object.request (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\streamingCalls\streaming.js:248:40)
+    at makeRequest (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\retry-request\index.js:159:28)
+    at retryRequest (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\retry-request\index.js:119:5)
+    at StreamProxy.setStream (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\streamingCalls\streaming.js:239:37)
+    at StreamingApiCaller.call (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\streamingCalls\streamingApiCaller.js:55:16)
+Caused by: Error
+    at QueryUtil._getResponse (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\reference\query-util.js:47:23)
+    at CollectionReference._getResponse (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\reference\query.js:905:32)
+    at CollectionReference._get (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\reference\query.js:898:35)
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\reference\query.js:866:43
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:125:30
+    at NoopContextManager.with (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\context\NoopContextManager.ts:20:15)
+    at ContextAPI.with (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\api\context.ts:68:42)
+    at NoopTracer.startActiveSpan (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\trace\NoopTracer.ts:87:27)
+    at ProxyTracer.startActiveSpan (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\trace\ProxyTracer.ts:51:20)
+    at EnabledTraceUtil.startActiveSpan (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:117:28)
+===================================
+[AGENT] Firebase bloqueado: no se persistió dashboard_stats/scaffold_rentals: 16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+[OUTBOX] articulos-1789420135193 falló (intento 1): 16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+[OUTBOX] articulos-1789420135193: error de AUTENTICACIÓN (UNAUTHENTICATED). Reintento lento. Revisar service-account.json. Dato conservado en outbox.
+[OUTBOX] alquileres-1789420163795 falló (intento 1): 16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+[OUTBOX] alquileres-1789420163795: error de AUTENTICACIÓN (UNAUTHENTICATED). Reintento lento. Revisar service-account.json. Dato conservado en outbox.
+Error: 16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+    at callErrorFromStatus (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\call.ts:84:17)
+    at Object.onReceiveStatus (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\client.ts:360:55)
+    at Object.onReceiveStatus (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\client-interceptors.ts:466:34)
+    at Object.onReceiveStatus (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\client-interceptors.ts:424:48)
+    at <anonymous> (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\resolving-call.ts:170:24)
+    at process.processTicksAndRejections (node:internal/process/task_queues:85:11)
+for call at
+    at ServiceClientImpl.makeUnaryRequest (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\client.ts:325:42)
+    at ServiceClientImpl.<anonymous> (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\node_modules\@grpc\grpc-js\src\make-client.ts:189:15)
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\v1\firestore_client.js:257:29
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\normalCalls\timeout.js:44:16
+    at repeat (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\normalCalls\retries.js:114:25)
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\normalCalls\retries.js:156:13
+    at OngoingCallPromise.call (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\call.js:70:27)
+    at NormalApiCaller.call (C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\normalCalls\normalApiCaller.js:34:19)
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\google-gax\build\src\createApiCall.js:110:30
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+Caused by: Error
+    at _firestore._traceUtil.startActiveSpan (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\write-batch.js:442:27)
+    at C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:125:30
+    at NoopContextManager.with (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\context\NoopContextManager.ts:20:15)
+    at ContextAPI.with (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\api\context.ts:68:42)
+    at NoopTracer.startActiveSpan (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\trace\NoopTracer.ts:87:27)
+    at ProxyTracer.startActiveSpan (C:\Users\Cesar\Desktop\operario-control\node_modules\@opentelemetry\api\src\trace\ProxyTracer.ts:51:20)
+    at EnabledTraceUtil.startActiveSpan (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\telemetry\enabled-trace-util.js:117:28)
+    at WriteBatch.commit (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\write-batch.js:440:43)
+    at commitBatch (C:\Users\Cesar\Desktop\operario-control\src\lib\sync-3c\engine.ts:760:19)
+    at syncRepairsToMaintenance (C:\Users\Cesar\Desktop\operario-control\src\lib\sync-3c\engine.ts:882:13) {
+  code: 16,
+  details: 'Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.',
+  metadata: Metadata {
+    internalRepr: Map(4) {
+      'google.rpc.errorinfo-bin' => [Array],
+      'grpc-status-details-bin' => [Array],
+      'www-authenticate' => [Array],
+      'x-debug-tracking-id' => [Array]
+    },
+    opaqueData: Map(0) {},
+    options: {}
+  },
+  note: 'Exception occurred in retry method that was not classified as transient',
+  statusDetails: [
+    ErrorInfo {
+      metadata: [Object],
+      reason: 'ACCESS_TOKEN_EXPIRED',
+      domain: 'googleapis.com'
+    }
+  ],
+  reason: 'ACCESS_TOKEN_EXPIRED',
+  domain: 'googleapis.com',
+  errorInfoMetadata: {
+    method: 'google.firestore.v1.Firestore.Commit',
+    service: 'firestore.googleapis.com'
+  }
+}
+[AGENT] Maintenance sync failed: 16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+[AGENT] Firebase bloqueado: consolidado de reparaciones pendiente en outbox: 16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+[AGENT] Spare parts import failed: Missing or insufficient permissions.
+[AGENT] Firebase bloqueado: consolidado de reparaciones pendiente en outbox: 16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+[OUTBOX] maintenance-1789420224310 falló (intento 1): 16 UNAUTHENTICATED: Request had invalid authentication credentials. Expected OAuth 2 access token, login cookie or other valid authentication credential. See https://developers.google.com/identity/sign-in/web/devconsole-project.
+[OUTBOX] maintenance-1789420224310: error de AUTENTICACIÓN (UNAUTHENTICATED). Reintento lento. Revisar service-account.json. Dato conservado en outbox.
+[2026-09-14T21:11:48.762Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x8d5d47b4 error. Code: 1 Message: 1 CANCELLED: Disconnecting idle stream. Timed out waiting for new targets.
+========== FIREBASE ERROR ==========
+Error: Value for argument "data" is not a valid Firestore document. Cannot use "undefined" as a Firestore value (found in field "deposito"). If you want to ignore undefined values, enable `ignoreUndefinedProperties`.
+    at validateUserInput (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\serializer.js:420:19)
+    at validateUserInput (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\serializer.js:412:13)
+    at validateDocumentData (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\write-batch.js:612:40)
+    at WriteBatch.set (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\write-batch.js:267:9)
+    at syncItems (C:\Users\Cesar\Desktop\operario-control\src\lib\sync-3c\engine.ts:303:15)
+    at processModule (C:\Users\Cesar\Desktop\operario-control\sync-agent\agent.ts:1064:36)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async startAgentListener (C:\Users\Cesar\Desktop\operario-control\sync-agent\agent.ts:1541:26)
+    at async main (C:\Users\Cesar\Desktop\operario-control\sync-agent\agent.ts:1567:9)
+message: Value for argument "data" is not a valid Firestore document. Cannot use "undefined" as a Firestore value (found in field "deposito"). If you want to ignore undefined values, enable `ignoreUndefinedProperties`.
+code: unknown
+stack: Error: Value for argument "data" is not a valid Firestore document. Cannot use "undefined" as a Firestore value (found in field "deposito"). If you want to ignore undefined values, enable `ignoreUndefinedProperties`.
+    at validateUserInput (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\serializer.js:420:19)
+    at validateUserInput (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\serializer.js:412:13)
+    at validateDocumentData (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\write-batch.js:612:40)
+    at WriteBatch.set (C:\Users\Cesar\Desktop\operario-control\node_modules\@google-cloud\firestore\build\src\write-batch.js:267:9)
+    at syncItems (C:\Users\Cesar\Desktop\operario-control\src\lib\sync-3c\engine.ts:303:15)
+    at processModule (C:\Users\Cesar\Desktop\operario-control\sync-agent\agent.ts:1064:36)
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at async startAgentListener (C:\Users\Cesar\Desktop\operario-control\sync-agent\agent.ts:1541:26)
+    at async main (C:\Users\Cesar\Desktop\operario-control\sync-agent\agent.ts:1567:9)
+===================================
+[AGENT] Spare parts import failed: Missing or insufficient permissions.
+[2026-09-14T23:57:06.635Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x8d5d47b5 error. Code: 1 Message: 1 CANCELLED: Disconnecting idle stream. Timed out waiting for new targets.
+[AGENT] Spare parts import failed: Missing or insufficient permissions.
+[2026-09-15T00:03:45.043Z]  @firebase/firestore: Firestore (12.14.0): GrpcConnection RPC 'Listen' stream 0x8d5d47b6 error. Code: 1 Message: 1 CANCELLED: Disconnecting idle stream. Timed out waiting for new targets.

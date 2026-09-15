@@ -1,0 +1,180 @@
+[2026-09-08 12:00:23] === INICIO STOCK ===
+[2026-09-08 12:00:24] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-09-08 12:00:24] Ventana '3C' detectada y activada
+[2026-09-08 12:00:24] Resync: enviando Ctrl+Home
+[2026-09-08 12:00:24] Click en StockAlmacenes (888,189)
+[2026-09-08 12:00:25] Click en StockInformes (921,370)
+[2026-09-08 12:00:26] Click en StockExistencias (1105,401)
+[2026-09-08 12:00:26] Click en StockDepositos (704,476)
+[2026-09-08 12:00:27] Click en StockSeleccionarTodos (962,858)
+[2026-09-08 12:00:27] Click en StockConsulta (440,341)
+[2026-09-08 12:00:27] Click en StockAceptar (1196,902)
+[2026-09-08 12:00:29] Click en StockExcel (940,575)
+[2026-09-08 12:00:31] === INICIO STOCK ===
+[2026-09-08 12:00:32] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-09-08 12:00:33] Ventana '3C' detectada y activada
+[2026-09-08 12:00:33] Resync: enviando Ctrl+Home
+[2026-09-08 12:00:33] Click en StockAlmacenes (888,189)
+[2026-09-08 12:00:33] Click en StockInformes (921,370)
+[2026-09-08 12:00:34] Click en StockExistencias (1105,401)
+[2026-09-08 12:00:34] Click en StockDepositos (704,476)
+[2026-09-08 12:00:35] Click en StockSeleccionarTodos (962,858)
+[2026-09-08 12:00:35] Click en StockConsulta (440,341)
+[2026-09-08 12:00:36] Click en StockAceptar (1196,902)
+[2026-09-08 12:00:38] ERROR: Ventana '3C' perdio el foco
+[2026-09-08 12:00:42] === INICIO ALQUILERES ===
+[2026-09-08 12:00:43] [WATCHER] Baseline Temp\tresc (antes de navegar): 1 archivo(s)
+[2026-09-08 12:00:43] Ventana '3C' detectada y activada
+[2026-09-08 12:00:43] Resync: enviando Ctrl+Home
+[2026-09-08 12:00:44] Click en VentasAlq (416,188)
+[2026-09-08 12:00:44] Click en InformesAlq (568,500)
+[2026-09-08 12:00:45] Click en Remitos (783,530)
+[2026-09-08 12:00:47] Click en AlquileresPendientes (944,555)
+[2026-09-08 12:00:48] Click en AceptarAlq (535,597)
+[2026-09-08 12:00:49] === INICIO ALQUILERES ===
+[2026-09-08 12:00:50] [WATCHER] Baseline Temp\tresc (antes de navegar): 1 archivo(s)
+[2026-09-08 12:00:50] Ventana '3C' detectada y activada
+[2026-09-08 12:00:50] Resync: enviando Ctrl+Home
+[2026-09-08 12:00:51] Click en VentasAlq (416,188)
+[2026-09-08 12:00:51] Click en InformesAlq (568,500)
+[2026-09-08 12:00:52] Click en Remitos (783,530)
+[2026-09-08 12:00:53] Click en AlquileresPendientes (944,555)
+[2026-09-08 12:00:55] Click en AceptarAlq (535,597)
+[2026-09-08 12:01:00] === INICIO REPARACIONES ===
+[2026-09-08 12:01:01] [WATCHER] Baseline Temp\tresc (antes de navegar): 1 archivo(s)
+[2026-09-08 12:01:01] Ventana '3C' detectada y activada
+[2026-09-08 12:01:01] Resync: enviando Ctrl+Home
+[2026-09-08 12:01:02] Click en RepVentas (407,188)
+[2026-09-08 12:01:02] [DIAG-PRE] Antes de ExportarExcel: ventana=3C-Informatica - Una nueva generación en Software
+[2026-09-08 12:01:02] Click en ExcelFormatAlq (949,575)
+[2026-09-08 12:01:02] Click en RepReparaciones (429,349)
+[2026-09-08 12:01:03] Click en RepFechaIni (967,391)
+[2026-09-08 12:01:04] Click en RepActualizar (421,394)
+[2026-09-08 12:01:04] Click en RepPrintAll (1451,828)
+[2026-09-08 12:01:05] Click en RepExcelItems (1452,866)
+[2026-09-08 12:01:05] Click en RepImprimir (895,253)
+[2026-09-08 12:01:06] Click en RepExcelFormat (941,577)
+[2026-09-08 12:01:07] [DIAG] Ventana activa tras ExportarExcel: class=SunAwtFrame title=3C-Informatica - Una nueva generación en Software
+[2026-09-08 12:01:07] [DIAG] Se abrió una ventana de EXCEL (XLMAIN)
+[2026-09-08 12:01:07] [DIAG] Archivos en Temp\tresc ahora: 1
+[2026-09-08 12:01:07] Exportación de alquileres completada. Esperando Excel...
+[2026-09-08 12:01:07] Esperando Excel (timeout: 30s)...
+[2026-09-08 12:01:07] Excel detectado correctamente
+[2026-09-08 12:01:07] [WATCHER] Directorio: C:\Users\Cesar\AppData\Local\Temp\tresc  [commandId=auto-2026-09-08T15-00-30-945Z-alquileres module=alquileres]
+[2026-09-08 12:01:11] Exportación de reparaciones completada. Esperando Excel...
+[2026-09-08 12:01:11] Esperando Excel (timeout: 30s)...
+[2026-09-08 12:01:11] Excel detectado correctamente
+[2026-09-08 12:01:11] [WATCHER] Directorio: C:\Users\Cesar\AppData\Local\Temp\tresc  [commandId=auto-2026-09-08T15-00-22-465Z-reparaciones module=reparaciones]
+[2026-09-08 12:02:07] [WATCHER TIMEOUT] No se detecto un archivo NUEVO en C:\Users\Cesar\AppData\Local\Temp\tresc tras 60s (baseline=1)
+[2026-09-08 12:02:07] [WATCHER] Manifiesto escrito (EXPORT_NOT_FOUND): C:\Users\Cesar\Desktop\operario-control\automation\..\automation-watcher\3c_exports\_last_export.json
+[2026-09-08 12:02:08] [WATCHER] Archivo NUEVO detectado: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc7820996108765376974.xls (mtime 20260908120035)
+[2026-09-08 12:02:08] Click en SalirAlq2 (956,758)
+[2026-09-08 12:02:09] Click en SalirAlq (945,248)
+[2026-09-08 12:02:09] [WATCHER] Tamano estable: 992768 bytes
+[2026-09-08 12:02:09] [OK] Copiado y verificado en exports: C:\Users\Cesar\Desktop\operario-control\automation\..\automation-watcher\3c_exports\tresc7820996108765376974.xls (992768 bytes)
+[2026-09-08 12:02:09] [OK] Original eliminado tras verificar copia: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc7820996108765376974.xls
+[2026-09-08 12:02:09] [WATCHER] Manifiesto escrito (OK): C:\Users\Cesar\Desktop\operario-control\automation\..\automation-watcher\3c_exports\_last_export.json
+[2026-09-08 12:02:10] [NAV] Main menu restored (Alquileres)
+[2026-09-08 12:02:10] === FIN ALQUILERES ===
+[2026-09-08 12:02:10] Click en RepSalirRep (944,257)
+[2026-09-08 12:02:11] [NAV] Main menu restored (Reparaciones)
+[2026-09-08 12:02:11] === FIN REPARACIONES ===
+[2026-09-08 12:02:23] === INICIO REPARACIONES ===
+[2026-09-08 12:02:24] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-09-08 12:02:24] Ventana '3C' detectada y activada
+[2026-09-08 12:02:24] Resync: enviando Ctrl+Home
+[2026-09-08 12:02:25] Click en RepVentas (407,188)
+[2026-09-08 12:02:25] Click en RepReparaciones (429,349)
+[2026-09-08 12:02:26] Click en RepFechaIni (967,391)
+[2026-09-08 12:02:27] Click en RepActualizar (421,394)
+[2026-09-08 12:02:27] Click en RepPrintAll (1451,828)
+[2026-09-08 12:02:28] Click en RepExcelItems (1452,866)
+[2026-09-08 12:02:28] Click en RepImprimir (895,253)
+[2026-09-08 12:02:29] Click en RepExcelFormat (941,577)
+[2026-09-08 12:02:34] Exportación de reparaciones completada. Esperando Excel...
+[2026-09-08 12:02:34] Esperando Excel (timeout: 30s)...
+[2026-09-08 12:02:34] Excel detectado correctamente
+[2026-09-08 12:02:34] [WATCHER] Directorio: C:\Users\Cesar\AppData\Local\Temp\tresc  [commandId=auto-2026-09-08T15-00-30-945Z-reparaciones module=reparaciones]
+[2026-09-08 12:02:34] [WATCHER] Archivo NUEVO detectado: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc7720091837042624093.xls (mtime 20260908120231)
+[2026-09-08 12:02:35] [WATCHER] Tamano estable: 63488 bytes
+[2026-09-08 12:02:35] [OK] Copiado y verificado en exports: C:\Users\Cesar\Desktop\operario-control\automation\..\automation-watcher\3c_exports\tresc7720091837042624093.xls (63488 bytes)
+[2026-09-08 12:02:35] [WARN] No se pudo eliminar el original (se deja, no afecta): C:\Users\Cesar\AppData\Local\Temp\tresc\tresc7720091837042624093.xls
+[2026-09-08 12:02:35] [WATCHER] Manifiesto escrito (OK): C:\Users\Cesar\Desktop\operario-control\automation\..\automation-watcher\3c_exports\_last_export.json
+[2026-09-08 12:02:36] Click en RepSalirRep (944,257)
+[2026-09-08 12:02:37] [NAV] Main menu restored (Reparaciones)
+[2026-09-08 12:02:37] === FIN REPARACIONES ===
+[2026-09-08 15:00:32] === INICIO STOCK ===
+[2026-09-08 15:00:34] [WATCHER] Baseline Temp\tresc (antes de navegar): 1 archivo(s)
+[2026-09-08 15:00:34] Ventana '3C' detectada y activada
+[2026-09-08 15:00:34] Resync: enviando Ctrl+Home
+[2026-09-08 15:00:34] Click en StockAlmacenes (888,189)
+[2026-09-08 15:00:35] Click en StockInformes (921,370)
+[2026-09-08 15:00:35] Click en StockExistencias (1105,401)
+[2026-09-08 15:00:36] Click en StockDepositos (704,476)
+[2026-09-08 15:00:36] Click en StockSeleccionarTodos (962,858)
+[2026-09-08 15:00:37] Click en StockConsulta (440,341)
+[2026-09-08 15:00:37] Click en StockAceptar (1196,902)
+[2026-09-08 15:00:39] Click en StockExcel (940,575)
+[2026-09-08 15:00:44] Exportación completada. Esperando Excel...
+[2026-09-08 15:00:44] Esperando Excel (timeout: 30s)...
+[2026-09-08 15:00:49] Excel detectado correctamente
+[2026-09-08 15:00:49] [WATCHER] Directorio: C:\Users\Cesar\AppData\Local\Temp\tresc  [commandId=auto-2026-09-08T18-00-31-866Z-stock module=stock]
+[2026-09-08 15:00:49] [WATCHER] Archivo NUEVO detectado: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc7410417483060280592.xls (mtime 20260908150048)
+[2026-09-08 15:00:51] [WATCHER] Tamano estable: 992768 bytes
+[2026-09-08 15:00:51] [OK] Copiado y verificado en exports: C:\Users\Cesar\Desktop\operario-control\automation\..\automation-watcher\3c_exports\tresc7410417483060280592.xls (992768 bytes)
+[2026-09-08 15:00:51] [WARN] No se pudo eliminar el original (se deja, no afecta): C:\Users\Cesar\AppData\Local\Temp\tresc\tresc7410417483060280592.xls
+[2026-09-08 15:00:51] [WATCHER] Manifiesto escrito (OK): C:\Users\Cesar\Desktop\operario-control\automation\..\automation-watcher\3c_exports\_last_export.json
+[2026-09-08 15:00:52] Click en StockSalir (946,250)
+[2026-09-08 15:00:53] [NAV] Main menu restored
+[2026-09-08 15:00:53] === FIN STOCK ===
+[2026-09-08 15:01:11] === INICIO ALQUILERES ===
+[2026-09-08 15:01:12] [WATCHER] Baseline Temp\tresc (antes de navegar): 2 archivo(s)
+[2026-09-08 15:01:12] Ventana '3C' detectada y activada
+[2026-09-08 15:01:12] Resync: enviando Ctrl+Home
+[2026-09-08 15:01:12] Click en VentasAlq (416,188)
+[2026-09-08 15:01:13] Click en InformesAlq (568,500)
+[2026-09-08 15:01:14] Click en Remitos (783,530)
+[2026-09-08 15:01:15] Click en AlquileresPendientes (944,555)
+[2026-09-08 15:01:17] Click en AceptarAlq (535,597)
+[2026-09-08 15:01:24] [DIAG-PRE] Antes de ExportarExcel: ventana=3C-Informatica - Una nueva generación en Software
+[2026-09-08 15:01:24] Click en ExcelFormatAlq (949,575)
+[2026-09-08 15:01:29] [DIAG] Ventana activa tras ExportarExcel: class=XLMAIN title=tresc8797662312462525958  [Modo de compatibilidad] - Excel
+[2026-09-08 15:01:29] [DIAG] Se abrió una ventana de EXCEL (XLMAIN)
+[2026-09-08 15:01:29] [DIAG] Archivos en Temp\tresc ahora: 3
+[2026-09-08 15:01:29] Exportación de alquileres completada. Esperando Excel...
+[2026-09-08 15:01:29] Esperando Excel (timeout: 30s)...
+[2026-09-08 15:01:29] Excel detectado correctamente
+[2026-09-08 15:01:29] [WATCHER] Directorio: C:\Users\Cesar\AppData\Local\Temp\tresc  [commandId=auto-2026-09-08T18-00-31-866Z-alquileres module=alquileres]
+[2026-09-08 15:01:29] [WATCHER] Archivo NUEVO detectado: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc8797662312462525958.xls (mtime 20260908150126)
+[2026-09-08 15:01:30] [WATCHER] Tamano estable: 63488 bytes
+[2026-09-08 15:01:30] [OK] Copiado y verificado en exports: C:\Users\Cesar\Desktop\operario-control\automation\..\automation-watcher\3c_exports\tresc8797662312462525958.xls (63488 bytes)
+[2026-09-08 15:01:30] [WARN] No se pudo eliminar el original (se deja, no afecta): C:\Users\Cesar\AppData\Local\Temp\tresc\tresc8797662312462525958.xls
+[2026-09-08 15:01:30] [WATCHER] Manifiesto escrito (OK): C:\Users\Cesar\Desktop\operario-control\automation\..\automation-watcher\3c_exports\_last_export.json
+[2026-09-08 15:01:32] Click en SalirAlq2 (956,758)
+[2026-09-08 15:01:33] Click en SalirAlq (945,248)
+[2026-09-08 15:01:34] [NAV] Main menu restored (Alquileres)
+[2026-09-08 15:01:34] === FIN ALQUILERES ===
+[2026-09-08 15:01:37] === INICIO REPARACIONES ===
+[2026-09-08 15:01:38] [WATCHER] Baseline Temp\tresc (antes de navegar): 3 archivo(s)
+[2026-09-08 15:01:38] Ventana '3C' detectada y activada
+[2026-09-08 15:01:38] Resync: enviando Ctrl+Home
+[2026-09-08 15:01:39] Click en RepVentas (407,188)
+[2026-09-08 15:01:39] Click en RepReparaciones (429,349)
+[2026-09-08 15:01:40] Click en RepFechaIni (967,391)
+[2026-09-08 15:01:41] Click en RepActualizar (421,394)
+[2026-09-08 15:01:41] Click en RepPrintAll (1451,828)
+[2026-09-08 15:01:42] Click en RepExcelItems (1452,866)
+[2026-09-08 15:01:42] Click en RepImprimir (895,253)
+[2026-09-08 15:01:43] Click en RepExcelFormat (941,577)
+[2026-09-08 15:01:48] Exportación de reparaciones completada. Esperando Excel...
+[2026-09-08 15:01:48] Esperando Excel (timeout: 30s)...
+[2026-09-08 15:01:48] Excel detectado correctamente
+[2026-09-08 15:01:48] [WATCHER] Directorio: C:\Users\Cesar\AppData\Local\Temp\tresc  [commandId=auto-2026-09-08T18-00-31-866Z-reparaciones module=reparaciones]
+[2026-09-08 15:01:48] [WATCHER] Archivo NUEVO detectado: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc7202756877270211384.xls (mtime 20260908150147)
+[2026-09-08 15:01:49] [WATCHER] Tamano estable: 1015808 bytes
+[2026-09-08 15:01:49] [OK] Copiado y verificado en exports: C:\Users\Cesar\Desktop\operario-control\automation\..\automation-watcher\3c_exports\tresc7202756877270211384.xls (1015808 bytes)
+[2026-09-08 15:01:49] [WARN] No se pudo eliminar el original (se deja, no afecta): C:\Users\Cesar\AppData\Local\Temp\tresc\tresc7202756877270211384.xls
+[2026-09-08 15:01:49] [WATCHER] Manifiesto escrito (OK): C:\Users\Cesar\Desktop\operario-control\automation\..\automation-watcher\3c_exports\_last_export.json
+[2026-09-08 15:01:51] Click en RepSalirRep (944,257)
+[2026-09-08 15:01:52] [NAV] Main menu restored (Reparaciones)
+[2026-09-08 15:01:52] === FIN REPARACIONES ===

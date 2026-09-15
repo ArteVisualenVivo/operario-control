@@ -1,0 +1,33 @@
+[2026-08-29 10:00:36] === INICIO STOCK ===
+[2026-08-29 10:00:37] [WATCHER] Baseline Temp\tresc (antes de navegar): 1 archivo(s)
+[2026-08-29 10:02:37] === INICIO ALQUILERES ===
+[2026-08-29 10:02:38] [WATCHER] Baseline Temp\tresc (antes de navegar): 1 archivo(s)
+[2026-08-29 10:04:38] === INICIO REPARACIONES ===
+[2026-08-29 10:04:39] [WATCHER] Baseline Temp\tresc (antes de navegar): 1 archivo(s)
+[2026-08-29 12:00:37] === INICIO STOCK ===
+[2026-08-29 12:00:38] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-29 12:00:38] ERROR: '3C' no encontrada
+[2026-08-29 12:00:49] === INICIO ALQUILERES ===
+[2026-08-29 12:00:50] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-29 12:00:51] ERROR: '3C' no encontrada
+[2026-08-29 12:01:01] === INICIO REPARACIONES ===
+[2026-08-29 12:01:02] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-29 12:01:03] ERROR: '3C' no encontrada
+[2026-08-29 15:00:40] === INICIO STOCK ===
+[2026-08-29 15:00:41] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-29 15:00:41] ERROR: '3C' no encontrada
+[2026-08-29 15:00:52] === INICIO ALQUILERES ===
+[2026-08-29 15:00:53] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-29 15:00:53] ERROR: '3C' no encontrada
+[2026-08-29 15:01:04] === INICIO REPARACIONES ===
+[2026-08-29 15:01:05] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-29 15:01:06] ERROR: '3C' no encontrada
+[2026-08-29 17:00:47] === INICIO STOCK ===
+[2026-08-29 17:00:48] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-29 17:00:48] ERROR: '3C' no encontrada
+[2026-08-29 17:00:59] === INICIO ALQUILERES ===
+[2026-08-29 17:01:00] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-29 17:01:01] ERROR: '3C' no encontrada
+[2026-08-29 17:01:12] === INICIO REPARACIONES ===
+[2026-08-29 17:01:13] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-29 17:01:13] ERROR: '3C' no encontrada

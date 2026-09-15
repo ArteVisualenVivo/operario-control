@@ -1,0 +1,20 @@
+C:\Users\Cesar\Desktop\operario-control\node_modules\@firebase\auth\src\core\util\assert.ts:152
+  return _DEFAULT_AUTH_ERROR_FACTORY.create(
+                                     ^
+
+FirebaseError: Firebase: Error (auth/invalid-api-key).
+    at createErrorInternal (C:\Users\Cesar\Desktop\operario-control\node_modules\@firebase\auth\src\core\util\assert.ts:152:38)
+    at _assert (C:\Users\Cesar\Desktop\operario-control\node_modules\@firebase\auth\src\core\util\assert.ts:177:11)
+    at Component.instanceFactory (C:\Users\Cesar\Desktop\operario-control\node_modules\@firebase\auth\src\core\auth\register.ts:72:9)
+    at Provider.getOrInitializeService (C:\Users\Cesar\Desktop\operario-control\node_modules\@firebase\component\src\provider.ts:318:33)
+    at Provider.initialize (C:\Users\Cesar\Desktop\operario-control\node_modules\@firebase\component\src\provider.ts:242:27)
+    at initializeAuth (C:\Users\Cesar\Desktop\operario-control\node_modules\@firebase\auth\src\core\auth\initialize.ts:66:25)
+    at getAuth (C:\Users\Cesar\Desktop\operario-control\node_modules\@firebase\auth\src\platform_node\index.ts:45:16)
+    at <anonymous> (C:\Users\Cesar\Desktop\operario-control\src\lib\firebase.ts:16:21)
+    at Object.<anonymous> (C:\Users\Cesar\Desktop\operario-control\src\lib\firebase.ts:18:16)
+    at Module._compile (node:internal/modules/cjs/loader:1854:14) {
+  code: 'auth/invalid-api-key',
+  customData: { appName: '[DEFAULT]' }
+}
+
+Node.js v24.17.0

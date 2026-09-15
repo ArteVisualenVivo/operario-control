@@ -1,0 +1,72 @@
+[2026-08-30 23:22:28] === NAV ALQ OBS START ===
+[2026-08-30 23:22:28] Ventana '3C' detectada y activada
+[2026-08-30 23:22:28] Click en Ventas (407,188)
+[2026-08-30 23:22:29] 1 Ventas ok
+[2026-08-30 23:22:29] Click en Informes (921,370)
+[2026-08-30 23:22:30] 2 Informes ok
+[2026-08-30 23:22:30] Click en Remitos (680,531)
+[2026-08-30 23:22:31] 3 Remitos ok
+[2026-08-30 23:22:31] Click en AlquileresPendientes (915,559)
+[2026-08-30 23:22:33] 4 AlquileresPendientes ok
+[2026-08-30 23:22:33] Click en Aceptar (1196,902)
+[2026-08-30 23:22:36] 5 Aceptar ok - izquierda abierta
+[2026-08-30 19:15:35] === INICIO STOCK ===
+[2026-08-30 19:15:36] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-30 19:15:36] Ventana '3C' detectada y activada
+[2026-08-30 19:15:36] Resync: enviando Ctrl+Home
+[2026-08-30 19:15:36] Click en Almacenes (888,189)
+[2026-08-30 19:15:37] Click en Informes (921,370)
+[2026-08-30 19:15:37] Click en Existencias (1105,401)
+[2026-08-30 19:15:38] Click en Depositos (704,476)
+[2026-08-30 19:15:39] Click en SeleccionarTodos (962,858)
+[2026-08-30 19:15:39] Click en Consulta (440,341)
+[2026-08-30 19:15:39] Click en Aceptar (1196,902)
+[2026-08-30 19:15:41] Click en Excel (940,575)
+[2026-08-30 19:15:46] Exportación completada. Esperando Excel...
+[2026-08-30 19:15:46] Esperando Excel (timeout: 30s)...
+[2026-08-30 19:15:51] Excel detectado correctamente
+[2026-08-30 19:15:51] [WATCHER] Directorio: C:\Users\Cesar\AppData\Local\Temp\tresc  [commandId= module=]
+[2026-08-30 19:15:51] [WATCHER] Archivo NUEVO detectado: C:\Users\Cesar\AppData\Local\Temp\tresc\tresc2710546194590166093.xls (mtime 20260830191551)
+[2026-08-30 19:15:53] [WATCHER] Tamano estable: 986112 bytes
+[2026-08-30 19:15:53] [OK] Copiado y verificado en exports: C:\Users\Cesar\Desktop\operario-control\automation\..\automation-watcher\3c_exports\tresc2710546194590166093.xls (986112 bytes)
+[2026-08-30 19:15:53] [WARN] No se pudo eliminar el original (se deja, no afecta): C:\Users\Cesar\AppData\Local\Temp\tresc\tresc2710546194590166093.xls
+[2026-08-30 19:15:53] [WATCHER] Manifiesto escrito (OK): C:\Users\Cesar\Desktop\operario-control\automation\..\automation-watcher\3c_exports\_last_export.json
+[2026-08-30 19:15:54] Click en Salir (946,250)
+[2026-08-30 19:15:55] [NAV] Main menu restored
+[2026-08-30 19:15:55] === FIN STOCK ===
+[2026-08-30 10:00:53] === INICIO STOCK ===
+[2026-08-30 10:00:54] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-30 10:00:55] ERROR: '3C' no encontrada
+[2026-08-30 10:01:06] === INICIO ALQUILERES ===
+[2026-08-30 10:01:06] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-30 10:01:07] ERROR: '3C' no encontrada
+[2026-08-30 10:01:18] === INICIO REPARACIONES ===
+[2026-08-30 10:01:19] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-30 10:01:19] ERROR: '3C' no encontrada
+[2026-08-30 12:00:54] === INICIO STOCK ===
+[2026-08-30 12:00:55] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-30 12:00:56] ERROR: '3C' no encontrada
+[2026-08-30 12:01:07] === INICIO ALQUILERES ===
+[2026-08-30 12:01:08] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-30 12:01:08] ERROR: '3C' no encontrada
+[2026-08-30 12:01:19] === INICIO REPARACIONES ===
+[2026-08-30 12:01:20] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-30 12:01:20] ERROR: '3C' no encontrada
+[2026-08-30 15:00:56] === INICIO STOCK ===
+[2026-08-30 15:00:57] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-30 15:00:57] ERROR: '3C' no encontrada
+[2026-08-30 15:01:08] === INICIO ALQUILERES ===
+[2026-08-30 15:01:09] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-30 15:01:09] ERROR: '3C' no encontrada
+[2026-08-30 15:01:20] === INICIO REPARACIONES ===
+[2026-08-30 15:01:21] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-30 15:01:21] ERROR: '3C' no encontrada
+[2026-08-30 17:00:56] === INICIO STOCK ===
+[2026-08-30 17:00:58] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-30 17:00:58] ERROR: '3C' no encontrada
+[2026-08-30 17:01:09] === INICIO ALQUILERES ===
+[2026-08-30 17:01:10] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-30 17:01:10] ERROR: '3C' no encontrada
+[2026-08-30 17:01:21] === INICIO REPARACIONES ===
+[2026-08-30 17:01:22] [WATCHER] Baseline Temp\tresc (antes de navegar): 0 archivo(s)
+[2026-08-30 17:01:22] ERROR: '3C' no encontrada
