@@ -8,7 +8,7 @@ import {
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-const VALID: PrimaryModuleId[] = ["stock", "articulos", "maintenance", "alquileres"]
+const VALID: PrimaryModuleId[] = ["stock", "articulos", "maintenance", "alquileres", "spare_part_orders"]
 const META_KEY = (m: string) => `sync-3c:data:${m}:meta`
 const CHUNK_KEY = (m: string, i: number) => `sync-3c:data:${m}:chunk:${i}`
 

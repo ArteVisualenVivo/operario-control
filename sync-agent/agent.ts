@@ -26,7 +26,7 @@ import {
     type PrimaryModuleId,
 } from "../src/lib/sync-3c/redisPrimary"
 import { parseMaintenanceBuffer } from "../src/lib/local-sync-excel"
-import { importSparePartsFromRepairMotivo } from "../src/services/sparePartOrders"
+import { importSparePartsFromRepairMotivo, getAllOrders } from "../src/services/sparePartOrders"
 import {
     parseRepairStatusBuffer,
     getLatestStatusByOrder,
