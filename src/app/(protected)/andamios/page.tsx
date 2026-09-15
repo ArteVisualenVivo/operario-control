@@ -11,7 +11,8 @@ import MachineCard from "@/components/machines/MachineCard"
 import type { MachineStatus } from "@/types"
 import { statusLabels } from "@/lib/ui"
 import { SCAFFOLD_CATALOG } from "@/lib/scaffoldConfig"
-import { loadScaffoldRentalStats } from "@/lib/dashboardStats"
+import { loadScaffoldRentalStats, type ScaffoldRentalStats } from "@/lib/dashboardStats"
+import { SearchInput } from "@/components/ui/SearchInput"
 import {
   computeScaffoldTotals,
   type ScaffoldRowKey,
@@ -58,11 +59,16 @@ export default function AndamiosPage() {
   const [depositoPuntal, setDepositoPuntal] = useState<PuntalAlquilados>({ barovo: 0, marron: 0, naranja: 0, largo380: 0, mmq: 0, total: 0 })
   const [puntalAlquilados, setPuntalAlquilados] = useState<PuntalAlquilados | null>(null)
 
+  // ---- Buscador de alquileres por cliente (remitos 3C) ----
+  const [clienteSearch, setClienteSearch] = useState("")
+  const [scaffoldDetalle, setScaffoldDetalle] = useState<ScaffoldRentalStats["detalle"]>([])
+
   // Alquilados desde remitos 3C.
   useEffect(() => {
     let cancelled = false
     loadScaffoldRentalStats().then((stats) => {
       if (cancelled || !stats) return
+      setScaffoldDetalle(stats.detalle ?? [])
       const r = stats.resumen
       const modulosComunes = Math.max(0, (r?.estructuras ?? 0) - (r?.pasilleros ?? 0))
       const pasilleros = r?.pasilleros ?? 0
@@ -238,6 +244,98 @@ export default function AndamiosPage() {
     ((alquiladosResumen.modulos ?? 0) + (alquiladosResumen.pasilleros ?? 0)) / 2,
   )
 
+  // ================================================================
+  // BUSCADOR POR CLIENTE: agrupa los renglones de los remitos 3C
+  // por cliente y suma cantidades por artículo (misma clasificación
+  // que usa el parser de remitos en scaffoldRentals.ts).
+  // ================================================================
+  type ClienteGrupo = {
+    cliente: string
+    remitos: string[]
+    renglones: ScaffoldRentalStats["detalle"]
+    totales: Record<string, number>
+  }
+
+  const clasificarRenglon = (codigo: string, descripcion: string): { clave: string; label: string } => {
+    const c = (codigo ?? "").trim().toUpperCase()
+    const d = (descripcion ?? "").toUpperCase()
+    const esPasillero = d.includes("PASILLERO")
+
+    // Puntales (por medida).
+    if (c === "28510" || d.includes("BAROVO")) return { clave: "puntal_barovo", label: "Puntales Barovo 3,05 m" }
+    if (c === "28318") return { clave: "puntal_marron", label: "Puntales Marrón 3,00 m" }
+    if (c === "28511") return { clave: "puntal_naranja", label: "Puntales Naranja 3 m" }
+    if (c === "28512") return { clave: "puntal_largo380", label: "Puntales Largo 3,80 m" }
+    if (c === "PH305") return { clave: "puntal_mmq", label: "Puntales MMQ 3,05 m" }
+
+    // Paños (módulos) de andamio.
+    if (c === "28501" || (esPasillero && ["A03", "A04", "A07", "28601"].includes(c)))
+      return { clave: "pasilleros", label: "Paños pasilleros" }
+    if (["A03", "A04", "A07", "28601"].includes(c) || d.includes("ANDAMIO"))
+      return { clave: "modulos", label: "Paños (módulos) comunes" }
+
+    // Riendas (si el remito las lista sueltas).
+    if (["R01", "R03"].includes(c)) return { clave: "riendasCortas", label: "Riendas cortas" }
+    if (["R02", "R04"].includes(c)) return { clave: "riendasLargas", label: "Riendas largas" }
+
+    // Tablones.
+    if (["TA02", "TA03", "28901", "29001", "29101", "29201"].includes(c) || d.includes("TABLON"))
+      return { clave: "tablones", label: "Tablones" }
+
+    // Ruedas.
+    if (c === "29601") return { clave: "juegosRuedas", label: "Juegos de ruedas (x4)" }
+    if (c === "29501" || d.includes("C/FRENO")) return { clave: "ruedasConFreno", label: "Ruedas con freno" }
+    if (["N7-1", "N71"].includes(c) || (d.includes("RUEDA") && !d.includes("FRENO")))
+      return { clave: "ruedasSinFreno", label: "Ruedas sin freno" }
+
+    return { clave: "otros", label: "Otros" }
+  }
+
+  const ORDEN_ARTICULOS: { clave: string; label: string }[] = [
+    { clave: "modulos", label: "Paños (módulos) comunes" },
+    { clave: "pasilleros", label: "Paños pasilleros" },
+    { clave: "riendasLargas", label: "Riendas largas" },
+    { clave: "riendasCortas", label: "Riendas cortas" },
+    { clave: "tablones", label: "Tablones" },
+    { clave: "ruedasSinFreno", label: "Ruedas sin freno" },
+    { clave: "ruedasConFreno", label: "Ruedas con freno" },
+    { clave: "juegosRuedas", label: "Juegos de ruedas (x4)" },
+    { clave: "puntal_barovo", label: "Puntales Barovo 3,05 m" },
+    { clave: "puntal_marron", label: "Puntales Marrón 3,00 m" },
+    { clave: "puntal_naranja", label: "Puntales Naranja 3 m" },
+    { clave: "puntal_largo380", label: "Puntales Largo 3,80 m" },
+    { clave: "puntal_mmq", label: "Puntales MMQ 3,05 m" },
+    { clave: "otros", label: "Otros" },
+  ]
+
+  const clienteGrupos = useMemo<ClienteGrupo[]>(() => {
+    const q = normalizeText(clienteSearch)
+    if (!q) return []
+
+    const match = (d: ScaffoldRentalStats["detalle"][number]) =>
+      (d.cliente ?? "").toLowerCase().includes(q) ||
+      (d.clienteId ?? "").toLowerCase().includes(q) ||
+      d.remito.toLowerCase().includes(q) ||
+      d.descripcion.toLowerCase().includes(q) ||
+      d.codigo.toLowerCase().includes(q)
+
+    const filtrados = scaffoldDetalle.filter(match)
+    const map = new Map<string, ClienteGrupo>()
+    for (const d of filtrados) {
+      const key = (d.cliente ?? d.clienteId ?? "Sin cliente").trim() || "Sin cliente"
+      if (!map.has(key)) {
+        map.set(key, { cliente: key, remitos: [], renglones: [], totales: {} })
+      }
+      const grupo = map.get(key)!
+      if (!grupo.remitos.includes(d.remito)) grupo.remitos.push(d.remito)
+      grupo.renglones.push(d)
+      const { clave } = clasificarRenglon(d.codigo, d.descripcion)
+      grupo.totales[clave] = (grupo.totales[clave] ?? 0) + (d.cantidad || 0)
+    }
+    return [...map.values()].sort((a, b) => b.renglones.length - a.renglones.length)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteSearch, scaffoldDetalle])
+
   if (loading) return <p className="text-muted-foreground">Cargando...</p>
 
   return (
@@ -254,6 +352,90 @@ export default function AndamiosPage() {
           <Button variant="outline" onClick={() => router.push("/inventory/new")}>Nuevo material</Button>
           <Button variant="outline" onClick={() => router.push("/machines/new")}>Nueva máquina</Button>
         </div>
+      </div>
+
+      {/* ===== BUSCADOR DE ALQUILERES POR CLIENTE ===== */}
+      <div className="space-y-3">
+        <SearchInput
+          value={clienteSearch}
+          onChange={setClienteSearch}
+          placeholder="Buscar alquilados por cliente, remito o código..."
+          className="max-w-md"
+        />
+
+        {clienteSearch.trim() !== "" && (
+          <div className="space-y-4">
+            {clienteGrupos.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No hay alquileres que coincidan con "{clienteSearch}".
+              </p>
+            ) : (
+              <>
+                <p className="text-xs text-muted-foreground">
+                  {clienteGrupos.length} cliente(s) encontrado(s)
+                </p>
+                {clienteGrupos.map((grupo) => (
+                  <div key={grupo.cliente} className="rounded-lg border bg-card p-4 space-y-3">
+                    <div className="flex items-baseline justify-between flex-wrap gap-2">
+                      <h3 className="text-base font-bold">{grupo.cliente}</h3>
+                      <p className="text-xs text-muted-foreground">
+                        {grupo.remitos.length} remito(s) · {grupo.renglones.length} renglones
+                      </p>
+                    </div>
+
+                    {/* Totales por artículo */}
+                    <div className="rounded-md border overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-muted/40">
+                            <th className="p-2 text-left font-medium">Artículo</th>
+                            <th className="p-2 text-right font-medium">Cantidad alquilada</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ORDEN_ARTICULOS.filter((a) => (grupo.totales[a.clave] ?? 0) > 0).map((a) => (
+                            <tr key={a.clave} className="border-b last:border-0">
+                              <td className="p-2">{a.label}</td>
+                              <td className="p-2 text-right font-bold">{grupo.totales[a.clave]}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Detalle de remitos */}
+                    <div className="rounded-md border overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="border-b bg-muted/40">
+                            <th className="p-2 text-left font-medium">Código</th>
+                            <th className="p-2 text-left font-medium">Descripción</th>
+                            <th className="p-2 text-right font-medium">Cant.</th>
+                            <th className="p-2 text-left font-medium">Remito</th>
+                            <th className="p-2 text-left font-medium">Fecha</th>
+                            <th className="p-2 text-left font-medium">Devolución</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {grupo.renglones.map((d, i) => (
+                            <tr key={`${d.remito}-${d.codigo}-${i}`} className="border-b last:border-0">
+                              <td className="p-2 font-mono text-xs">{d.codigo}</td>
+                              <td className="p-2">{d.descripcion}</td>
+                              <td className="p-2 text-right">{d.cantidad}</td>
+                              <td className="p-2 text-xs">{d.remito}</td>
+                              <td className="p-2 text-xs">{d.fecha}</td>
+                              <td className="p-2 text-xs">{d.devolucion || "—"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* ===== PLACAS ANDAMIOS: COMUNES + PASILLEROS ===== */}
