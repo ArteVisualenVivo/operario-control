@@ -43,6 +43,47 @@ export interface ResumenAndamios {
 export interface MaterialRow { codigo: string; nombre: string; familia: string; marca: string; stock: number; disponible: number }
 export interface ComponenteRow { grupo: string; codigo: string; nombre: string; cantidad: number }
 export interface AlquilerRow { cliente: string; remito: string; cantidad: number; fecha: string; devolucion: string }
+export interface AlquilerDetalleRow { codigo: string; descripcion: string; cantidad: number; remito: string; fecha: string; devolucion: string }
+export interface AlquilerGrupo {
+    cliente: string
+    remitos: string[]
+    totales: Record<string, number>
+    detalle: AlquilerDetalleRow[]
+}
+
+export const ALQUILER_TOTAL_KEYS: { clave: string; label: string }[] = [
+    { clave: "modulos", label: "Paños (módulos) comunes" },
+    { clave: "pasilleros", label: "Paños pasilleros" },
+    { clave: "tablones", label: "Tablones" },
+    { clave: "ruedasSinFreno", label: "Ruedas sin freno" },
+    { clave: "ruedasConFreno", label: "Ruedas con freno" },
+    { clave: "juegosRuedas", label: "Juegos de ruedas (x4)" },
+    { clave: "puntal_barovo", label: "Puntales Barovo 3,05 m" },
+    { clave: "puntal_marron", label: "Puntales Marrón 3,00 m" },
+    { clave: "puntal_naranja", label: "Puntales Naranja 3 m" },
+    { clave: "puntal_largo380", label: "Puntales Largo 3,80 m" },
+    { clave: "puntal_mmq", label: "Puntales MMQ 3,05 m" },
+    { clave: "otros", label: "Otros" },
+]
+
+function clasificarAlquilerRenglon(codigo: string, descripcion: string): string {
+    const c = (codigo ?? "").trim().toUpperCase()
+    const d = (descripcion ?? "").toUpperCase()
+    if (c === "28510" || d.includes("BAROVO")) return "puntal_barovo"
+    if (c === "28318") return "puntal_marron"
+    if (c === "28511") return "puntal_naranja"
+    if (c === "28512") return "puntal_largo380"
+    if (c === "PH305") return "puntal_mmq"
+    const esPasillero = d.includes("PASILLERO")
+    if (c === "28501" || (esPasillero && ["A03", "A04", "A07", "28601"].includes(c))) return "pasilleros"
+    if (["A03", "A04", "A07", "28601"].includes(c) || d.includes("ANDAMIO")) return "modulos"
+    if (["TA02", "TA03", "28901", "29001", "29101", "29201"].includes(c) || d.includes("TABLON")) return "tablones"
+    if (c === "29601") return "juegosRuedas"
+    if (c === "29501" || d.includes("C/FRENO")) return "ruedasConFreno"
+    if (["N7-1", "N71"].includes(c) || (d.includes("RUEDA") && !d.includes("FRENO"))) return "ruedasSinFreno"
+    return "otros"
+}
+
 export interface ReparacionRow { orden: string; cliente: string; maquina: string; estado: string; fecha: string; descripcion: string }
 export interface MaquinaRow { codigo: string; nombre: string; familia: string; stock: number; disponible: number }
 
@@ -50,8 +91,8 @@ export interface GroupedResults {
     query: string
     resumenAndamios: ResumenAndamios | null
     materiales: MaterialRow[]
-    componentes: ComponenteRow[]
-    alquileres: AlquilerRow[]
+        componentes: ComponenteRow[]
+    alquileres: AlquilerGrupo[]
     reparaciones: ReparacionRow[]
     maquinas: MaquinaRow[]
     totalResultados: number
@@ -157,15 +198,25 @@ export function searchGrouped(query: string, data: GroupedSearchData): GroupedRe
     }
   }
 
-  // --- Alquileres 3C ---
-  const alquileres: AlquilerRow[] = []
+    // --- Alquileres 3C ---
+  const alquileres: AlquilerGrupo[] = []
   const detalle = data.scaffoldRentals?.detalle ?? []
+  const gruposCli = new Map<string, AlquilerGrupo>()
   for (const d of detalle) {
     const fields = [d.cliente, d.clienteId, d.remito, d.codigo, d.descripcion, d.fecha, d.devolucion]
     if (alquilerTerm || matchesTokens(compact(fields.join(" ")), tokens)) {
-      alquileres.push({ cliente: d.cliente || d.clienteId || "—", remito: d.remito || "—", cantidad: d.cantidad, fecha: d.fecha || "—", devolucion: d.devolucion || "—" })
+      const cliente = d.cliente || d.clienteId || "Sin cliente"
+      if (!gruposCli.has(cliente)) {
+        gruposCli.set(cliente, { cliente, remitos: [], totales: {}, detalle: [] })
+      }
+      const g = gruposCli.get(cliente)!
+      if (!g.remitos.includes(d.remito)) g.remitos.push(d.remito)
+      const clave = clasificarAlquilerRenglon(d.codigo, d.descripcion)
+      g.totales[clave] = (g.totales[clave] ?? 0) + (d.cantidad || 0)
+      g.detalle.push({ codigo: d.codigo, descripcion: d.descripcion, cantidad: d.cantidad, remito: d.remito, fecha: d.fecha || "—", devolucion: d.devolucion || "—" })
     }
   }
+  alquileres.push(...gruposCli.values())
 
   // --- Reparaciones / mantenimiento (registro CONSOLIDADO de todos los Excel) ---
   const reparaciones: ReparacionRow[] = []

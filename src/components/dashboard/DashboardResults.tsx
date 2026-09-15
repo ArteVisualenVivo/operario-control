@@ -1,9 +1,11 @@
 "use client"
 
 import type {
-  GroupedResults, MaterialRow, ComponenteRow, AlquilerRow, ReparacionRow, MaquinaRow,
+  GroupedResults, MaterialRow, ComponenteRow, AlquilerGrupo, ReparacionRow, MaquinaRow,
 } from "@/lib/search-grouped"
+import { ALQUILER_TOTAL_KEYS } from "@/lib/search-grouped"
 import { formatDate } from "@/lib/ui"
+import { useState } from "react"
 
 interface Props {
   results: GroupedResults
@@ -73,6 +75,7 @@ function MaterialTable({ rows }: { rows: MaterialRow[] }) {
 }
 export function DashboardResults({ results }: Props) {
   const { query, resumenAndamios, materiales, componentes, alquileres, reparaciones, maquinas } = results
+  const [openGrupo, setOpenGrupo] = useState<string | null>(null)
 
   if (results.totalResultados === 0 && !resumenAndamios) {
     return (
@@ -166,12 +169,54 @@ export function DashboardResults({ results }: Props) {
         </Section>
       )}
 
-      {alquileres.length > 0 && (
-        <Section title={`Alquileres (3C) — ${alquileres.length} renglones`}>
-          <SimpleTable
-            headers={["Cliente", "Remito", "Cant.", "Fecha", "Devolución"]}
-            rows={alquileres.map((a: AlquilerRow) => [a.cliente, <span key="r" className="font-mono text-xs">{a.remito}</span>, <span key="c" className="font-bold">{a.cantidad}</span>, a.fecha, a.devolucion])}
-          />
+            {alquileres.length > 0 && (
+        <Section title={`Alquileres (3C) — ${alquileres.reduce((s, g) => s + g.detalle.length, 0)} renglón(es) · ${alquileres.length} cliente(s)`}>
+          <div className="space-y-4">
+            {alquileres.map((g: AlquilerGrupo) => (
+              <div key={g.cliente} className="rounded-lg border bg-card p-4 space-y-3">
+                <div className="flex items-baseline justify-between flex-wrap gap-2">
+                  <h4 className="font-bold text-lg">{g.cliente}</h4>
+                  <span className="text-xs text-muted-foreground">{g.remitos.length} remito(s)</span>
+                </div>
+
+                {/* Totales por artículo (solo los > 0) */}
+                <div className="grid gap-1">
+                  {ALQUILER_TOTAL_KEYS
+                    .filter((a) => (g.totales[a.clave] ?? 0) > 0)
+                    .map((a) => (
+                      <div key={a.clave} className="flex justify-between">
+                        <span className="text-sm text-muted-foreground">{a.label}</span>
+                        <span className="font-bold">{g.totales[a.clave]}</span>
+                      </div>
+                    ))}
+                </div>
+
+                {/* Detalle de renglones (colapsable) */}
+                <button
+                  type="button"
+                  className="text-xs underline text-muted-foreground hover:text-foreground"
+                  onClick={() => setOpenGrupo(openGrupo === g.cliente ? null : g.cliente)}
+                >
+                  {openGrupo === g.cliente
+                    ? "Ocultar detalle"
+                    : `Ver ${g.detalle.length} renglón(es) ▼`}
+                </button>
+                {openGrupo === g.cliente && (
+                  <SimpleTable
+                    headers={["Código", "Descripción", "Cant.", "Remito", "Fecha", "Devolución"]}
+                    rows={g.detalle.map((d) => [
+                      <span key="c" className="font-mono text-xs">{d.codigo || "—"}</span>,
+                      d.descripcion,
+                      <span key="cant" className="font-bold">{d.cantidad}</span>,
+                      <span key="r" className="font-mono text-xs">{d.remito}</span>,
+                      d.fecha,
+                      d.devolucion,
+                    ])}
+                  />
+                )}
+              </div>
+            ))}
+          </div>
         </Section>
       )}
 
