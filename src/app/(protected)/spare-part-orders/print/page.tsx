@@ -3,9 +3,63 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { getAllOrders, splitMachineModel } from "@/services/sparePartOrders"
-import { buildSparePartOrderGroups } from "@/lib/sparePartOrderGroups"
+import { buildSparePartOrderGroups, type SparePartOrderGroup } from "@/lib/sparePartOrderGroups"
 import { getRepairs } from "@/services/repairs"
 import type { SparePartOrder, MachineRepair } from "@/types"
+
+/**
+ * Extrae el número real del N° de Orden.
+ * Ej: "X 0001-00011154" -> 11154
+ *
+ * IMPORTANTE: se toma el ÚLTIMO grupo de dígitos, NO el primero.
+ * El formato "X 0001-NNNNNNNN" arranca con "0001" (prefijo), que NO es el
+ * número de orden; el número real está después del guion.
+ */
+function extractNumericOrder(orderNumber: string | null | undefined): number {
+  const matches = (orderNumber ?? "").match(/\d+/g)
+  if (matches && matches.length > 0) {
+    return parseInt(matches[matches.length - 1], 10)
+  }
+  return 0
+}
+
+/**
+ * Agrupamiento SOLO visual por N° de Orden (igual criterio que la pantalla
+ * principal de Pedidos).
+ *
+ * - Se usa buildSparePartOrderGroups() para agrupar por el texto normalizado.
+ * - Como refuerzo, se fusionan los grupos que comparten el mismo número real
+ *   (por si el texto original difiere por espacios o caracteres invisibles).
+ * - Cada repuesto conserva su propio registro: orderNumber/machineName/
+ *   machineModel/description/code/requestedAt/receivedAt nunca se copian ni se
+ *   inventan entre documentos.
+ * - El N° de Orden y la máquina que se muestran son siempre el texto ORIGINAL
+ *   del primer registro del grupo (no se reformatea el dato de la fuente).
+ */
+function groupOrdersByNumber(list: SparePartOrder[]): SparePartOrderGroup[] {
+  const groups = buildSparePartOrderGroups(list)
+  const merged: SparePartOrderGroup[] = []
+  const positions = new Map<string, number>()
+
+  for (const group of groups) {
+    const num = extractNumericOrder(group.orderNumber)
+    // Sin número reconocible se respeta la clave original (no se fusiona).
+    const key = num > 0 ? `#${num}` : group.key
+    const position = positions.get(key)
+
+    if (position === undefined) {
+      positions.set(key, merged.length)
+      merged.push({ ...group, parts: [...group.parts], ids: [...group.ids] })
+    } else {
+      const target = merged[position]
+      target.parts.push(...group.parts)
+      target.ids.push(...group.ids)
+      target.totalParts = target.parts.length
+    }
+  }
+
+  return merged
+}
 
 export default function PurchaseListPage() {
   const [orders, setOrders] = useState<SparePartOrder[]>([])
@@ -54,56 +108,11 @@ export default function PurchaseListPage() {
   const today = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })
     const hasContent = orders.length > 0 || encargados.length > 0
 
-    // Extrae el número numérico del N° de Orden para ordenar de forma determinista.
-  // Ej: "X 0001-00011154" -> 11154
-  // IMPORTANTE: extrae el ÚLTIMO grupo de dígitos, no el primero.
-  // El formato "X 0001-NNNNNNNN" contiene "0001" como primer match (prefijo),
-  // y el número real está después del guion.
-    const extractNumericOrder = (orderNumber: string | null | undefined): number => {
-    const matches = (orderNumber ?? "").match(/\d+/g)
-    if (matches && matches.length > 0) {
-      return parseInt(matches[matches.length - 1], 10)
-    }
-    return 0
-  }
 
-  // Normaliza el orderNumber a solo el número (string) para agrupar.
-  // Esto asegura que buildSparePartOrderGroups() una todos los repuestos
-  // del mismo número, incluso si el string original tiene caracteres invisibles.
-  const normalizeOrderNumber = (orderNumber: string | null | undefined): string => {
-    const num = extractNumericOrder(orderNumber)
-    return num > 0 ? num.toString() : (orderNumber ?? "").trim().toUpperCase() || ""
-  }
-
-  // Formatea el número normalizado para display: "11271" -> "X 0001-00011271"
-  const formatOrderNumber = (orderNumber: string): string => {
-    const num = extractNumericOrder(orderNumber)
-    if (num > 0) {
-      return `X 0001-${num.toString().padStart(8, "0")}`
-    }
-    const trimmed = (orderNumber ?? "").trim()
-    return trimmed || "—"
-  }
-
-
-  // Agrupamiento SOLO visual por N° de Orden (igual que la pantalla principal).
-  // Cada repuesto conserva su propio documento: orderNumber/machineName/machineModel/
-  // description/code/requestedAt/receivedAt nunca se copian entre documentos.
-  // Se ordenan los pedidos por N° de Orden (numérico, descendente) antes de agrupar
-  // para garantizar que buildSparePartOrderGroups() mantenga juntos todos los
-  // repuestos de cada orden y que los grupos aparezcan en orden determinista.
-    const pendingGroups = useMemo(() => {
-    const normalized = orders
-      .map((o) => ({ ...o, orderNumber: normalizeOrderNumber(o.orderNumber) }))
-      .sort((a, b) => extractNumericOrder(b.orderNumber) - extractNumericOrder(a.orderNumber))
-    return buildSparePartOrderGroups(normalized)
-  }, [orders])
-  const encargadosGroups = useMemo(() => {
-    const normalized = encargados
-      .map((o) => ({ ...o, orderNumber: normalizeOrderNumber(o.orderNumber) }))
-      .sort((a, b) => extractNumericOrder(b.orderNumber) - extractNumericOrder(a.orderNumber))
-    return buildSparePartOrderGroups(normalized)
-  }, [encargados])
+  // Agrupamiento SOLO visual por N° de Orden (mismo criterio que la pantalla
+  // principal de Pedidos). Cada repuesto conserva su propio documento.
+  const pendingGroups = useMemo(() => groupOrdersByNumber(orders), [orders])
+  const encargadosGroups = useMemo(() => groupOrdersByNumber(encargados), [encargados])
 
   const displayCode = (code: string | null | undefined) =>
     code && code.trim() !== "" && code.trim().toUpperCase() !== "S/C" ? code : "—"
@@ -165,7 +174,7 @@ export default function PurchaseListPage() {
                       <tr key={o.id}>
                         <td style={{ border: "1px solid #999", padding: "4px 6px", width: 24 }}></td>
                                                   {idx === 0 && (
-                            <td rowSpan={g.parts.length} style={tdStyle}>{formatOrderNumber(g.orderNumber)}</td>
+                            <td rowSpan={g.parts.length} style={tdStyle}>{g.orderNumber || "—"}</td>
                           )}
                           {idx === 0 && (
                             <td rowSpan={g.parts.length} style={tdStyle}>{g.machineName}</td>
@@ -210,7 +219,7 @@ export default function PurchaseListPage() {
                                               <tr key={o.id}>
                           <td style={{ border: "1px solid #999", padding: "4px 6px", width: 24 }}></td>
                           {idx === 0 && (
-                            <td rowSpan={g.parts.length} style={tdStyle}>{formatOrderNumber(g.orderNumber)}</td>
+                            <td rowSpan={g.parts.length} style={tdStyle}>{g.orderNumber || "—"}</td>
                           )}
                           {idx === 0 && (
                             <td rowSpan={g.parts.length} style={tdStyle}>{g.machineName}</td>
