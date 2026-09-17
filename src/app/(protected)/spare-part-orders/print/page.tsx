@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import { getAllOrders, splitMachineModel } from "@/services/sparePartOrders"
+import { buildSparePartOrderGroups } from "@/lib/sparePartOrderGroups"
 import { getRepairs } from "@/services/repairs"
 import type { SparePartOrder, MachineRepair } from "@/types"
 
@@ -51,7 +52,61 @@ export default function PurchaseListPage() {
 
   const fmtDate = (d: Date | null | undefined) => (d ? d.toLocaleDateString("es-AR") : "—")
   const today = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })
-  const hasContent = orders.length > 0 || encargados.length > 0
+    const hasContent = orders.length > 0 || encargados.length > 0
+
+  // Extrae el número numérico del N° de Orden para ordenar de forma determinista.
+  // Ej: "X 0001-00011154" -> 11154
+    const extractNumericOrder = (orderNumber: string | null | undefined): number => {
+    const match = (orderNumber ?? "").match(/(\d+)/)
+    return match ? parseInt(match[1], 10) : 0
+  }
+
+  // Normaliza el orderNumber a solo el número (string) para agrupar.
+  // Esto asegura que buildSparePartOrderGroups() una todos los repuestos
+  // del mismo número, incluso si el string original tiene caracteres invisibles.
+  const normalizeOrderNumber = (orderNumber: string | null | undefined): string => {
+    const num = extractNumericOrder(orderNumber)
+    return num > 0 ? num.toString() : (orderNumber ?? "").trim().toUpperCase() || ""
+  }
+
+  // Formatea el número normalizado para display: "11271" -> "X 0001-00011271"
+  const formatOrderNumber = (orderNumber: string): string => {
+    const num = extractNumericOrder(orderNumber)
+    if (num > 0) {
+      return `X 0001-${num.toString().padStart(8, "0")}`
+    }
+    const trimmed = (orderNumber ?? "").trim()
+    return trimmed || "—"
+  }
+
+
+  // Agrupamiento SOLO visual por N° de Orden (igual que la pantalla principal).
+  // Cada repuesto conserva su propio documento: orderNumber/machineName/machineModel/
+  // description/code/requestedAt/receivedAt nunca se copian entre documentos.
+  // Se ordenan los pedidos por N° de Orden (numérico, descendente) antes de agrupar
+  // para garantizar que buildSparePartOrderGroups() mantenga juntos todos los
+  // repuestos de cada orden y que los grupos aparezcan en orden determinista.
+    const pendingGroups = useMemo(() => {
+    const normalized = orders
+      .map((o) => ({ ...o, orderNumber: normalizeOrderNumber(o.orderNumber) }))
+      .sort((a, b) => extractNumericOrder(b.orderNumber) - extractNumericOrder(a.orderNumber))
+    return buildSparePartOrderGroups(normalized)
+  }, [orders])
+  const encargadosGroups = useMemo(() => {
+    const normalized = encargados
+      .map((o) => ({ ...o, orderNumber: normalizeOrderNumber(o.orderNumber) }))
+      .sort((a, b) => extractNumericOrder(b.orderNumber) - extractNumericOrder(a.orderNumber))
+    return buildSparePartOrderGroups(normalized)
+  }, [encargados])
+
+  const displayCode = (code: string | null | undefined) =>
+    code && code.trim() !== "" && code.trim().toUpperCase() !== "S/C" ? code : "—"
+  const displayModel = (o: SparePartOrder) =>
+    o.machineModel ?? splitMachineModel(o.machineName).model
+
+  const printCols = ["", "N° Orden", "Máquina", "Modelo", "Repuesto", "Código repuesto", "Pedido", "Entrega"]
+  const thStyle = { border: "1px solid #999", padding: "4px 6px", textAlign: "left" as const, background: "#f3f3f3" }
+  const tdStyle = { border: "1px solid #999", padding: "4px 6px", verticalAlign: "top" as const }
 
   return (
     <div className="p-6 space-y-4">
@@ -87,32 +142,39 @@ export default function PurchaseListPage() {
             <>
               <h3 style={{ fontSize: 12, fontWeight: 700, marginTop: 16, marginBottom: 4 }}>1. PENDIENTES DE ENCARGAR (lo que el dueño debe comprar)</h3>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
-                <thead>
+                                <thead>
                   <tr>
-                    {["", "N° Orden", "Máquina", "Modelo", "Repuesto", "Código repuesto", "Pedido", "Entrega"].map((h) => (
-                      <th key={h} style={{ border: "1px solid #999", padding: "4px 6px", textAlign: "left", background: "#f3f3f3" }}>{h}</th>
+                    {printCols.map((h) => (
+                      <th key={h} style={thStyle}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {orders.map((o) => {
-                    const split = splitMachineModel(o.machineName)
-                    const machine = o.machineName || split.machine
-                    const model = o.machineModel ?? split.model
-                    const code = o.code && o.code !== "S/C" ? o.code : ""
-                    return (
+                  {pendingGroups.map((g) =>
+                    g.parts.map((part, idx) => {
+                      const o = part.order
+                      const model = displayModel(o)
+                      const code = displayCode(o.code)
+                      return (
                       <tr key={o.id}>
                         <td style={{ border: "1px solid #999", padding: "4px 6px", width: 24 }}></td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px", whiteSpace: "nowrap" }}>{o.orderNumber || "—"}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px" }}>{machine || "—"}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px" }}>{model ?? "—"}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px" }}>{o.description}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px", fontFamily: "monospace" }}>{code || "—"}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px", whiteSpace: "nowrap" }}>{fmtDate(o.requestedAt)}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px", whiteSpace: "nowrap" }}>{fmtDate(o.receivedAt)}</td>
-                      </tr>
-                    )
-                  })}
+                                                  {idx === 0 && (
+                            <td rowSpan={g.parts.length} style={tdStyle}>{formatOrderNumber(g.orderNumber)}</td>
+                          )}
+                          {idx === 0 && (
+                            <td rowSpan={g.parts.length} style={tdStyle}>{g.machineName}</td>
+                          )}
+                          {idx === 0 && (
+                            <td rowSpan={g.parts.length} style={tdStyle}>{model ?? "—"}</td>
+                          )}
+                          <td style={tdStyle}>{part.description || "—"}</td>
+                          <td style={{ ...tdStyle, fontFamily: "monospace" }}>{code}</td>
+                                                  <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{fmtDate(o.requestedAt)}</td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{fmtDate(o.receivedAt)}</td>
+                        </tr>
+                      )
+                    })
+                  )}
                 </tbody>
               </table>
               <div style={{ marginTop: 8, fontSize: 11 }}>
@@ -127,32 +189,42 @@ export default function PurchaseListPage() {
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                 <thead>
                   <tr>
-                    {["", "Repuesto", "Codigo", "Cant.", "Orden", "Maquina", "Cliente", "Fecha pedido", "Proveedor", "Fecha encargo", "Retiro estimado"].map((h) => (
-                      <th key={h} style={{ border: "1px solid #999", padding: "4px 6px", textAlign: "left", background: "#f3f3f3" }}>{h}</th>
+                                        {printCols.map((h) => (
+                      <th key={h} style={thStyle}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {encargados.map((o) => {
-                    const repair = repairsMap.get(o.repairId)
-                    return (
-                      <tr key={o.id}>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px", width: 24 }}></td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px" }}>{o.description}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px", fontFamily: "monospace" }}>{o.code}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px", textAlign: "right" }}>{o.quantityRequested}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px" }}>{o.orderNumber || o.repairId.replace("maintenance:", "")}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px" }}>{o.machineName}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px" }}>{repair?.clientName ?? ""}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px", whiteSpace: "nowrap" }}>{fmtDate(o.requestedAt)}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px" }}>{o.supplier ?? ""}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px", whiteSpace: "nowrap" }}>{fmtDate(o.orderedAt)}</td>
-                        <td style={{ border: "1px solid #999", padding: "4px 6px", whiteSpace: "nowrap" }}>{fmtDate(o.expectedAt)}</td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
+                                    {encargadosGroups.map((g) =>
+                    g.parts.map((part, idx) => {
+                      const o = part.order
+                      const model = displayModel(o)
+                      const code = displayCode(o.code)
+                      return (
+                                              <tr key={o.id}>
+                          <td style={{ border: "1px solid #999", padding: "4px 6px", width: 24 }}></td>
+                          {idx === 0 && (
+                            <td rowSpan={g.parts.length} style={tdStyle}>{formatOrderNumber(g.orderNumber)}</td>
+                          )}
+                          {idx === 0 && (
+                            <td rowSpan={g.parts.length} style={tdStyle}>{g.machineName}</td>
+                          )}
+                          {idx === 0 && (
+                            <td rowSpan={g.parts.length} style={tdStyle}>{model ?? "—"}</td>
+                          )}
+                          <td style={tdStyle}>{part.description || "—"}</td>
+                          <td style={{ ...tdStyle, fontFamily: "monospace" }}>{code}</td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{fmtDate(o.requestedAt)}</td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{fmtDate(o.receivedAt)}</td>
+                        </tr>
+                      )
+                    })
+                  )}
+                                </tbody>
               </table>
+              <div style={{ marginTop: 8, fontSize: 11 }}>
+                Total items: {encargados.length}
+              </div>
             </>
           )}
 
