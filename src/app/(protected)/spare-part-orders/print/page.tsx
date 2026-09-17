@@ -1,9 +1,11 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
+import { toast } from "sonner"
 import { getAllOrders, splitMachineModel } from "@/services/sparePartOrders"
 import { buildSparePartOrderGroups, type SparePartOrderGroup } from "@/lib/sparePartOrderGroups"
+import { updateOrderSupplier } from "@/services/sparePartOrderSupplier"
 import { getRepairs } from "@/services/repairs"
 import type { SparePartOrder, MachineRepair } from "@/types"
 
@@ -114,14 +116,114 @@ export default function PurchaseListPage() {
   const pendingGroups = useMemo(() => groupOrdersByNumber(orders), [orders])
   const encargadosGroups = useMemo(() => groupOrdersByNumber(encargados), [encargados])
 
+  // ---------------------------------------------------------------------------
+  // "Casa de repuesto" (dónde se compró o encargó). Se guarda en el campo
+  // `supplier` que ya existía en el pedido. Solo se usa en esta hoja.
+  // ---------------------------------------------------------------------------
+  /** Texto que se está tipeando (por id de pedido), todavía sin guardar. */
+  const [supplierDraft, setSupplierDraft] = useState<Record<string, string>>({})
+  const [savingSupplierId, setSavingSupplierId] = useState<string | null>(null)
+  const [savedSupplierId, setSavedSupplierId] = useState<string | null>(null)
+  const saveTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  const savedFlashTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Limpieza: no dejar timers vivos si se sale de la página.
+  useEffect(
+    () => () => {
+      for (const t of saveTimers.current.values()) clearTimeout(t)
+      saveTimers.current.clear()
+      if (savedFlashTimer.current) clearTimeout(savedFlashTimer.current)
+    },
+    [],
+  )
+
+  /** Guarda una celda. No escribe en Firestore si el texto no cambió. */
+  const persistSupplier = useCallback(
+    async (orderId: string, value: string, original: string | undefined) => {
+      const pending = saveTimers.current.get(orderId)
+      if (pending) {
+        clearTimeout(pending)
+        saveTimers.current.delete(orderId)
+      }
+
+      const trimmed = value.trim()
+      // Sin cambios → no se escribe (no gasta cuota de Firestore).
+      if (trimmed === (original ?? "").trim()) return
+
+      setSavingSupplierId(orderId)
+      try {
+        await updateOrderSupplier(orderId, trimmed)
+        const next = trimmed || undefined
+        setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, supplier: next } : o)))
+        setEncargados((prev) => prev.map((o) => (o.id === orderId ? { ...o, supplier: next } : o)))
+        setSupplierDraft((prev) => {
+          if (!(orderId in prev)) return prev
+          const copy = { ...prev }
+          delete copy[orderId]
+          return copy
+        })
+        setSavedSupplierId(orderId)
+        if (savedFlashTimer.current) clearTimeout(savedFlashTimer.current)
+        savedFlashTimer.current = setTimeout(() => setSavedSupplierId(null), 2500)
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "No se pudo guardar la casa de repuesto")
+      } finally {
+        setSavingSupplierId(null)
+      }
+    },
+    [],
+  )
+
+  const handleSupplierChange = (orderId: string, value: string, original: string | undefined) => {
+    setSupplierDraft((prev) => ({ ...prev, [orderId]: value }))
+    // Respaldo: si se cierra o recarga la pestaña sin salir de la celda, igual
+    // se guarda al cabo de un momento de inactividad.
+    const pending = saveTimers.current.get(orderId)
+    if (pending) clearTimeout(pending)
+    saveTimers.current.set(
+      orderId,
+      setTimeout(() => {
+        void persistSupplier(orderId, value, original)
+      }, 1500),
+    )
+  }
+
+  const handleSupplierBlur = (orderId: string, original: string | undefined) => {
+    const draft = supplierDraft[orderId]
+    if (draft === undefined) return
+    void persistSupplier(orderId, draft, original)
+  }
+
+  const handleSupplierKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, orderId: string, original: string | undefined) => {
+    if (e.key === "Enter") {
+      e.preventDefault()
+      void persistSupplier(orderId, e.currentTarget.value, original)
+    }
+  }
+
   const displayCode = (code: string | null | undefined) =>
     code && code.trim() !== "" && code.trim().toUpperCase() !== "S/C" ? code : "—"
   const displayModel = (o: SparePartOrder) =>
     o.machineModel ?? splitMachineModel(o.machineName).model
 
-  const printCols = ["", "N° Orden", "Máquina", "Modelo", "Repuesto", "Código repuesto", "Pedido", "Entrega"]
+  const printCols = ["", "N° Orden", "Máquina", "Modelo", "Repuesto", "Código repuesto", "Pedido", "Entrega", "Casa de repuesto"]
   const thStyle = { border: "1px solid #999", padding: "4px 6px", textAlign: "left" as const, background: "#f3f3f3" }
   const tdStyle = { border: "1px solid #999", padding: "4px 6px", verticalAlign: "top" as const }
+  // Celda de "Casa de repuesto": sin padding, para que el input la llene.
+  const supplierCellStyle = { ...tdStyle, padding: 0, width: 120 }
+  // El input NO tiene borde ni fondo: en pantalla se ve como texto y al imprimir
+  // sale solo el texto. Si está vacío, queda el borde de la celda como renglón
+  // para escribir a mano con lapicera.
+  const supplierInputStyle = {
+    width: "100%",
+    border: 0,
+    outline: 0,
+    background: "transparent",
+    font: "inherit",
+    color: "inherit",
+    padding: "4px 6px",
+    display: "block",
+  }
 
   return (
     <div className="p-6 space-y-4">
@@ -186,6 +288,26 @@ export default function PurchaseListPage() {
                           <td style={{ ...tdStyle, fontFamily: "monospace" }}>{code}</td>
                                                   <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{fmtDate(o.requestedAt)}</td>
                           <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{fmtDate(o.receivedAt)}</td>
+<td style={supplierCellStyle}>
+                            <input
+                              value={supplierDraft[o.id] ?? o.supplier ?? ""}
+                              onChange={(e) => handleSupplierChange(o.id, e.target.value, o.supplier)}
+                              onBlur={() => handleSupplierBlur(o.id, o.supplier)}
+                              onKeyDown={(e) => handleSupplierKeyDown(e, o.id, o.supplier)}
+                              aria-label="Casa de repuesto"
+                              style={supplierInputStyle}
+                            />
+                            {savingSupplierId === o.id && (
+                              <span className="print:hidden" style={{ fontSize: 9, color: "#666", padding: "0 6px 4px" }}>
+                                guardando…
+                              </span>
+                            )}
+                            {savedSupplierId === o.id && savingSupplierId !== o.id && (
+                              <span className="print:hidden" style={{ fontSize: 9, color: "#16a34a", padding: "0 6px 4px" }}>
+                                guardado ✓
+                              </span>
+                            )}
+                          </td>
                         </tr>
                       )
                     })
@@ -231,6 +353,27 @@ export default function PurchaseListPage() {
                           <td style={{ ...tdStyle, fontFamily: "monospace" }}>{code}</td>
                           <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{fmtDate(o.requestedAt)}</td>
                           <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{fmtDate(o.receivedAt)}</td>
+                          <td style={supplierCellStyle}>
+                            <input
+                              value={supplierDraft[o.id] ?? o.supplier ?? ""}
+                              onChange={(e) => handleSupplierChange(o.id, e.target.value, o.supplier)}
+                              onBlur={() => handleSupplierBlur(o.id, o.supplier)}
+                              onKeyDown={(e) => handleSupplierKeyDown(e, o.id, o.supplier)}
+                              aria-label="Casa de repuesto"
+                              style={supplierInputStyle}
+                            />
+                            {savingSupplierId === o.id && (
+                              <span className="print:hidden" style={{ fontSize: 9, color: "#666", padding: "0 6px 4px" }}>
+                                guardando…
+                              </span>
+                            )}
+                            {savedSupplierId === o.id && savingSupplierId !== o.id && (
+                              <span className="print:hidden" style={{ fontSize: 9, color: "#16a34a", padding: "0 6px 4px" }}>
+                                guardado ✓
+                              </span>
+                            )}
+                          </td>
+
                         </tr>
                       )
                     })
