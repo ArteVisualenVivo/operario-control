@@ -63,11 +63,34 @@ function groupOrdersByNumber(list: SparePartOrder[]): SparePartOrderGroup[] {
   return merged
 }
 
+/**
+ * Lista de "casas de repuesto" ya usadas, para el desplegable de sugerencias.
+ *
+ * Se arma con los pedidos que la página YA descarga: NO hace ninguna consulta
+ * extra a la base.
+ *
+ * - Sin repetidos, comparando sin mayúsculas ni espacios dobles
+ *   ("Casa Bosch" = "casa bosch"): se conserva el primer texto tal cual.
+ * - Ordenada alfabéticamente en español.
+ */
+function buildStoreList(orders: SparePartOrder[]): string[] {
+  const byKey = new Map<string, string>()
+  for (const o of orders) {
+    const name = (o.supplier ?? "").trim().replace(/\s+/g, " ")
+    if (!name) continue
+    const key = name.toLocaleUpperCase("es")
+    if (!byKey.has(key)) byKey.set(key, name)
+  }
+  return [...byKey.values()].sort((a, b) => a.localeCompare(b, "es"))
+}
+
 export default function PurchaseListPage() {
   const [orders, setOrders] = useState<SparePartOrder[]>([])
   const [encargados, setEncargados] = useState<SparePartOrder[]>([])
   const [repairsMap, setRepairsMap] = useState<Map<string, MachineRepair>>(new Map())
   const [loading, setLoading] = useState(true)
+  /** Casas de repuesto ya usadas, para el desplegable de sugerencias. */
+  const [knownStores, setKnownStores] = useState<string[]>([])
 
   useEffect(() => {
     ;(async () => {
@@ -98,6 +121,9 @@ export default function PurchaseListPage() {
         )
         setOrders(pendientes)
         setEncargados(enc)
+        // Sugerencias del desplegable: casas ya usadas en CUALQUIER pedido
+        // (no solo los de esta hoja). No genera consultas extra: usa `ords`.
+        setKnownStores(buildStoreList(ords))
       } catch (err) {
         console.error("[PurchaseList]", err)
       } finally {
@@ -162,6 +188,15 @@ export default function PurchaseListPage() {
           delete copy[orderId]
           return copy
         })
+        // Si es una casa nueva, queda disponible en el desplegable al instante.
+        if (trimmed) {
+          const storeKey = trimmed.toLocaleUpperCase("es")
+          setKnownStores((prev) =>
+            prev.some((s) => s.toLocaleUpperCase("es") === storeKey)
+              ? prev
+              : [...prev, trimmed].sort((a, b) => a.localeCompare(b, "es")),
+          )
+        }
         setSavedSupplierId(orderId)
         if (savedFlashTimer.current) clearTimeout(savedFlashTimer.current)
         savedFlashTimer.current = setTimeout(() => setSavedSupplierId(null), 2500)
@@ -295,6 +330,8 @@ export default function PurchaseListPage() {
                               onBlur={() => handleSupplierBlur(o.id, o.supplier)}
                               onKeyDown={(e) => handleSupplierKeyDown(e, o.id, o.supplier)}
                               aria-label="Casa de repuesto"
+list="casas-repuesto"
+                              autoComplete="off"
                               style={supplierInputStyle}
                             />
                             {savingSupplierId === o.id && (
@@ -360,6 +397,8 @@ export default function PurchaseListPage() {
                               onBlur={() => handleSupplierBlur(o.id, o.supplier)}
                               onKeyDown={(e) => handleSupplierKeyDown(e, o.id, o.supplier)}
                               aria-label="Casa de repuesto"
+list="casas-repuesto"
+                              autoComplete="off"
                               style={supplierInputStyle}
                             />
                             {savingSupplierId === o.id && (
@@ -394,6 +433,14 @@ export default function PurchaseListPage() {
           No hay pedidos pendientes de encargar esta semana ni encargados registrados.
         </p>
       )}
+
+            {/* Sugerencias de "Casa de repuesto". Vive fuera de #purchase-print, así
+          NUNCA se imprime: solo alimenta el desplegable de las celdas. */}
+      <datalist id="casas-repuesto">
+        {knownStores.map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
 
       <style jsx global>{`
         @media print {
