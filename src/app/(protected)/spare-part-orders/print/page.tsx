@@ -54,11 +54,17 @@ export default function PurchaseListPage() {
   const today = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })
     const hasContent = orders.length > 0 || encargados.length > 0
 
-  // Extrae el número numérico del N° de Orden para ordenar de forma determinista.
+    // Extrae el número numérico del N° de Orden para ordenar de forma determinista.
   // Ej: "X 0001-00011154" -> 11154
+  // IMPORTANTE: extrae el ÚLTIMO grupo de dígitos, no el primero.
+  // El formato "X 0001-NNNNNNNN" contiene "0001" como primer match (prefijo),
+  // y el número real está después del guion.
     const extractNumericOrder = (orderNumber: string | null | undefined): number => {
-    const match = (orderNumber ?? "").match(/(\d+)/)
-    return match ? parseInt(match[1], 10) : 0
+    const matches = (orderNumber ?? "").match(/\d+/g)
+    if (matches && matches.length > 0) {
+      return parseInt(matches[matches.length - 1], 10)
+    }
+    return 0
   }
 
   // Normaliza el orderNumber a solo el número (string) para agrupar.
