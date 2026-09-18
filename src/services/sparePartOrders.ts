@@ -682,6 +682,68 @@ export function machineFieldsToRefresh(
   return updates
 }
 
+/**
+ * REFRESCO GENERAL del MODELO de los pedidos YA EXISTENTES.
+ *
+ * Regla ÚNICA, para TODAS las órdenes (no para un caso puntual):
+ *   pedido existente → nº de orden → orden de Reparación de 3C →
+ *   columna DENOMINACION → campo Modelo de Pedidos de repuesto.
+ *
+ * El contenido se copia TAL CUAL: sin quitar "REPARACION:", sin cortar, sin
+ * separar, sin reconstruir y sin completar con descripcion / orden_compra /
+ * expediente. Sólo cuando la orden TIENE DENOMINACION; si no la tiene, el
+ * pedido se deja exactamente como está (nunca se sustituye por otra columna).
+ *
+ * No crea pedidos, no borra, no toca códigos, cantidades, fechas, estados,
+ * Pedido/Recibido/Uso ni notas. Es idempotente: si el Modelo guardado ya es el
+ * de DENOMINACION, no escribe.
+ */
+export async function refreshModelsFromDenominacion(records?: MaintenanceRecord[]): Promise<{
+  scanned: number
+  updated: number
+  withDenominacion: number
+  withoutDenominacion: number
+  examples: { orderNumber: string; machineModel: string }[]
+}> {
+  // Fuente de DENOMINACION por NÚMERO DE ORDEN (una entrada por orden).
+  const source = records ?? (await loadMaintenanceRecords())
+  const denominacionByOrder = new Map<string, string>()
+  for (const rec of source) {
+    const value = modelFromDenominacion((rec as MaintenanceRecord).machineDenominacion)
+    if (!value) continue
+    const key = normOrderKey(rec.orderNumber)
+    if (!key) continue
+    // Una misma orden puede venir repetida en el consolidado: se conserva la
+    // copia MÁS COMPLETA de ESA MISMA columna (nunca se mezcla con otra).
+    const prev = denominacionByOrder.get(key)
+    if (!prev || value.length > prev.length) denominacionByOrder.set(key, value)
+  }
+
+  const existing = await getAllOrders()
+  const examples: { orderNumber: string; machineModel: string }[] = []
+  let updated = 0
+  let withDenominacion = 0
+  let withoutDenominacion = 0
+
+  for (const order of existing) {
+    const denominacion = denominacionByOrder.get(normOrderKey(order.orderNumber))
+    if (!denominacion) {
+      // La orden no trae DENOMINACION: el pedido queda intacto.
+      withoutDenominacion++
+      continue
+    }
+    withDenominacion++
+    if (String(order.machineModel ?? "") === denominacion) continue
+    await updateOrderDoc(order.id, { machineModel: denominacion, updatedAt: new Date() })
+    updated++
+    if (examples.length < 10) {
+      examples.push({ orderNumber: order.orderNumber, machineModel: denominacion })
+    }
+  }
+
+  return { scanned: existing.length, updated, withDenominacion, withoutDenominacion, examples }
+}
+
 
 
 /**
@@ -704,6 +766,8 @@ export async function importPendingPartsFromMaintenance(): Promise<{
   skippedExisting: number
   /** Repuestos cuyo registro de 3C no tiene fecha válida (requestedAt = null). */
   withoutDate: number
+  /** Pedidos existentes cuyo Modelo se llevó a la DENOMINACION real de 3C. */
+  modelsUpdated: number
   createdOrders: { orderNumber: string; description: string }[]
 }> {
   const existing = await getAllOrders()
@@ -855,7 +919,11 @@ export async function importPendingPartsFromMaintenance(): Promise<{
     }
   }
 
-  return { created: createdOrders.length, updated, skippedExisting, withoutDate, createdOrders }
+  // REFRESCO GENERAL: el Modelo de TODOS los pedidos existentes se lleva a la
+  // DENOMINACION real de 3C (cruce por nº de orden). No crea ni borra pedidos.
+  const models = await refreshModelsFromDenominacion(maintenance)
+
+  return { created: createdOrders.length, updated, skippedExisting, withoutDate, createdOrders, modelsUpdated: models.updated }
 }
 
 // ============================================================================
@@ -1588,6 +1656,8 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
   created: number
   updated: number
   skippedAdmin: number
+  /** Pedidos existentes cuyo Modelo se llevó a la DENOMINACION real de 3C. */
+  modelsUpdated: number
   createdOrders: { orderNumber: string; code: string | null; description: string }[]
 }> {
   // Los registros llegan del propio agente (misma fuente primaria Redis), sin
@@ -1729,5 +1799,9 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
     }
   }
 
-  return { created: createdOrders.length, updated, skippedAdmin, createdOrders }
+  // REFRESCO GENERAL: el Modelo de TODOS los pedidos existentes se lleva a la
+  // DENOMINACION real de 3C (cruce por nº de orden). No crea ni borra pedidos.
+  const models = await refreshModelsFromDenominacion(maintenance)
+
+  return { created: createdOrders.length, updated, skippedAdmin, createdOrders, modelsUpdated: models.updated }
 }
