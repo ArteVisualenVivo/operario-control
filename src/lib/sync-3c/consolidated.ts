@@ -137,7 +137,8 @@ function normCompact(value: string): string {
 /**
  * Prefiere la identificación MÁS COMPLETA de la máquina: si una es el recorte
  * de la otra (mismo prefijo porque 3C la partió en dos celdas), conserva la más
- * larga. Si son textos distintos, conserva el primero (comportamiento previo).
+ * larga. Si son textos distintos, conserva la más larga cuando una contiene a
+ * la otra; si no, conserva la primera (comportamiento previo).
  */
 function pickLongerIdentification(current: string | undefined, incoming: string | undefined): string | undefined {
   if (incoming && !current) return incoming
@@ -147,6 +148,10 @@ function pickLongerIdentification(current: string | undefined, incoming: string 
   if (c === n) return current
   if (n.startsWith(c)) return incoming
   if (c.startsWith(n)) return current
+  // Una contiene a la otra en el medio (ej. "Bare | 3 601…" dentro de la
+  // identificación completa): gana la más larga, que es la más completa.
+  if (n.includes(c)) return incoming
+  if (c.includes(n)) return current
   return current
 }
 
@@ -199,6 +204,10 @@ export function extractStatusesExcel(rows: unknown[][], fileName: string): FactM
   const cMaquina = col(["orden_compra", "descripcion"], -1)
   const cEntrega = col(["entrega"], 13)
   const cUsuario = col(["usuario"], 14)
+  // El informe de ESTADOS a veces trae la identificación de la máquina en
+  // "REPARO" (última columna) cuando ORDEN_COMPRA quedó truncada por el ancho
+  // de 3C: se detecta por sus encabezados reales, no por posición fija.
+  const cReparo = col(["reparo", "denominacion"], -1)
   // MOTIVO_ESTADO_REP: repuestos pedidos en ese estado (informe DETALLE de 3C).
   const cMotivo = col(["motivo_estado_rep", "motivo_estado"], -1)
 
@@ -213,6 +222,12 @@ export function extractStatusesExcel(rows: unknown[][], fileName: string): FactM
     const rec = touch(map, order)
     const fechaOrden = toDate(row[cFecha])
     const entrega = toDate(row[cEntrega])
+    // Identificación de la máquina: se prefiere la MÁS COMPLETA entre
+    // ORDEN_COMPRA (+celda vecina si 3C la partió) y la columna REPARO, que a
+    // veces trae la identificación entera cuando ORDEN_COMPRA quedó truncada.
+    const machineFromCells = joinWrappedIdentification(row, cMaquina) || undefined
+    const machineFromReparo = cReparo >= 0 ? clean(row[cReparo]).replace(/^reparaci[oó]n:\s*/i, "").trim() || undefined : undefined
+    const machineName = pickLongerIdentification(machineFromCells, machineFromReparo)
     // Cada fila del informe es un CAMBIO de estado con su propia fecha:
     //  - fila "Reparada"        → FECHA = fecha de reparación (excluye "No Reparada")
     //  - fila "Entreg./Factur." o "Retirada" → FECHA = fecha de entrega real
@@ -221,7 +236,7 @@ export function extractStatusesExcel(rows: unknown[][], fileName: string): FactM
     const isDelivered = /entreg|retirad/i.test(statusTxt)
     mergeFacts(rec, {
       clientName: clean(row[cCliente]) || undefined,
-      machineName: joinWrappedIdentification(row, cMaquina) || undefined,
+      machineName: machineName || undefined,
       observations: clean(row[cObs]) || undefined,
       entryDate: iso(fechaOrden),
       returnDate: iso(isDelivered ? (entrega ?? fechaOrden) : entrega),

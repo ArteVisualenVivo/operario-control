@@ -617,6 +617,13 @@ function isTruncatedIdentification(
 /**
  * Campos máquina/modelo a COMPLETAR en un pedido auto-importado cuyo dato de 3C
  * venía partido en dos celdas. Devuelve {} cuando ya está completo.
+ *
+ * Cubre TODAS estas formas truncadas (para todas las máquinas, no una orden):
+ *  - máquina separada pero incompleta: "Amoladora bosch 230 GWS- 25-23"
+ *    (el recorte de "Amoladora bosch 230" + resto del modelo)
+ *  - identificación truncada entera en machineName:
+ *    "Amoladora bosch 230 GWS- 25-23" como texto completo sin separar
+ *  - modelo recortado: "GWS- 25-23" (recorte de "GWS- 25-230 Bare | …")
  */
 function machineFieldsToRefresh(
   existingOrder: SparePartOrder,
@@ -626,6 +633,15 @@ function machineFieldsToRefresh(
   const updates: Record<string, unknown> = {}
   if (isSameOrTruncated(existingOrder.machineName, machine)) updates.machineName = machine
   else if (isTruncatedIdentification(existingOrder.machineName, identification)) updates.machineName = machine
+  else {
+    // La máquina guardada trae pegado el resto del modelo truncado
+    // (ej. "Amoladora bosch 230 GWS- 25-23"): el recorte de la identificación
+    // completa empieza con la máquina correcta → se completa igual.
+    const s = String(existingOrder.machineName ?? "").replace(/\s+/g, "").toUpperCase()
+    const e = String(identification ?? "").replace(/\s+/g, "").toUpperCase()
+    const m = String(machine ?? "").replace(/\s+/g, "").toUpperCase()
+    if (s && e && m && e.startsWith(s) && s.startsWith(m)) updates.machineName = machine
+  }
   if (isSameOrTruncated(existingOrder.machineModel, model)) updates.machineModel = model ?? null
   return updates
 }
