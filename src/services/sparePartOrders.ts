@@ -851,6 +851,7 @@ function containsSparePart(text: string): boolean {
     "COMPRESOR", "CILINDRO", "PISTON", "VALVULA", "RETEN", "SELLO",
     "JUNTA", "TORNILLO", "TUERCA", "ARANDELA", "ARANDALE", "MUELLE", "RESORTE",
     "PERNO", "SEGURO", "ANILLO", "RODILLO", "RUEDA", "ENGRANAJE",
+    "BRIDA", "BRIDAS", "FLAUTA", "PLATINA", "COPA", "FIJACION", "FIJACIÓN",
     "CORONA", "CADENA", "CREMALLERA", "BIELA", "MANIJA", "EMPUÑADURA",
     "CARCASA", "CUERPO", "TAPA", "BASE", "SOPORTE", "ABRAZADERA",
     "PROTECTOR", "VAINA", "CUBIERTA", "PROTECCION", "CUBRE",
@@ -1078,8 +1079,14 @@ export function parseSparePartsFromMotivoDetailed(motivo: string): { code: strin
   const push = (code: string | null, description: string): void => {
     const d = cleanPartDescription(description)
     if (!d) return
-    if (isLaborText(d) || isAdminText(d) || isDiagnosis(d) || !containsSparePart(d)) return
+    if (isLaborText(d) || isAdminText(d) || isDiagnosis(d)) return
     const c = code && !isInternalCode(code) ? code.toUpperCase().replace(/\s+/g, "") : null
+    // Regla GENERAL: un repuesto que trae su PROPIO código de 3C es un repuesto
+    // válido aunque su nombre no figure en la lista de palabras clave (ej.:
+    // "BRIDA DE FIJACIÓN" + "2 605 703 014" en la línea siguiente). El filtro
+    // por palabra clave aplica solo a descripciones SIN código, donde el
+    // nombre es la única señal disponible.
+    if (!c && !containsSparePart(d)) return
     const key = `${c ?? ""}||${d.toUpperCase().replace(/\s+/g, " ")}`
     if (seen.has(key)) return
     seen.add(key)
@@ -1359,11 +1366,17 @@ export async function cleanupInvalidSpareOrders(): Promise<{
     // falla/diagnóstico/MO/observación). Solo el código INTERNO de mano de obra
     // (ej: "1012") o una descripción que no es repuesto invalidan el pedido.
     const internalLaborCode = code !== "" && code.toUpperCase() !== "S/C" && isInternalCode(code) // ej: "1012"
+    // Código PROPIO de repuesto de 3C (no interno de mano de obra): es prueba
+    // suficiente de que el pedido es un repuesto válido, aunque su nombre no
+    // figure en la lista de palabras clave. Mismo criterio que
+    // parseSparePartsFromMotivoDetailed(), para que el parser y la limpieza no
+    // se contradigan (uno lo crea y el otro lo borra).
+    const ownPartCode = code !== "" && code.toUpperCase() !== "S/C" && !isInternalCode(code)
     const badDesc =
       isLaborText(desc) ||
       isAdminText(desc) ||
       isDiagnosis(desc) ||
-      !containsSparePart(desc)
+      (!ownPartCode && !containsSparePart(desc))
 
     const invalid = internalLaborCode || badDesc
 
