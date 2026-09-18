@@ -24,6 +24,13 @@ export interface OrderConsolidated {
   clientName?: string
   clientCode?: string
   machineName?: string
+  /**
+   * DENOMINACION: columna REAL del informe de Reparaciones de 3C, copiada TAL
+   * CUAL (string exacto de la celda, con su prefijo "REPARACION:" y el corte de
+   * mayúsculas de 3C). Es la fuente del campo Modelo de Pedidos de repuesto: no
+   * se corta, no se reconstruye ni se completa con otra columna.
+   */
+  denominacion?: string
   observations?: string
   entryDate?: string
   returnDate?: string
@@ -161,6 +168,14 @@ function mergeFacts(target: OrderConsolidated, src: Partial<OrderConsolidated>):
   if (src.clientCode && !target.clientCode) target.clientCode = src.clientCode
   if (src.machineName && !target.machineName) target.machineName = src.machineName
   else if (src.machineName && target.machineName) target.machineName = pickLongerIdentification(target.machineName, src.machineName)
+  // DENOMINACION: mismo campo, misma fuente (columna del Excel de Reparaciones).
+  // Se conserva la copia MÁS COMPLETA de esa misma columna cuando un export viejo
+  // la traía recortada. No se mezcla con ninguna otra columna.
+  if (src.denominacion) {
+    if (!target.denominacion || src.denominacion.length > target.denominacion.length) {
+      target.denominacion = src.denominacion
+    }
+  }
   if (src.observations && !target.observations) target.observations = src.observations
   if (src.entryDate && !target.entryDate) target.entryDate = src.entryDate
   if (src.returnDate && !target.returnDate) target.returnDate = src.returnDate
@@ -208,6 +223,10 @@ export function extractStatusesExcel(rows: unknown[][], fileName: string): FactM
   // "REPARO" (última columna) cuando ORDEN_COMPRA quedó truncada por el ancho
   // de 3C: se detecta por sus encabezados reales, no por posición fija.
   const cReparo = col(["reparo", "denominacion"], -1)
+  // DENOMINACION: columna REAL del informe de Reparaciones ("Reparaciones del
+  // ... al ..."). Se lee por encabezado y su contenido se copia TAL CUAL: es la
+  // fuente del campo Modelo de Pedidos de repuesto.
+  const cDenominacion = col(["denominacion"], -1)
   // MOTIVO_ESTADO_REP: repuestos pedidos en ese estado (informe DETALLE de 3C).
   const cMotivo = col(["motivo_estado_rep", "motivo_estado"], -1)
 
@@ -234,9 +253,17 @@ export function extractStatusesExcel(rows: unknown[][], fileName: string): FactM
     //    (si la columna ENTREGA está poblada se prefiere esa)
     const isRepaired = /reparada/i.test(statusTxt) && !/^no\s+reparada$/i.test(statusTxt)
     const isDelivered = /entreg|retirad/i.test(statusTxt)
+    // DENOMINACION copiada TAL CUAL (string exacto de la celda del Excel), sin
+    // quitar el prefijo "REPARACION:" ni recortar nada.
+    const denominacionRaw = cDenominacion >= 0 ? row[cDenominacion] : null
+    const denominacionText = denominacionRaw === null || denominacionRaw === undefined
+      ? ""
+      : String(denominacionRaw)
+    const denominacion = denominacionText.trim() ? denominacionText : undefined
     mergeFacts(rec, {
       clientName: clean(row[cCliente]) || undefined,
       machineName: machineName || undefined,
+      denominacion,
       observations: clean(row[cObs]) || undefined,
       entryDate: iso(fechaOrden),
       returnDate: iso(isDelivered ? (entrega ?? fechaOrden) : entrega),
@@ -281,6 +308,10 @@ export function extractItemsExcel(rows: unknown[][], fileName: string): FactMap 
   const cClienteId = col(["cliente"], 3)
   const cArticulo = col(["articu_id"], 7)
   const cTexto = col(["texto"], 8)
+  // Si el informe de Ítems trae una columna DENOMINACION se copia TAL CUAL (hoy
+  // no la trae: el dato vive en el informe de Estados; se lee por encabezado
+  // para no depender de posiciones fijas).
+  const cDenominacion = col(["denominacion"], -1)
 
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const row = rows[i]
@@ -292,10 +323,16 @@ export function extractItemsExcel(rows: unknown[][], fileName: string): FactMap 
     const texto = clean(row[cTexto])
     const articulo = clean(row[cArticulo])
     const isRepairLine = /^reparaci[oó]n:/i.test(texto)
+    // DENOMINACION copiada TAL CUAL si el informe de Ítems la trae.
+    const denominacionRaw = cDenominacion >= 0 ? row[cDenominacion] : null
+    const denominacionText = denominacionRaw === null || denominacionRaw === undefined
+      ? ""
+      : String(denominacionRaw)
     mergeFacts(rec, {
       clientName: clean(row[cCliente]) || undefined,
       clientCode: clean(row[cClienteId]) || undefined,
       machineName: isRepairLine ? texto.replace(/^reparaci[oó]n:\s*/i, "").trim() : undefined,
+      denominacion: denominacionText.trim() ? denominacionText : undefined,
       entryDate: iso(toDate(row[cFecha])),
       workItems: texto && !isRepairLine
         ? [articulo && articulo.toLowerCase() !== "reparacion" ? `${articulo} — ${texto}` : texto]
@@ -419,6 +456,9 @@ export function consolidatedToMaintenanceRecords(
       clientName: rec.clientName || prev?.clientName || "",
       clientCode: rec.clientCode || prev?.clientCode,
       machineName: rec.machineName || prev?.machineName || "",
+      // DENOMINACION del Excel de Reparaciones copiada TAL CUAL: es la fuente del
+      // campo Modelo de Pedidos de repuesto. Nunca se completa con otra columna.
+      machineDenominacion: rec.denominacion ?? prev?.machineDenominacion,
       status: cur?.status || prev?.status || "",
       statusDate: cur?.statusDate ? new Date(cur.statusDate) : prev?.statusDate,
       statusDescription: cur?.statusDescription || prev?.statusDescription,

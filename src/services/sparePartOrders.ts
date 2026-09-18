@@ -615,6 +615,26 @@ function isTruncatedIdentification(
 }
 
 /**
+ * MODELO de Pedidos de repuesto = contenido EXACTO de la columna DENOMINACION
+ * del Excel de Reparaciones de 3C (`Ítems → denominacion`), copiado TAL CUAL:
+ * se conserva el prefijo "REPARACION: ", los espacios y las mayúsculas tal como
+ * los exporta 3C. No se corta, no se reconstruye y no se completa con ninguna
+ * otra columna (descripcion, orden_compra, expediente).
+ *
+ * Ej. O.R. X 0001-00011233 → "REPARACION: Amoladora bosch 230 GWS- 25-230 Bare | 3 601 HF4 0H0"
+ *
+ * Devuelve null cuando la orden no trae DENOMINACION: en ese caso el llamador
+ * conserva el modelo derivado de la identificación (nunca se inventa el dato).
+ */
+export function modelFromDenominacion(denominacion: unknown): string | null {
+  // Solo se quitan los espacios sobrantes de los EXTREMOS (convención de la
+  // casa al leer celdas): el texto interno, el prefijo y las mayúsculas quedan
+  // EXACTAMENTE como los exporta 3C.
+  const raw = String(denominacion ?? "").trim()
+  return raw || null
+}
+
+/**
  * Campos máquina/modelo a COMPLETAR en un pedido auto-importado cuyo dato de 3C
  * venía partido en dos celdas. Devuelve {} cuando ya está completo.
  *
@@ -624,12 +644,22 @@ function isTruncatedIdentification(
  *  - identificación truncada entera en machineName:
  *    "Amoladora bosch 230 GWS- 25-23" como texto completo sin separar
  *  - modelo recortado: "GWS- 25-23" (recorte de "GWS- 25-230 Bare | …")
+ *
+ * El MODELO sale de `denominacion` (columna del Excel) copiado TAL CUAL cuando
+ * está disponible; si no, del modelo derivado de la identificación.
  */
-function machineFieldsToRefresh(
+export function machineFieldsToRefresh(
   existingOrder: SparePartOrder,
   identification: string | null | undefined,
+  denominacion?: string | null,
 ): Record<string, unknown> {
-  const { machine, model } = splitMachineIdentification(identification)
+  const { machine, model: modelFromIdentification } = splitMachineIdentification(identification)
+  // MODELO: si la orden trae DENOMINACION (columna del Excel de Reparaciones),
+  // ese es el valor EXACTO y definitivo y se copia TAL CUAL, sin compararlo con
+  // la identificación (son fuentes distintas y la denominación manda). Solo se
+  // escribe cuando difiere, para no generar escrituras innecesarias.
+  const denominacionModel = modelFromDenominacion(denominacion)
+  const model = denominacionModel ?? modelFromIdentification
   const updates: Record<string, unknown> = {}
   if (isSameOrTruncated(existingOrder.machineName, machine)) updates.machineName = machine
   else if (isTruncatedIdentification(existingOrder.machineName, identification)) updates.machineName = machine
@@ -642,7 +672,13 @@ function machineFieldsToRefresh(
     const m = String(machine ?? "").replace(/\s+/g, "").toUpperCase()
     if (s && e && m && e.startsWith(s) && s.startsWith(m)) updates.machineName = machine
   }
-  if (isSameOrTruncated(existingOrder.machineModel, model)) updates.machineModel = model ?? null
+  if (denominacionModel) {
+    if (String(existingOrder.machineModel ?? "") !== denominacionModel) {
+      updates.machineModel = denominacionModel
+    }
+  } else if (isSameOrTruncated(existingOrder.machineModel, model)) {
+    updates.machineModel = model ?? null
+  }
   return updates
 }
 
@@ -756,7 +792,11 @@ export async function importPendingPartsFromMaintenance(): Promise<{
 
     for (const { code, name } of uniqueParts.values()) {
       const key = `${normOrderKey(rec.orderNumber)}||${name.toLowerCase()}`
-      const { machine, model } = splitMachineIdentification(rec.machineName)
+      // MODELO: contenido EXACTO de la columna DENOMINACION del Excel de
+      // Reparaciones (copiado tal cual). La máquina sigue saliendo de la
+      // identificación completa, sin cambios.
+      const { machine, model: modelFromIdentification } = splitMachineIdentification(rec.machineName)
+      const model = modelFromDenominacion(rec.machineDenominacion) ?? modelFromIdentification
       const previously = seen.get(key)
       if (previously) {
         // El pedido ya existe: se respeta (idempotencia) pero se reconstruye la
@@ -769,7 +809,7 @@ export async function importPendingPartsFromMaintenance(): Promise<{
         // Completar máquina/modelo cuando 3C había partido la identificación en
         // dos celdas (dato truncado). Solo pedidos auto-importados.
         if (isAutoImportedOrder(previously)) {
-          Object.assign(updates, machineFieldsToRefresh(previously, rec.machineName))
+          Object.assign(updates, machineFieldsToRefresh(previously, rec.machineName, rec.machineDenominacion))
         }
         if (Object.keys(updates).length > 0) {
           await updateOrderDoc(previously.id, { ...updates, updatedAt: new Date() })
@@ -1632,7 +1672,7 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
         // Completar máquina/modelo cuando 3C había partido la identificación en
         // dos celdas (dato truncado). Solo pedidos auto-importados.
         if (isAutoImportedOrder(existingOrder)) {
-          Object.assign(updates, machineFieldsToRefresh(existingOrder, rec.machineName))
+          Object.assign(updates, machineFieldsToRefresh(existingOrder, rec.machineName, rec.machineDenominacion))
         }
         if (Object.keys(updates).length > 0) {
           await updateOrderDoc(existingOrder.id, { ...updates, updatedAt: new Date() })
@@ -1642,7 +1682,10 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
       }
 
       // Crear nuevo pedido
-      const { machine, model } = splitMachineIdentification(rec.machineName)
+      // MODELO: contenido EXACTO de la columna DENOMINACION del Excel de
+      // Reparaciones (copiado tal cual, con su prefijo "REPARACION: ").
+      const { machine, model: modelFromIdentification } = splitMachineIdentification(rec.machineName)
+      const model = modelFromDenominacion(rec.machineDenominacion) ?? modelFromIdentification
       await createOrder({
         repairId: rec.id ?? rec.orderNumber,
         orderNumber: rec.orderNumber,

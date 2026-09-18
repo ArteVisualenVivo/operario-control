@@ -61,6 +61,12 @@ export interface MaintenanceRecord {
   reason?: string
   // Información de repuestos detectada en MOTIVO_ESTADO_REP del Excel de 3C
   motivoEstadoRep?: string
+  /**
+   * DENOMINACION del informe de Reparaciones de 3C: columna REAL del Excel
+   * copiada TAL CUAL (incluye el prefijo "REPARACION: "). Es la fuente del
+   * campo Modelo de Pedidos de repuesto.
+   */
+  machineDenominacion?: string
   // Comentarios de 3C con su ESTADO de origen: [{ status, motivo }].
   // REGLA: solo el estado "A la Espera Repuestos" genera Pedidos Rep.
   motivoByStatus?: { status: string; motivo: string }[]
@@ -209,6 +215,9 @@ export async function getMaintenanceRecords(): Promise<MaintenanceRecord[]> {
         clientName: data.clientName as string,
         clientCode: data.clientCode as string | undefined,
         machineName: data.machineName as string,
+        // DENOMINACION tal cual el Excel de Reparaciones (fuente del Modelo de
+        // Pedidos de repuesto). Passthrough: no se transforma.
+        machineDenominacion: data.machineDenominacion as string | undefined,
         status: (data.status as string) || (typeof originalStatus === "string" ? originalStatus : ""),
         docId: data.docId as string | undefined,
         itemId: typeof data.itemId === "number" ? data.itemId : null,
