@@ -542,6 +542,95 @@ export function splitMachineModel(name: unknown): { machine: string; model: stri
   }
   return { machine: raw, model: null }
 }
+/**
+ * Separa máquina y modelo desde la IDENTIFICACIÓN COMPLETA de la máquina (la que
+ * 3C muestra en la O.R.), conservando el MODELO ENTERO: no lo corta ni lo
+ * normaliza.
+ *
+ * Ej. O.R. X 0001-00011233 — identificación real de 3C:
+ *   "Amoladora bosch 230 GWS- 25-230 Bare | 3 601 HF4 0H0"
+ *     - machine: "Amoladora bosch 230"
+ *     - model:   "GWS- 25-230 Bare | 3 601 HF4 0H0"
+ *
+ * El modelo empieza en el primer bloque "código de modelo" (2-6 letras
+ * mayúsculas + dígitos: "GWS- 25-230", "SKILL 5200", "GBH220") y **todo el
+ * resto** pasa a ser el modelo, incluyendo "Bare" y "| 3 601 HF4 0H0".
+ * Si no hay bloque de modelo, la identificación completa queda como máquina.
+ */
+export function splitMachineIdentification(name: unknown): { machine: string; model: string | null } {
+  const raw = String(name ?? "")
+    .replace(/^reparaci[oó]n:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+  if (!raw) return { machine: "", model: null }
+  const m = raw.match(/^(.+?)\s+([A-ZÁÉÍÓÚÑ]{2,6}\s?[-/]?\s?\d{2,}.*)$/)
+  if (m && m[1].trim().length >= 3) {
+    // 3C usa " - " como separador entre nombre y modelo
+    // (ej. "AMOLADORA 230 BOSCH - GWS 28 ..."): ese separador no pertenece
+    // a ningún campo, se recorta de la máquina. El modelo queda intacto.
+    return { machine: m[1].trim().replace(/[\s\-/]+$/, "").trim(), model: m[2].trim() }
+  }
+  return { machine: raw, model: null }
+}
+
+/** ¿El pedido fue auto-importado de 3C? (los cargados a mano NUNCA se tocan). */
+function isAutoImportedOrder(order: SparePartOrder): boolean {
+  return /importado desde .{0,20}rdenes de reparaci/i.test(order.notes ?? "")
+}
+
+/**
+ * ¿El valor guardado es EL MISMO dato pero incompleto (recortado por 3C)?
+ * Compara sin espacios y sin mayúsculas: "GWS-25-23" es el recorte de
+ * "GWS- 25-230 Bare | 3 601 HF4 0H0". Nunca marca como actualizable un valor
+ * más completo que el esperado (jamás degrada un dato bueno).
+ *
+ * Para la máquina, además del recorte exacto a mitad de texto, se contempla el
+ * recorte "conservador": a veces 3C partió la identificación y el importador
+ * guardó la identificación TRUNCADA completa como machineName (sin separarla),
+ * ej. "Amoladora bosch 230 GWS- 25-23". En ese caso se completa con la máquina
+ * de la identificación ya recuperada.
+ */
+function isSameOrTruncated(stored: string | null | undefined, expected: string | null | undefined): boolean {
+  const s = String(stored ?? "").replace(/\s+/g, "").toUpperCase()
+  const e = String(expected ?? "").replace(/\s+/g, "").toUpperCase()
+  if (s === e) return false
+  if (!s) return Boolean(e)
+  return e.startsWith(s)
+}
+
+/**
+ * ¿El machineName guardado es la identificación truncada de 3C
+ * (guardada entera en machineName, sin separar máquina/modelo)?
+ * Ej. guardado "Amoladora bosch 230 GWS- 25-23" vs. identificación completa
+ * "Amoladora bosch 230 GWS- 25-230 Bare | 3 601 HF4 0H0".
+ */
+function isTruncatedIdentification(
+  storedMachineName: string | null | undefined,
+  identification: string | null | undefined,
+): boolean {
+  const s = String(storedMachineName ?? "").replace(/\s+/g, "").toUpperCase()
+  const e = String(identification ?? "").replace(/\s+/g, "").toUpperCase()
+  if (!s || !e || s === e) return false
+  return e.startsWith(s)
+}
+
+/**
+ * Campos máquina/modelo a COMPLETAR en un pedido auto-importado cuyo dato de 3C
+ * venía partido en dos celdas. Devuelve {} cuando ya está completo.
+ */
+function machineFieldsToRefresh(
+  existingOrder: SparePartOrder,
+  identification: string | null | undefined,
+): Record<string, unknown> {
+  const { machine, model } = splitMachineIdentification(identification)
+  const updates: Record<string, unknown> = {}
+  if (isSameOrTruncated(existingOrder.machineName, machine)) updates.machineName = machine
+  else if (isTruncatedIdentification(existingOrder.machineName, identification)) updates.machineName = machine
+  if (isSameOrTruncated(existingOrder.machineModel, model)) updates.machineModel = model ?? null
+  return updates
+}
+
+
 
 /**
  * Importa a "Pedidos de Repuestos" los repuestos que están en espera según las
@@ -651,14 +740,24 @@ export async function importPendingPartsFromMaintenance(): Promise<{
 
     for (const { code, name } of uniqueParts.values()) {
       const key = `${normOrderKey(rec.orderNumber)}||${name.toLowerCase()}`
+      const { machine, model } = splitMachineIdentification(rec.machineName)
       const previously = seen.get(key)
       if (previously) {
         // El pedido ya existe: se respeta (idempotencia) pero se reconstruye la
         // fecha real de 3C si faltaba o si quedó mal (p. ej. fecha de importación).
+        const updates: Record<string, unknown> = {}
         const current = previously.requestedAt
         if (waitingDate && (!current || current.getTime() !== waitingDate.getTime())) {
-          await updateOrderDoc(previously.id, { requestedAt: waitingDate, updatedAt: new Date() })
-          previously.requestedAt = waitingDate
+          updates.requestedAt = waitingDate
+        }
+        // Completar máquina/modelo cuando 3C había partido la identificación en
+        // dos celdas (dato truncado). Solo pedidos auto-importados.
+        if (isAutoImportedOrder(previously)) {
+          Object.assign(updates, machineFieldsToRefresh(previously, rec.machineName))
+        }
+        if (Object.keys(updates).length > 0) {
+          await updateOrderDoc(previously.id, { ...updates, updatedAt: new Date() })
+          if (updates.requestedAt) previously.requestedAt = waitingDate
           updated++
         }
         skippedExisting++
@@ -669,7 +768,8 @@ export async function importPendingPartsFromMaintenance(): Promise<{
         repairId: rec.id ?? rec.orderNumber,
         orderNumber: rec.orderNumber,
         machineId: rec.orderNumber,
-        machineName: rec.machineName ?? "",
+        machineName: machine,
+        machineModel: model,
         code,
         description: name,
         unit: "unidad",
@@ -682,7 +782,8 @@ export async function importPendingPartsFromMaintenance(): Promise<{
         repairId: rec.id ?? rec.orderNumber,
         orderNumber: rec.orderNumber,
         machineId: rec.orderNumber,
-        machineName: rec.machineName ?? "",
+        machineName: machine,
+        machineModel: model,
         code,
         description: name,
         unit: "unidad",
@@ -1512,6 +1613,11 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
             ? `${existingOrder.notes}\n---\nMOTIVO_ESTADO_REP: ${motivo}`
             : `MOTIVO_ESTADO_REP: ${motivo}`
         }
+        // Completar máquina/modelo cuando 3C había partido la identificación en
+        // dos celdas (dato truncado). Solo pedidos auto-importados.
+        if (isAutoImportedOrder(existingOrder)) {
+          Object.assign(updates, machineFieldsToRefresh(existingOrder, rec.machineName))
+        }
         if (Object.keys(updates).length > 0) {
           await updateOrderDoc(existingOrder.id, { ...updates, updatedAt: new Date() })
           updated++
@@ -1520,7 +1626,7 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
       }
 
       // Crear nuevo pedido
-      const { machine, model } = splitMachineModel(rec.machineName)
+      const { machine, model } = splitMachineIdentification(rec.machineName)
       await createOrder({
         repairId: rec.id ?? rec.orderNumber,
         orderNumber: rec.orderNumber,

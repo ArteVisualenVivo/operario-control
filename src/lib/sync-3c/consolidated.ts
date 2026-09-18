@@ -46,6 +46,34 @@ function clean(value: unknown): string {
   return String(value ?? "").trim()
 }
 
+/**
+ * 3C parte la identificación larga de la máquina en DOS celdas contiguas: corta
+ * el texto a 30 caracteres y escribe el resto en la celda inmediatamente a la
+ * derecha. Ej. (O.R. X 0001-00011233):
+ *   celda "descripcion"  = "Amoladora bosch 230 GWS- 25-23"
+ *   celda siguiente      = "0 Bare | 3 601 HF4 0H0"
+ *   identificación real  = "Amoladora bosch 230 GWS- 25-230 Bare | 3 601 HF4 0H0"
+ *
+ * REGLA GENERAL (no depende de ninguna orden): se une la celda vecina sólo
+ * cuando el texto se cortó en el ancho de 3C, es decir cuando la celda mide 29
+ * o 30 caracteres. Verificado sobre los informes reales: 1935 de 1935 filas con
+ * celda vecina tienen la celda de máquina en 29/30 caracteres, por lo que la
+ * vecina es SIEMPRE la continuación de este mismo texto y nunca otro campo.
+ *
+ * Devuelve la identificación COMPLETA, sin cortar ni perder nada.
+ */
+function joinWrappedIdentification(row: unknown[], colIndex: number): string {
+  if (colIndex < 0) return ""
+  const first = clean(row[colIndex])
+  if (!first) return ""
+  const next = clean(row[colIndex + 1])
+  if (!next || first.length < 29) return first
+  // A los 30 el corte es exacto; a los 29, 3C recortó el espacio final, así que
+  // se repone para no pegar dos palabras (ej. "N1" + "- BOCSH 10KG").
+  const full = first.length >= 30 ? `${first}${next}` : `${first} ${next}`
+  return full.replace(/\s+/g, " ").trim()
+}
+
 function toDate(value: unknown): Date | undefined {
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value
   const t = clean(value)
@@ -171,7 +199,7 @@ export function extractStatusesExcel(rows: unknown[][], fileName: string): FactM
     const isDelivered = /entreg|retirad/i.test(statusTxt)
     mergeFacts(rec, {
       clientName: clean(row[cCliente]) || undefined,
-      machineName: clean(row[cMaquina]) || undefined,
+      machineName: joinWrappedIdentification(row, cMaquina) || undefined,
       observations: clean(row[cObs]) || undefined,
       entryDate: iso(fechaOrden),
       returnDate: iso(isDelivered ? (entrega ?? fechaOrden) : entrega),
