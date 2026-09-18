@@ -29,6 +29,16 @@ const STATUS_LABELS: Record<SparePartOrderStatus, string> = {
   CANCELADO: "Cancelados",
 }
 
+// --- búsqueda por N° de Orden: permite buscar por los últimos dígitos ---
+// Ej: con orderSearch="11271" encontramos "X 0001-00011271".
+// Se compara: el orderNumber tal cual (comportamiento actual) + el número
+// real extraído (los dígitos después del último guion). No altera datos ni display.
+function extractOrderNumber(orderNumber: string | null | undefined): string {
+  if (!orderNumber) return ""
+  const matches = orderNumber.match(/\d+/g)
+  return matches && matches.length > 0 ? matches[matches.length - 1] : ""
+}
+
 export default function SparePartOrdersPage() {
   const router = useRouter()
   const { orders, loading, reload, markAsOrdered, remove } = useAllSparePartOrders()
@@ -157,7 +167,7 @@ export default function SparePartOrdersPage() {
       .filter(matchesFilter)
       .filter((o) => {
         const matchesQ = !q || o.description.toLowerCase().includes(q) || o.code.toLowerCase().includes(q)
-        const matchesOq = !oq || o.orderNumber.toLowerCase().includes(oq) || o.machineName.toLowerCase().includes(oq)
+        const matchesOq = !oq || o.orderNumber.toLowerCase().includes(oq) || o.machineName.toLowerCase().includes(oq) || extractOrderNumber(o.orderNumber).toLowerCase().includes(oq)
         const matchesDates =
           (!from || (o.requestedAt && new Date(o.requestedAt) >= from)) &&
           (!to || (o.requestedAt && new Date(o.requestedAt) <= to))
