@@ -36,4 +36,11 @@ export async function updateOrderSupplier(id: string, supplier: string): Promise
   }
   await updateDoc(ref, updates)
   await createAuditLog("update", "spare_part_order", id, before, { ...before, ...updates })
+  // La pantalla muestra desde el snapshot de Redis: se invalida para no seguir
+  // mostrando la casa anterior (la próxima lectura cae a Firestore).
+  try {
+    await fetch(`/api/sync-3c/data/spare_part_orders`, { method: "DELETE", cache: "no-store" })
+  } catch {
+    // Si falla, la próxima sincronización repone el snapshot.
+  }
 }

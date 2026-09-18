@@ -1009,6 +1009,21 @@ async function processModule(
                 sparePartsError: spareMsg,
               }
             }
+
+            // —— SNAPSHOT EN REDIS (fuente de la WEB) ——
+            // Deja la última foto COMPLETA de Pedidos Rep. en Redis para que la web
+            // la muestre aunque la cuota de Firestore esté agotada. Si Firestore no
+            // responde, conserva el snapshot anterior (no publica vacío).
+            try {
+              const { publishSparePartOrdersSnapshot } = await import("../src/services/sparePartOrders")
+              const published = await publishSparePartOrdersSnapshot()
+              console.log(`[AGENT] Spare parts snapshot -> Redis: ${published} pedido(s)`)
+            } catch (snapErr) {
+              console.error(
+                `[AGENT] No se pudo publicar el snapshot de Pedidos Rep.:`,
+                snapErr instanceof Error ? snapErr.message : String(snapErr),
+              )
+            }
         } else if (module === "reparaciones_facturadas") {
             // 2º Excel de Reparaciones (informe "facturadas"): aporta el ESTADO
             // real. Se CONSOLIDA con TODOS los Excel presentes en 3c_exports
@@ -1031,6 +1046,20 @@ async function processModule(
                 console.log(`[AGENT] Consolidado: ${consolidatedRecords.length} órdenes, ${withStatus} con estado real`)
             } else {
                 result.warnings.push("No se pudo construir el consolidado de reparaciones desde los Excel disponibles")
+            }
+
+            // —— SNAPSHOT EN REDIS (fuente de la WEB) ——
+            // Refresca la foto de Pedidos Rep. que muestra la web tras cada sync
+            // de reparaciones, sin depender de la cuota de Firestore.
+            try {
+              const { publishSparePartOrdersSnapshot } = await import("../src/services/sparePartOrders")
+              const published = await publishSparePartOrdersSnapshot()
+              console.log(`[AGENT] Spare parts snapshot -> Redis: ${published} pedido(s)`)
+            } catch (snapErr) {
+              console.error(
+                `[AGENT] No se pudo publicar el snapshot de Pedidos Rep.:`,
+                snapErr instanceof Error ? snapErr.message : String(snapErr),
+              )
             }
         } else {
             // STOCK usa el parser de existencias; ARTÍCULOS usa el parser del

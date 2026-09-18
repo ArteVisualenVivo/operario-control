@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import {
   getRedis,
   readModuleData,
+  saveModuleData,
   type PrimaryModuleId,
 } from "@/lib/sync-3c/redisPrimary"
 
@@ -69,6 +70,39 @@ export async function GET(
       exportInfo: envelope.exportInfo ?? null,
       data: envelope.data,
     })
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Error desconocido"
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
+  }
+}
+
+// POST: publica el snapshot de un módulo en la fuente primaria (Redis) desde la
+// web. Se usa para que la pantalla siga leyendo de Redis (no dependa de la cuota
+// de Firestore) después de una importación manual. Solo se acepta el módulo
+// `spare_part_orders` y un arreglo de registros.
+export async function POST(
+  request: Request,
+  { params }: { params: Promise<{ module: string }> },
+) {
+  try {
+    const { module } = await params
+    if (module !== "spare_part_orders") {
+      return NextResponse.json({ error: "Módulo no habilitado para publicación" }, { status: 400 })
+    }
+    const body = (await request.json()) as { data?: unknown; recordCount?: number }
+    if (!Array.isArray(body?.data)) {
+      return NextResponse.json({ error: "Datos inválidos" }, { status: 400 })
+    }
+    const redis = getRedis()
+    await saveModuleData(redis, {
+      module: "spare_part_orders",
+      syncId: `spare-part-orders-manual-${Date.now()}`,
+      data: body.data,
+      recordCount: typeof body.recordCount === "number" ? body.recordCount : body.data.length,
+      degraded: false,
+      firestoreStatus: "synced",
+    })
+    return NextResponse.json({ success: true, module, recordCount: body.data.length })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error desconocido"
     return NextResponse.json({ success: false, error: message }, { status: 500 })

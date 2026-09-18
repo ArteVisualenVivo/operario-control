@@ -162,7 +162,8 @@ async function updateOrderDoc(id: string, updates: Record<string, unknown>): Pro
   await updateDoc(doc(db, COLLECTION, id), updates)
 }
 
-export async function getAllOrders(): Promise<SparePartOrder[]> {
+/** Lee los pedidos desde FIRESTORE: fuente de verdad para ESCRIBIR. */
+async function getAllOrdersFromFirestore(): Promise<SparePartOrder[]> {
   try {
     const q = query(collection(db, COLLECTION), orderBy("requestedAt", "desc"))
     const snap = await getDocs(q)
@@ -186,6 +187,163 @@ export async function getAllOrders(): Promise<SparePartOrder[]> {
     if (LOCAL_MODE) return []
     console.error("[sparePartOrders] getAllOrders falló:", err instanceof Error ? err.message : err)
     throw err
+  }
+}
+
+/**
+ * Convierte un registro crudo del snapshot de Redis (fechas ISO) a SparePartOrder.
+ * Misma forma de documento que docToOrder(), sin Timestamp de Firestore.
+ */
+function rawToOrder(raw: Record<string, unknown>): SparePartOrder {
+  return {
+    id: String(raw.id ?? ""),
+    repairId: (raw.repairId as string) ?? "",
+    orderNumber: (raw.orderNumber as string) ?? "",
+    machineId: (raw.machineId as string) ?? "",
+    machineName: (raw.machineName as string) ?? "",
+    machineModel: (raw.machineModel as string | null | undefined) ?? null,
+    sparePartId: (raw.sparePartId as string) || undefined,
+    code: (raw.code as string) ?? "",
+    description: (raw.description as string) ?? "",
+    unit: (raw.unit as string) ?? "unidad",
+    quantityRequested: (raw.quantityRequested as number) ?? 0,
+    quantityReceived: (raw.quantityReceived as number) ?? 0,
+    quantityUsed: (raw.quantityUsed as number) ?? 0,
+    status: (raw.status as SparePartOrderStatus) ?? "SOLICITADO",
+    supplier: (raw.supplier as string) || undefined,
+    requestedAt: toDate(raw.requestedAt),
+    orderedAt: toDate(raw.orderedAt) ?? undefined,
+    expectedAt: toDate(raw.expectedAt) ?? undefined,
+    receivedAt: toDate(raw.receivedAt) ?? undefined,
+    usedAt: toDate(raw.usedAt) ?? undefined,
+    notes: (raw.notes as string) || undefined,
+    createdAt: toDate(raw.createdAt) ?? new Date(),
+    updatedAt: toDate(raw.updatedAt) ?? new Date(),
+  }
+}
+
+/** Serializa un pedido para el snapshot de Redis (fechas ISO, sin Timestamps). */
+function orderToPlain(order: SparePartOrder): Record<string, unknown> {
+  const iso = (d?: Date | null): string | null => (d instanceof Date ? d.toISOString() : null)
+  return {
+    id: order.id,
+    repairId: order.repairId,
+    orderNumber: order.orderNumber,
+    machineId: order.machineId,
+    machineName: order.machineName,
+    machineModel: order.machineModel ?? null,
+    sparePartId: order.sparePartId ?? null,
+    code: order.code,
+    description: order.description,
+    unit: order.unit,
+    quantityRequested: order.quantityRequested,
+    quantityReceived: order.quantityReceived,
+    quantityUsed: order.quantityUsed,
+    status: order.status,
+    supplier: order.supplier ?? null,
+    requestedAt: iso(order.requestedAt),
+    orderedAt: iso(order.orderedAt),
+    expectedAt: iso(order.expectedAt),
+    receivedAt: iso(order.receivedAt),
+    usedAt: iso(order.usedAt),
+    notes: order.notes ?? null,
+    createdAt: order.createdAt.toISOString(),
+    updatedAt: order.updatedAt.toISOString(),
+  }
+}
+
+/**
+ * Invalida el snapshot de Pedidos Rep. en Redis tras una mutación manual de la
+ * web (encargar, borrar, casa de repuesto, notas), para que la pantalla no siga
+ * mostrando el snapshot anterior. Mismo criterio que REGLA 22 (stock).
+ */
+async function invalidatePrimarySparePartOrders(): Promise<void> {
+  if (typeof window === "undefined") return
+  try {
+    await fetch(`/api/sync-3c/data/spare_part_orders`, { method: "DELETE", cache: "no-store" })
+  } catch {
+    // Si falla, la próxima sincronización repone el snapshot.
+  }
+}
+
+/**
+ * Publica el snapshot de Pedidos Rep. en Redis desde la WEB (tras una
+ * importación o refresco manual), para que la pantalla siga leyendo de la fuente
+ * primaria y no dependa de la cuota de Firestore. Nunca interrumpe el flujo: si
+ * falla, la próxima sincronización del agente lo repone.
+ */
+async function publishSnapshotFromBrowser(): Promise<number> {
+  if (typeof window === "undefined") return 0
+  try {
+    const orders = await getAllOrdersFromFirestore()
+    if (orders.length === 0) return 0
+    const payload = orders.map(orderToPlain)
+    await fetch(`/api/sync-3c/data/spare_part_orders`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      cache: "no-store",
+      body: JSON.stringify({ data: payload, recordCount: payload.length }),
+    })
+    return payload.length
+  } catch {
+    return 0
+  }
+}
+
+/**
+ * Pedidos Rep. para MOSTRAR.
+ *
+ * - NAVEGADOR: lee PRIMERO el snapshot de Redis (lo último que dejó el agente) y,
+ *   si no existe, cae a Firestore. Así la pantalla funciona aunque la cuota de
+ *   Firestore esté agotada.
+ * - NODE (agente): lee Firestore/Admin (fuente de verdad para escribir).
+ *
+ * Las rutas de ESCRITURA usan getAllOrdersFromFirestore() explícitamente.
+ */
+export async function getAllOrders(): Promise<SparePartOrder[]> {
+  if (typeof window !== "undefined") {
+    const { loadSparePartOrdersPrimary } = await import("@/lib/local-sync")
+    const primary = await loadSparePartOrdersPrimary()
+    if (primary && primary.length > 0) return primary.map(rawToOrder)
+  }
+  return getAllOrdersFromFirestore()
+}
+
+/**
+ * PUBLICACIÓN DEL SNAPSHOT en Redis (solo NODE / agente).
+ *
+ * Deja en Redis la última foto COMPLETA de Pedidos Rep. para que la web la
+ * muestre sin depender de Firestore. Si Firestore no está disponible (cuota
+ * agotada) se CONSERVA el snapshot anterior en lugar de publicar vacío, así la
+ * pantalla sigue mostrando la última foto buena.
+ */
+export async function publishSparePartOrdersSnapshot(): Promise<number> {
+  if (typeof window !== "undefined") return 0
+  try {
+    const { getRedis, saveModuleData } = await import("@/lib/sync-3c/redisPrimary")
+    const redis = getRedis()
+    let orders: SparePartOrder[] = []
+    try {
+      orders = await getAllOrdersFromFirestore()
+    } catch {
+      orders = []
+    }
+    if (orders.length === 0) return 0
+    await saveModuleData(redis, {
+      module: "spare_part_orders",
+      syncId: `spare-part-orders-${Date.now()}`,
+      data: orders.map(orderToPlain),
+      recordCount: orders.length,
+      degraded: false,
+      firestoreStatus: "synced",
+    })
+    return orders.length
+  } catch (err) {
+    console.error(
+      "[sparePartOrders] No se pudo publicar el snapshot en Redis:",
+      err instanceof Error ? err.message : err,
+    )
+    return 0
   }
 }
 
@@ -325,6 +483,9 @@ export async function markOrdered(
 
   await updateDoc(ref, updates)
   await createAuditLog("update", "spare_part_order", id, before, { ...before, ...updates })
+  // REGLA: la web muestra desde Redis → invalidar el snapshot para no mostrar
+  // el estado anterior (la próxima lectura cae a Firestore con el dato nuevo).
+  await invalidatePrimarySparePartOrders()
 }
 
 export async function markReceived(
@@ -375,6 +536,7 @@ export async function markReceived(
     await restockPart(before.sparePartId as string, quantity)
   }
   await createAuditLog("update", "spare_part_order", id, before, after)
+  await invalidatePrimarySparePartOrders()
 }
 
 export async function markUsed(
@@ -426,6 +588,7 @@ export async function markUsed(
     await consumePart(before.sparePartId as string, quantity)
   }
   await createAuditLog("update", "spare_part_order", id, before, after)
+  await invalidatePrimarySparePartOrders()
 }
 
 export async function cancelOrder(id: string): Promise<void> {
@@ -442,6 +605,7 @@ export async function cancelOrder(id: string): Promise<void> {
   const updates: Record<string, unknown> = { status: "CANCELADO", updatedAt: new Date() }
   await updateDoc(ref, updates)
   await createAuditLog("update", "spare_part_order", id, before, { ...before, ...updates })
+  await invalidatePrimarySparePartOrders()
 }
 
 export async function deleteOrders(ids: string[]): Promise<void> {
@@ -461,6 +625,7 @@ export async function deleteOrders(ids: string[]): Promise<void> {
       await createAuditLog("delete", "spare_part_order", id, before ?? {}, {})
     }),
   )
+  await invalidatePrimarySparePartOrders()
 }
 
 export async function updateOrderNotes(id: string, notes: string): Promise<void> {
@@ -468,6 +633,7 @@ export async function updateOrderNotes(id: string, notes: string): Promise<void>
   const updates: Record<string, unknown> = { notes: notes || null, updatedAt: new Date() }
   await updateDoc(ref, updates)
   await createAuditLog("update", "spare_part_order", id, before, { ...before, ...updates })
+  await invalidatePrimarySparePartOrders()
 }
 // Normaliza el número de orden para comparar sin "X" ni espacios.
 function normOrderKey(value: unknown): string {
@@ -757,7 +923,7 @@ export async function refreshModelsFromDenominacion(records?: MaintenanceRecord[
     if (!prev || value.length > prev.length) denominacionByOrder.set(key, value)
   }
 
-  const existing = await getAllOrders()
+  const existing = await getAllOrdersFromFirestore()
   const examples: { orderNumber: string; machineModel: string }[] = []
   let updated = 0
   let withDenominacion = 0
@@ -808,7 +974,7 @@ export async function importPendingPartsFromMaintenance(): Promise<{
   modelsUpdated: number
   createdOrders: { orderNumber: string; description: string }[]
 }> {
-  const existing = await getAllOrders()
+  const existing = await getAllOrdersFromFirestore()
   // Mapa (no Set) para poder reconstruir `requestedAt` desde la fecha real de 3C
   // cuando el pedido ya existe con una fecha incorrecta o vacía.
   const seen = new Map<string, SparePartOrder>(
@@ -960,6 +1126,13 @@ export async function importPendingPartsFromMaintenance(): Promise<{
   // REFRESCO GENERAL: el Modelo de TODOS los pedidos existentes se lleva a la
   // DENOMINACION real de 3C (cruce por nº de orden). No crea ni borra pedidos.
   const models = await refreshModelsFromDenominacion(maintenance)
+
+  // Si esta corrida cambió algo, se republica el snapshot en Redis para que la
+  // pantalla (que lee de la fuente primaria) vea el resultado sin depender de la
+  // cuota de Firestore. Si no hubo cambios, no se gasta una lectura extra.
+  if (updated > 0 || createdOrders.length > 0 || models.updated > 0) {
+    await publishSnapshotFromBrowser()
+  }
 
   return { created: createdOrders.length, updated, skippedExisting, withoutDate, createdOrders, modelsUpdated: models.updated }
 }
@@ -1519,7 +1692,7 @@ export async function reconcileSpareOrdersFromWaitingStatus(): Promise<{
 }> {
   const { loadMaintenanceRecords } = await import("@/lib/local-sync")
   const maintenance = await loadMaintenanceRecords()
-  const existing = await getAllOrders()
+  const existing = await getAllOrdersFromFirestore()
 
   const validKeys = new Set<string>()
   const orderHasWaiting = new Map<string, boolean>()
@@ -1608,7 +1781,7 @@ export async function cleanupInvalidSpareOrders(): Promise<{
   kept: number
   deletedOrders: { orderNumber: string; code: string; description: string }[]
 }> {
-  const existing = await getAllOrders()
+  const existing = await getAllOrdersFromFirestore()
   const deletedOrders: { orderNumber: string; code: string; description: string }[] = []
   let deleted = 0
   let kept = 0
@@ -1702,7 +1875,7 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
   // fetch relativo: esa ruta falla cuando el proceso corre en Node (agente).
   const maintenance = records
 
-  const existing = await getAllOrders()
+  const existing = await getAllOrdersFromFirestore()
   const seen = new Map<string, SparePartOrder>()
   for (const o of existing) {
     // La clave debe normalizarse IGUAL que la consulta de abajo (código en
