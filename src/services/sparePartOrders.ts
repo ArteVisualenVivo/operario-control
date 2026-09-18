@@ -11,10 +11,61 @@ import type { MaintenanceRecord } from "./maintenance"
 
 const COLLECTION = "spare_part_orders"
 
-function toDate(val: unknown): Date {
+function toDate(val: unknown): Date | null {
   if (val instanceof Timestamp) return val.toDate()
-  if (val instanceof Date) return val
-  return new Date()
+  if (val instanceof Date) return Number.isNaN(val.getTime()) ? null : val
+  // Admin SDK (Node) devuelve su propio Timestamp: se resuelve por duck typing.
+  if (val && typeof val === "object" && typeof (val as { toDate?: unknown }).toDate === "function") {
+    const converted = (val as { toDate: () => Date }).toDate()
+    return converted instanceof Date && !Number.isNaN(converted.getTime()) ? converted : null
+  }
+  if (typeof val === "string" || typeof val === "number") {
+    const parsed = new Date(val)
+    if (!Number.isNaN(parsed.getTime())) return parsed
+  }
+  // REGLA: una fecha faltante/inválida NO se transforma en "ahora".
+  return null
+}
+
+/**
+ * Canoniza una fecha de 3C al MEDIODÍA UTC de su mismo día calendario (UTC).
+ * 3C sólo informa el día (sin hora) y los valores llegan con horas artificiales
+ * (p. ej. 03:00Z / 15:00Z): el mediodía UTC evita que el día mostrado dependa de
+ * la zona horaria del navegador. NO cambia la fecha, sólo su hora.
+ */
+function toCanonicalDay(d: Date): Date {
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12, 0, 0))
+}
+
+/**
+ * Fecha REAL del registro de 3C cuyo estado es "A la Espera Repuestos".
+ *
+ * Fuentes, en orden: la fecha del propio estado de espera en `states[]`; si no,
+ * `statusDate`/`entryDate` del registro cuando su estado es el de espera.
+ * Si no hay fecha válida devuelve null (NUNCA `new Date()`).
+ */
+export function resolveWaitingStatusDate(rec: {
+  status?: string | null
+  statusDate?: Date | string | null
+  entryDate?: Date | string | null
+  states?: { status?: string | null; statusDate?: string | null }[] | null
+}): Date | null {
+  const candidates: unknown[] = []
+
+  if (Array.isArray(rec.states)) {
+    for (const state of rec.states) {
+      if (isSpareWaitingStatus(state?.status)) candidates.push(state?.statusDate)
+    }
+  }
+  if (isSpareWaitingStatus(rec.status)) {
+    candidates.push(rec.statusDate, rec.entryDate)
+  }
+
+  for (const candidate of candidates) {
+    const parsed = toDate(candidate)
+    if (parsed) return toCanonicalDay(parsed)
+  }
+  return null
 }
 
 function docToOrder(snap: { id: string; data: () => Record<string, unknown> }): SparePartOrder {
@@ -36,14 +87,79 @@ function docToOrder(snap: { id: string; data: () => Record<string, unknown> }): 
     status: (d.status as SparePartOrderStatus) ?? "SOLICITADO",
     supplier: (d.supplier as string) || undefined,
     requestedAt: toDate(d.requestedAt),
-    orderedAt: d.orderedAt ? toDate(d.orderedAt) : undefined,
-    expectedAt: d.expectedAt ? toDate(d.expectedAt) : undefined,
-    receivedAt: d.receivedAt ? toDate(d.receivedAt) : undefined,
-    usedAt: d.usedAt ? toDate(d.usedAt) : undefined,
+    orderedAt: toDate(d.orderedAt) ?? undefined,
+    expectedAt: toDate(d.expectedAt) ?? undefined,
+    receivedAt: toDate(d.receivedAt) ?? undefined,
+    usedAt: toDate(d.usedAt) ?? undefined,
     notes: (d.notes as string) || undefined,
-    createdAt: toDate(d.createdAt),
-    updatedAt: toDate(d.updatedAt),
+    // Metadatos del documento (no son fechas de 3C): si faltan se usa "ahora".
+    // La fecha de 3C es `requestedAt` y NUNCA se rellena con "ahora".
+    createdAt: toDate(d.createdAt) ?? new Date(),
+    updatedAt: toDate(d.updatedAt) ?? new Date(),
   }
+}
+
+// ============================================================================
+// BACKEND DE FIRESTORE SEGÚN EL ENTORNO
+// - NAVEGADOR: client SDK con la sesión del usuario (comportamiento actual).
+// - NODE (agente local, sin sesión): el client SDK responde "Missing or
+//   insufficient permissions", así que se usa el Admin SDK — el MISMO mecanismo
+//   que ya usan src/lib/sync-3c/engine.ts y firestoreSync.ts con la service
+//   account de sync-agent/service-account.json. No es un backend nuevo: es el
+//   camino server-side que ya existe en el proyecto.
+// ============================================================================
+
+interface AdminFirestoreLike {
+  collection: (name: string) => {
+    get: () => Promise<{ docs: { id: string; data: () => Record<string, unknown> }[] }>
+    add: (data: Record<string, unknown>) => Promise<{ id: string }>
+    doc: (id: string) => { update: (data: Record<string, unknown>) => Promise<unknown> }
+  }
+}
+
+let adminDb: AdminFirestoreLike | null = null
+let adminDbResolved = false
+
+/** Admin SDK de Firestore cuando corremos en Node; null en el navegador. */
+async function getAdminDb(): Promise<AdminFirestoreLike | null> {
+  if (typeof window !== "undefined") return null
+  if (adminDbResolved) return adminDb
+  adminDbResolved = true
+  try {
+    // API modular + service account: MISMA credencial que ya usa el agente
+    // (src/lib/sync-3c/engine.ts y scripts/*.mjs).
+    const fs = await import("fs")
+    const path = await import("path")
+    const { initializeApp, cert, getApps } = await import("firebase-admin/app")
+    const { getFirestore } = await import("firebase-admin/firestore")
+    const candidates = [
+      path.resolve(process.cwd(), "sync-agent", "service-account.json"),
+      path.resolve(process.cwd(), "..", "sync-agent", "service-account.json"),
+    ]
+    const saPath = candidates.find((candidate) => fs.existsSync(candidate))
+    if (!saPath) throw new Error(`No se encontró service-account.json en: ${candidates.join(", ")}`)
+    const serviceAccount = JSON.parse(fs.readFileSync(saPath, "utf-8"))
+    const app = getApps().length > 0 ? getApps()[0] : initializeApp({ credential: cert(serviceAccount) })
+    adminDb = getFirestore(app) as unknown as AdminFirestoreLike
+    return adminDb
+  } catch (err) {
+    console.error(
+      "[sparePartOrders] Admin SDK no disponible (se usa el client SDK):",
+      err instanceof Error ? err.message : err,
+    )
+    adminDb = null
+    return null
+  }
+}
+
+/** Actualiza un pedido existente (client SDK en el navegador, Admin en Node). */
+async function updateOrderDoc(id: string, updates: Record<string, unknown>): Promise<void> {
+  const admin = await getAdminDb()
+  if (admin) {
+    await admin.collection(COLLECTION).doc(id).update(updates)
+    return
+  }
+  await updateDoc(doc(db, COLLECTION, id), updates)
 }
 
 export async function getAllOrders(): Promise<SparePartOrder[]> {
@@ -52,7 +168,23 @@ export async function getAllOrders(): Promise<SparePartOrder[]> {
     const snap = await getDocs(q)
     return snap.docs.map(docToOrder)
   } catch (err) {
+    // En Node (agente) el client SDK no está autenticado → Admin SDK.
+    const admin = await getAdminDb()
+    if (admin) {
+      try {
+        const snap = await admin.collection(COLLECTION).get()
+        return snap.docs
+          .map((d) => docToOrder({ id: d.id, data: () => d.data() }))
+          .sort((a, b) => (b.requestedAt?.getTime() ?? 0) - (a.requestedAt?.getTime() ?? 0))
+      } catch (adminErr) {
+        console.error(
+          "[sparePartOrders] Admin getAllOrders falló:",
+          adminErr instanceof Error ? adminErr.message : adminErr,
+        )
+      }
+    }
     if (LOCAL_MODE) return []
+    console.error("[sparePartOrders] getAllOrders falló:", err instanceof Error ? err.message : err)
     throw err
   }
 }
@@ -96,14 +228,19 @@ export async function getOrderById(id: string): Promise<SparePartOrder | null> {
   return docToOrder(snap)
 }
 
-export async function createOrder(input: CreateSparePartOrderInput): Promise<string> {
+export async function createOrder(
+  input: CreateSparePartOrderInput,
+  // Los pedidos auto-importados de 3C pueden NO tener código propio de repuesto
+  // (se guarda vacío, nunca "S/C"); el pedido manual sigue exigiendo código.
+  opts?: { allowEmptyCode?: boolean },
+): Promise<string> {
   if (!input.repairId) {
     throw new Error("El pedido debe estar asociado a una orden de trabajo")
   }
   if (!input.machineId) {
     throw new Error("El pedido debe estar asociado a una máquina")
   }
-  if (!String(input.code ?? "").trim()) {
+  if (!String(input.code ?? "").trim() && !opts?.allowEmptyCode) {
     throw new Error("El código del repuesto es obligatorio")
   }
   if (!String(input.description ?? "").trim()) {
@@ -128,12 +265,22 @@ export async function createOrder(input: CreateSparePartOrderInput): Promise<str
     quantityUsed: 0,
     status: "SOLICITADO",
     supplier: input.supplier ?? null,
-    requestedAt: input.requestedAt ?? new Date(),
+    // REGLA: requestedAt es la fecha real de 3C del estado "A la Espera
+    // Repuestos". Si no existe, queda null (la UI muestra "—"); nunca "ahora".
+    requestedAt: toDate(input.requestedAt),
     receivedAt: null,
     usedAt: null,
     notes: input.notes ?? null,
     createdAt: new Date(),
     updatedAt: new Date(),
+  }
+
+  // En Node (agente) se escribe con el Admin SDK: mismo documento, misma forma.
+  const admin = await getAdminDb()
+  if (admin) {
+    const created = await admin.collection(COLLECTION).add(docData)
+    await createAuditLog("create", "spare_part_order", created.id, null, docData)
+    return created.id
   }
 
   const ref = await addDoc(collection(db, COLLECTION), docData)
@@ -400,29 +547,67 @@ export function splitMachineModel(name: unknown): { machine: string; model: stri
  * Importa a "Pedidos de Repuestos" los repuestos que están en espera según las
  * Órdenes de Reparación de 3C (estado "A la Espera Repuestos" en Mantenimiento).
  *
- * Toma de cada orden en espera su statusDescription (la descripción del repuesto
- * que se está esperando) y crea un pedido (estado SOLICITADO) asociado a esa
- * orden/máquina. Es idempotente: NO borra nada existente y NO duplica pedidos que
- * ya existen para la misma (orden + descripción repuesto).
+ * Origen de los repuestos (en este orden):
+ *  1. `workItems` del informe "Órdenes de Reparación con Items" (formato
+ *     "código — nombre"), cuando 3C lo exporta.
+ *  2. Si no hay `workItems` (caso habitual: 3C exporta "Detalle de Órdenes de
+ *     Reparación"), se parsean los MOTIVO_ESTADO_REP registrados bajo el estado
+ *     "A la Espera Repuestos" (ver parseSparePartsFromMotivo).
+ *
+ * Es idempotente: NO borra nada existente y NO duplica pedidos que ya existen
+ * para la misma (orden + repuesto).
  */
 export async function importPendingPartsFromMaintenance(): Promise<{
   created: number
+  updated: number
   skippedExisting: number
+  /** Repuestos cuyo registro de 3C no tiene fecha válida (requestedAt = null). */
+  withoutDate: number
   createdOrders: { orderNumber: string; description: string }[]
 }> {
   const existing = await getAllOrders()
-  const seen = new Set(
-    existing.map((o) => `${normOrderKey(o.orderNumber)}||${o.description.trim().toLowerCase()}`),
+  // Mapa (no Set) para poder reconstruir `requestedAt` desde la fecha real de 3C
+  // cuando el pedido ya existe con una fecha incorrecta o vacía.
+  const seen = new Map<string, SparePartOrder>(
+    existing.map((o) => [
+      `${normOrderKey(o.orderNumber)}||${o.description.trim().toLowerCase()}`,
+      o,
+    ]),
   )
 
   // Cargar órdenes consolidadas de 3C (fuente primaria Redis / Firestore)
   const maintenance = await loadMaintenanceRecords()
 
   const pendingKinds = /espera.*repuesto|repuesto.*espera|esperando.*repuesto/i
-  const awaiting = maintenance.filter((m) => pendingKinds.test(m.status ?? "") || pendingKinds.test(m.statusDescription ?? ""))
+
+  /** Motivos registrados bajo un estado "A la Espera Repuestos" del registro. */
+  const waitingMotivosOf = (rec: MaintenanceRecord): string[] => {
+    const entries =
+      Array.isArray(rec.motivoByStatus) && rec.motivoByStatus.length > 0
+        ? rec.motivoByStatus
+        : rec.motivoEstadoRep?.trim()
+          ? [{ status: rec.status ?? "", motivo: rec.motivoEstadoRep.trim() }]
+          : []
+    return [
+      ...new Set(
+        entries
+          .filter((e) => isSpareWaitingStatus(e.status) && e.motivo?.trim())
+          .map((e) => e.motivo.trim()),
+      ),
+    ]
+  }
+
+  const awaiting = maintenance.filter(
+    (m) =>
+      pendingKinds.test(m.status ?? "") ||
+      pendingKinds.test(m.statusDescription ?? "") ||
+      waitingMotivosOf(m).length > 0,
+  )
 
   const createdOrders: { orderNumber: string; description: string }[] = []
   let skippedExisting = 0
+  let updated = 0
+  let withoutDate = 0
 
   // Separa un ítem de trabajo/repuesto de 3C en { code, name }.
   // formato esperado: "1262 — rodamiento 6203" | "KD44221 — FICHA BIPOLAR AZUL"
@@ -433,22 +618,49 @@ export async function importPendingPartsFromMaintenance(): Promise<{
       const name = m[2].trim()
       if (code && name) return { code, name }
     }
-    return { code: "S/C", name: String(item ?? "").trim() }
+    return { code: "", name: String(item ?? "").trim() }
   }
 
   for (const rec of awaiting) {
-    // SOLO se importan repuestos reales de 3C (workItems con formato
-    // "código — nombre"). NO se usa statusDescription como origen: es un
-    // comentario de falla del cliente y producía pedidos basura del tipo
-    // "NO FUNCIONA", "PROTECTOR SUELTO...", "MO CES", etc.
-    const sources = (rec.workItems ?? []).filter(Boolean)
+    // Fecha REAL de 3C del estado "A la Espera Repuestos" (nunca "ahora").
+    const waitingDate = resolveWaitingStatusDate(rec)
+    if (!waitingDate) withoutDate++
+    // Repuestos concretos de 3C: `workItems` ("código — nombre") cuando el
+    // informe de items está disponible; si no, los MOTIVO_ESTADO_REP del estado
+    // de espera (única fuente real que exporta 3C hoy). NO se usa
+    // statusDescription como origen: es un comentario de falla del cliente y
+    // producía pedidos basura del tipo "NO FUNCIONA", "PROTECTOR SUELTO...",
+    // "MO CES", etc.
+    const workItems = (rec.workItems ?? []).filter(Boolean)
+    const detected =
+      workItems.length > 0
+        ? workItems.map(splitItem)
+        : waitingMotivosOf(rec).flatMap((motivo) =>
+            parseSparePartsFromMotivo(motivo).map((p) => ({ code: p.code ?? "", name: p.description })),
+          )
 
-    for (const rawItem of sources) {
-      const { code, name } = splitItem(rawItem)
+    // Un mismo repuesto puede aparecer repetido en el motivo: se deduplica
+    // dentro de la propia orden antes de contar "ya existentes".
+    const uniqueParts = new Map<string, { code: string; name: string }>()
+    for (const part of detected) {
+      const name = String(part.name ?? "").trim()
       if (!name) continue
+      const k = name.toLowerCase()
+      if (!uniqueParts.has(k)) uniqueParts.set(k, { code: part.code || "", name })
+    }
 
+    for (const { code, name } of uniqueParts.values()) {
       const key = `${normOrderKey(rec.orderNumber)}||${name.toLowerCase()}`
-      if (seen.has(key)) {
+      const previously = seen.get(key)
+      if (previously) {
+        // El pedido ya existe: se respeta (idempotencia) pero se reconstruye la
+        // fecha real de 3C si faltaba o si quedó mal (p. ej. fecha de importación).
+        const current = previously.requestedAt
+        if (waitingDate && (!current || current.getTime() !== waitingDate.getTime())) {
+          await updateOrderDoc(previously.id, { requestedAt: waitingDate, updatedAt: new Date() })
+          previously.requestedAt = waitingDate
+          updated++
+        }
         skippedExisting++
         continue
       }
@@ -462,15 +674,31 @@ export async function importPendingPartsFromMaintenance(): Promise<{
         description: name,
         unit: "unidad",
         quantity: 1,
-        requestedAt: rec.entryDate ?? new Date(),
+        requestedAt: waitingDate,
         notes: "Importado desde Órdenes de Reparación (3C): repuesto en espera",
+      }, { allowEmptyCode: true })
+      seen.set(key, {
+        id: "pending",
+        repairId: rec.id ?? rec.orderNumber,
+        orderNumber: rec.orderNumber,
+        machineId: rec.orderNumber,
+        machineName: rec.machineName ?? "",
+        code,
+        description: name,
+        unit: "unidad",
+        quantityRequested: 1,
+        quantityReceived: 0,
+        quantityUsed: 0,
+        status: "SOLICITADO",
+        requestedAt: waitingDate,
+        createdAt: new Date(),
+        updatedAt: new Date(),
       })
-      seen.add(key)
       createdOrders.push({ orderNumber: rec.orderNumber, description: name })
     }
   }
 
-  return { created: createdOrders.length, skippedExisting, createdOrders }
+  return { created: createdOrders.length, updated, skippedExisting, withoutDate, createdOrders }
 }
 
 // ============================================================================
@@ -614,13 +842,14 @@ function containsSparePart(text: string): boolean {
 
   // Palabras clave que indican repuestos/materiales
   const spareKeywords = [
-    "INDUCIDO", "CAMPO", "RODAMIENTO", "VENTILADOR", "CARBON", "CARBONES",
+    "INDUCIDO", "INDUZIDO", "CAMPO", "RODAMIENTO", "VENTILADOR", "CARBON", "CARBONES",
+    "ESCOBILLA", "ESCOBILLAS", "EXPANSION", "POLAR", "MEMBRANA", "DIAFRAGMA",
     "BUJE", "DISCO", "FILTRO", "CORREA", "MANGUERA", "CABLE", "FICHA",
     "ENCHUFE", "BOTON", "PULSADOR", "INTERRUPTOR", "LAMPARA", "LED",
     "RESISTENCIA", "CONDENSADOR", "CAPACITOR", "DIODO", "TRANSISTOR",
     "INTEGRADO", "CIRCUITO", "PLACA", "TARJETA", "MOTOR", "BOMBA",
     "COMPRESOR", "CILINDRO", "PISTON", "VALVULA", "RETEN", "SELLO",
-    "JUNTA", "TORNILLO", "TUERCA", "ARANDALE", "MUELLE", "RESORTE",
+    "JUNTA", "TORNILLO", "TUERCA", "ARANDELA", "ARANDALE", "MUELLE", "RESORTE",
     "PERNO", "SEGURO", "ANILLO", "RODILLO", "RUEDA", "ENGRANAJE",
     "CORONA", "CADENA", "CREMALLERA", "BIELA", "MANIJA", "EMPUÑADURA",
     "CARCASA", "CUERPO", "TAPA", "BASE", "SOPORTE", "ABRAZADERA",
@@ -713,6 +942,8 @@ function extractCode(line: string): string {
 /**
  * Quita el prefijo "FALTA" cuando el resto identifica un repuesto concreto
  * ("FALTA FILTRO DE AIRE" -> "FILTRO DE AIRE").
+ * También quita el prefijo "REPUESTO(S)" cuando viene seguido de una pieza
+ * concreta ("FALTA REPUESTO VAINA PROTECTORA" -> "VAINA PROTECTORA").
  * NO aplica si el resto es genérico ("FALTA DE REPUESTOS" se queda igual).
  */
 export function stripFaltaPrefix(text: string): string {
@@ -720,7 +951,16 @@ export function stripFaltaPrefix(text: string): string {
   const m = t.match(/^falta\s+(de\s+)?(.+)$/i)
   if (!m) return t
   const rest = m[2].trim()
-  if (/^repuestos?\b/i.test(rest)) return t // "FALTA DE REPUESTOS" no es repuesto
+  if (/^repuestos?\b/i.test(rest)) {
+    // "FALTA DE REPUESTOS" (genérico) no es un repuesto; pero
+    // "FALTA REPUESTO VAINA PROTECTORA" sí lo es: la pieza concreta es lo
+    // que sigue a REPUESTO(S).
+    const withoutRepuesto = rest.replace(/^repuestos?\s+(?=\S)/i, "").trim()
+    if (withoutRepuesto !== rest && containsSparePart(withoutRepuesto)) {
+      return withoutRepuesto
+    }
+    return t
+  }
   return containsSparePart(rest) ? rest : t
 }
 
@@ -742,7 +982,171 @@ function splitConjunction(segment: string): string[] {
   return out.length > 0 ? out : [segment]
 }
 
+/**
+ * Detecta un código de repuesto "puro" en una línea propia del motivo de 3C.
+ *   "1 603 123 032"   → "1603123032"
+ *   "F 000 611 090"   → "F000611090"
+ *   "1 600 A01 L7D  " → "1600A01L7D"
+ *   "Junta torica 4,0X1,0 MM" → null (es una descripción, no un código)
+ * Los espacios del código del Excel se normalizan; se conservan las letras y el
+ * "1" inicial (parte del código Bosch/3C: "1 609 B03 639" → "1609B03639").
+ */
+function asSoloCodigo(line: string): string | null {
+  const t = line.trim()
+  const compact = t.replace(/\s+/g, "")
+  if (compact.length < 5 || compact.length > 16) return null
+  if (!/^[A-Za-z0-9]+$/.test(compact)) return null
+  if (!/\d/.test(compact)) return null
+  const tokens = t.split(/\s+/)
+  if (tokens.length > 4) return null
+  // Palabras reales ("Juego", "Escobillas", "Expansion") → es texto, no código
+  if (tokens.some((tok) => /^[A-Za-z]{4,}$/.test(tok))) return null
+  return compact.toUpperCase()
+}
+
+/** ¿Este token es un código de repuesto de 3C (no una medida ni una palabra)? */
+function isCodeToken(token: string): boolean {
+  const t = token.replace(/^[("'[]+/, "").replace(/[)"'\],;:.]+$/, "")
+  if (t.length < 4 || t.length > 16) return false
+  if (!/^[A-Za-z0-9][A-Za-z0-9\-./]*$/.test(t)) return false
+  if (!/\d/.test(t)) return false
+  if (/^[A-Za-z]+$/.test(t)) return false
+  // Medidas/especificaciones ("220-240V") → NO son códigos
+  if (/^\d{1,3}([.,-]\d{1,3})+[A-Za-z]?$/.test(t)) return false
+  if (/[A-Za-z]/.test(t) || /[-./]/.test(t)) return true
+  return t.length >= 8
+}
+
+/**
+ * Separa descripción y código DENTRO de una línea, sin cruzar códigos entre
+ * repuestos (el código pertenece EXCLUSIVAMENTE al repuesto de esa línea).
+ *   "JUEGO DE CARBONES 160432115T"        → "JUEGO DE CARBONES"     + 160432115T
+ *   "R99939910 ORING 13 p/9993931"        → "ORING 13 p/9993931"    + R99939910
+ *   "inducido 1619P15184 ( VENTILADOR )"  → "inducido (VENTILADOR)" + 1619P15184
+ */
+function splitDescriptionAndCode(line: string): { code: string | null; description: string } {
+  const tokens = line.split(/\s+/)
+  const idxs: number[] = []
+  tokens.forEach((tok, i) => {
+    if (isCodeToken(tok)) idxs.push(i)
+  })
+  if (idxs.length === 0) return { code: null, description: line.trim() }
+  const i = idxs[0]
+  const code = tokens[i].replace(/^[("'[]+/, "").replace(/[)"'\],;:.]+$/, "").toUpperCase()
+  const before = tokens.slice(0, i).join(" ").trim()
+  const after = tokens.slice(i + 1).join(" ").trim()
+  const nota = after.match(/^\(\s*([^)]+?)\s*\)$/)
+  if (before) return { code, description: nota ? `${before} (${nota[1]})` : before }
+  return { code, description: after }
+}
+
+/**
+/**
+ * Limpia la descripción de un repuesto de 3C sin inventar datos:
+ * referencias de máquina ("p/9993896"), cantidades iniciales ("92 JGO..."),
+ * prefijos ("FALTA ", "se cambia...") y puntuación sobrante.
+ */
+function cleanPartDescription(raw: string): string {
+  let d = String(raw ?? "").replace(/\t/g, " ").replace(/\s+/g, " ").trim()
+  if (!d) return ""
+  d = d.replace(/\s+p\/\s*[A-Za-z0-9\-.]+$/i, "").trim()
+  d = d.replace(/^\d{1,4}\s+(?=[A-Za-zÁÉÍÓÚÑ])/, "").trim()
+  d = stripFaltaPrefix(d)
+  d = cleanDescription(d)
+  d = d.replace(/[.,;:\-\s]+$/, "").trim()
+  return d.toUpperCase()
+}
+
+/**
+ * PARSER REAL de MOTIVO_ESTADO_REP (celda de 3C con saltos de línea):
+ *
+ *   JUEGO DE CARBONES 160432115T   → repuesto + código en la MISMA línea
+ *   Perno De Fijacion              → repuesto...
+ *   1 603 123 032                  → ...y su código en la línea SIGUIENTE
+ *
+ * - Un código solo se asigna al repuesto al que pertenece (el que lo precede).
+ * - Varios repuestos dentro de la misma celda se detectan uno por uno.
+ * - Sin código propio → code = null (NUNCA "S/C" ni el código de otro repuesto).
+ * - Se descartan diagnósticos, fallas, observaciones y mano de obra.
+ * - OBSERVACIONES nunca es fuente: la fuente es MOTIVO_ESTADO_REP.
+ */
+export function parseSparePartsFromMotivoDetailed(motivo: string): { code: string | null; description: string }[] {
+  if (!motivo || isAdminText(motivo) || isLaborText(motivo)) return []
+
+  const out: { code: string | null; description: string }[] = []
+  const seen = new Set<string>()
+  const push = (code: string | null, description: string): void => {
+    const d = cleanPartDescription(description)
+    if (!d) return
+    if (isLaborText(d) || isAdminText(d) || isDiagnosis(d) || !containsSparePart(d)) return
+    const c = code && !isInternalCode(code) ? code.toUpperCase().replace(/\s+/g, "") : null
+    const key = `${c ?? ""}||${d.toUpperCase().replace(/\s+/g, " ")}`
+    if (seen.has(key)) return
+    seen.add(key)
+    out.push({ code: c, description: d })
+  }
+
+  // Descripción que aún no encontró su código.
+  let pending: string | null = null
+  const flushPendiente = (): void => {
+    if (!pending) return
+    const desc = pending
+    pending = null
+    // Sin código propio: se emite la descripción sin código (nunca se le copia
+    // el código de otro repuesto).
+    for (const parte of splitAndParse(desc)) push(parte.code, parte.description)
+  }
+
+  for (const rawLine of cleanLine(motivo)) {
+    const line = rawLine.replace(/\t/g, " ").replace(/\s+/g, " ").trim()
+    if (!line) continue
+    if (isAdminText(line) || isLaborText(line)) {
+      flushPendiente()
+      continue
+    }
+
+    // Caso 2: el código viene en su PROPIA línea, después del repuesto.
+    const soloCodigo = asSoloCodigo(line)
+    if (soloCodigo) {
+      const desc = pending
+      pending = null
+      if (desc) push(soloCodigo, desc)
+      continue
+    }
+
+    // Caso 1: repuesto y código en la MISMA línea.
+    const inline = splitDescriptionAndCode(line)
+    if (inline.code) {
+      flushPendiente()
+      push(inline.code, inline.description)
+      continue
+    }
+
+    // Línea de descripción: queda pendiente por si la siguiente trae su código.
+    flushPendiente()
+    pending = line
+  }
+  flushPendiente()
+
+  return out
+}
+
+/**
+ * Repuestos de un MOTIVO_ESTADO_REP de 3C (implementación única).
+ * Se mantiene este nombre por compatibilidad: importador, reconciliador y
+ * cleanup usan EXACTAMENTE el mismo parser (antes divergían y se borraban
+ * pedidos válidos).
+ */
 export function parseSparePartsFromMotivo(motivo: string): { code: string | null; description: string }[] {
+  return parseSparePartsFromMotivoDetailed(motivo)
+}
+
+/**
+ * Implementación ANTERIOR del parser (línea a línea con splitAndParse).
+ * Se conserva para comparar/diagnosticar resultados históricos; ya NO se usa
+ * en el flujo de importación.
+ */
+export function parseSparePartsFromMotivoLegacy(motivo: string): { code: string | null; description: string }[] {
   if (!motivo || isAdminText(motivo) || isLaborText(motivo)) return []
 
   const lines = cleanLine(motivo)
@@ -794,8 +1198,10 @@ export function parseSparePartsFromMotivo(motivo: string): { code: string | null
 function splitAndParse(text: string): { code: string | null; description: string }[] {
   const parts: { code: string | null; description: string }[] = []
 
-  // Dividir por delimitadores comunes
-  const segments = text.split(/\s*[-;,]\s*/)
+  // Dividir por delimitadores comunes. El guión separa solo cuando está
+  // rodeado de espacios ("Perno - Junta"): así NO se rompen referencias de 3C
+  // como "210042-8" o "220-240V", que son parte del código de la pieza.
+  const segments = text.split(/\s*[;,]\s*|\s+-\s+/)
 
   for (const segment of segments) {
     const trimmed = segment.trim()
@@ -865,7 +1271,11 @@ export async function reconcileSpareOrdersFromWaitingStatus(): Promise<{
       for (const p of parts) {
         const c = p.code ? p.code.toUpperCase().replace(/\s+/g, " ") : ""
         const d = p.description.trim().toLowerCase()
-        validKeys.add(c ? `${ok}||${c}` : `${ok}||${d}`)
+        // Se validan AMBAS claves: por descripción (siempre) y por código
+        // (cuando el parseo lo detectó). Así un pedido existente con código de
+        // 3C no se borra solo porque esta corrida no volvió a extraer el código.
+        validKeys.add(`${ok}||${d}`)
+        if (c) validKeys.add(`${ok}||${c}`)
       }
     }
   }
@@ -888,12 +1298,14 @@ export async function reconcileSpareOrdersFromWaitingStatus(): Promise<{
     if (!known) continue
     const codeN = o.code ? o.code.toUpperCase().replace(/\s+/g, " ") : ""
     const descN = String(o.description ?? "").trim().toLowerCase()
-    const key = codeN
-      ? `${ok}||${codeN}`
-      : `${ok}||${descN}`
+    // Clave con la que se reconoce el pedido (código si lo tiene, si no la
+    // descripción) y clave por descripción. Se comparan AMBAS para no borrar un
+    // pedido válido cuando esta corrida no volvió a extraer el código de 3C.
+    const keyByCode = codeN ? `${ok}||${codeN}` : `${ok}||${descN}`
+    const keyByDesc = `${ok}||${descN}`
     // Eliminar si: no fue revalidado como repuesto válido de un estado
     // "A la Espera Repuestos", O la orden ya no tiene ningún estado de espera.
-    if (validKeys.has(key) && orderHasWaiting.get(ok) === true) continue
+    if ((validKeys.has(keyByDesc) || validKeys.has(keyByCode)) && orderHasWaiting.get(ok) === true) continue
     try {
       await deleteOrders([o.id])
       deleted++
@@ -942,17 +1354,18 @@ export async function cleanupInvalidSpareOrders(): Promise<{
     const code = String(o.code ?? "").trim()
     const desc = String(o.description ?? "").trim()
 
-    // Un repuesto real de 3C siempre tiene código propio (no vacío/S/C) y su
-    // descripción es una pieza concreta (no falla/diagnóstico/MO/observación).
-    const noCode = !code || code.toUpperCase() === "S/C"
-    const internalLaborCode = code !== "" && isInternalCode(code) // ej: "1012"
+    // Un repuesto real de 3C puede NO tener código propio (el código se guarda
+    // vacío, NUNCA "S/C") y su descripción debe ser una pieza concreta (no
+    // falla/diagnóstico/MO/observación). Solo el código INTERNO de mano de obra
+    // (ej: "1012") o una descripción que no es repuesto invalidan el pedido.
+    const internalLaborCode = code !== "" && code.toUpperCase() !== "S/C" && isInternalCode(code) // ej: "1012"
     const badDesc =
       isLaborText(desc) ||
       isAdminText(desc) ||
       isDiagnosis(desc) ||
       !containsSparePart(desc)
 
-    const invalid = noCode || internalLaborCode || badDesc
+    const invalid = internalLaborCode || badDesc
 
     if (invalid) {
       try {
@@ -970,18 +1383,9 @@ export async function cleanupInvalidSpareOrders(): Promise<{
   return { deleted, kept, deletedOrders }
 }
 /**
- * Importa repuestos desde los motivos del estado "A la Espera Repuestos"
- * hacia "Pedidos Rep." (spare_part_orders).
- *
- * REGLA 3C: solo los registros cuyo ESTADO sea "A la Espera Repuestos"
- * generan pedidos. Los motivos de otros estados quedan en el historial.
- *
- * Lógica:
- * - Lee todos los MaintenanceRecords (fuente primaria Redis / Firestore)
- * - Usa motivoByStatus (ESTADO_REPARA_TXT + MOTIVO_ESTADO_REP por registro)
- * - Parsea cada motivo del estado de espera para identificar repuestos
- * - Crea/actualiza spare_part_orders por cada repuesto detectado
- * - Es idempotente: no duplica si ya existe (orden + código/descripción)
+ * Compatibilidad: importa los repuestos en espera cargando los registros de
+ * mantenimiento de la fuente primaria (Redis/Excel). El agente usa
+ * importSparePartsFromRecords() con los registros que ya tiene en memoria.
  */
 export async function importSparePartsFromRepairMotivo(): Promise<{
   created: number
@@ -991,11 +1395,45 @@ export async function importSparePartsFromRepairMotivo(): Promise<{
 }> {
   const { loadMaintenanceRecords } = await import("@/lib/local-sync")
   const maintenance = await loadMaintenanceRecords()
+  return importSparePartsFromRecords(maintenance)
+}
+
+/**
+ * Importa repuestos desde los motivos del estado "A la Espera Repuestos"
+ * hacia "Pedidos Rep." (spare_part_orders), a partir de los registros de
+ * mantenimiento que ya tiene el llamador (sin fetch relativo).
+ *
+ * REGLA 3C: solo los registros cuyo ESTADO sea "A la Espera Repuestos"
+ * generan pedidos. Los motivos de otros estados quedan en el historial.
+ *
+ * Lógica:
+ * - Recibe los MaintenanceRecords ya cargados por el llamador (fuente primaria
+ *   Redis): el agente pasa el consolidado que acaba de escribir.
+ * - Usa motivoByStatus (ESTADO_REPARA_TXT + MOTIVO_ESTADO_REP por registro)
+ * - Parsea cada motivo del estado de espera para identificar repuestos
+ * - Crea/actualiza spare_part_orders por cada repuesto detectado
+ * - Es idempotente: no duplica si ya existe (orden + código/descripción)
+ */
+export async function importSparePartsFromRecords(records: MaintenanceRecord[]): Promise<{
+  created: number
+  updated: number
+  skippedAdmin: number
+  createdOrders: { orderNumber: string; code: string | null; description: string }[]
+}> {
+  // Los registros llegan del propio agente (misma fuente primaria Redis), sin
+  // fetch relativo: esa ruta falla cuando el proceso corre en Node (agente).
+  const maintenance = records
 
   const existing = await getAllOrders()
   const seen = new Map<string, SparePartOrder>()
   for (const o of existing) {
-    const key = `${normOrderKey(o.orderNumber)}||${(o.code || o.description).trim().toLowerCase()}`
+    // La clave debe normalizarse IGUAL que la consulta de abajo (código en
+    // MAYÚSCULAS sin espacios / descripción en minúsculas). Si no coincide, el
+    // mismo repuesto se importa dos veces y se duplican los pedidos.
+    const codeN = o.code ? o.code.toUpperCase().replace(/\s+/g, " ") : ""
+    const key = codeN
+      ? `${normOrderKey(o.orderNumber)}||${codeN}`
+      : `${normOrderKey(o.orderNumber)}||${String(o.description ?? "").trim().toLowerCase()}`
     seen.set(key, o)
   }
 
@@ -1021,6 +1459,9 @@ export async function importSparePartsFromRepairMotivo(): Promise<{
       ),
     ]
     if (waitingMotivos.length === 0) continue
+
+    // Fecha REAL de 3C del estado "A la Espera Repuestos" (nunca "ahora").
+    const waitingDate = resolveWaitingStatusDate(rec)
 
     for (const motivo of waitingMotivos) {
 
@@ -1048,14 +1489,18 @@ export async function importSparePartsFromRepairMotivo(): Promise<{
       if (existingOrder) {
         // Actualizar existente si cambió algo relevante
         const updates: Record<string, unknown> = {}
+        // Reconstruir la fecha real de 3C si faltaba o quedó mal (p. ej. fecha de importación).
+        const currentDate = existingOrder.requestedAt
+        if (waitingDate && (!currentDate || currentDate.getTime() !== waitingDate.getTime())) {
+          updates.requestedAt = waitingDate
+        }
         if (!existingOrder.notes || !existingOrder.notes.includes(motivo)) {
           updates.notes = existingOrder.notes
             ? `${existingOrder.notes}\n---\nMOTIVO_ESTADO_REP: ${motivo}`
             : `MOTIVO_ESTADO_REP: ${motivo}`
         }
         if (Object.keys(updates).length > 0) {
-          const ref = doc(db, COLLECTION, existingOrder.id)
-          await updateDoc(ref, { ...updates, updatedAt: new Date() })
+          await updateOrderDoc(existingOrder.id, { ...updates, updatedAt: new Date() })
           updated++
         }
         continue
@@ -1073,9 +1518,10 @@ export async function importSparePartsFromRepairMotivo(): Promise<{
         description: part.description,
         unit: "unidad",
         quantity: 1,
-        requestedAt: rec.entryDate ?? new Date(),
+        // REGLA: fecha real de 3C del estado "A la Espera Repuestos" (nunca "ahora").
+        requestedAt: waitingDate,
         notes: `Importado desde Órdenes de Reparación (3C): repuesto en espera\nOrden: ${rec.orderNumber}\nCliente: ${rec.clientName}\nEstado: ${rec.status}\n---\nMOTIVO original: ${motivo}`,
-      })
+      }, { allowEmptyCode: true })
 
       seen.set(dedupKey, {
         id: "pending",
@@ -1091,7 +1537,7 @@ export async function importSparePartsFromRepairMotivo(): Promise<{
         quantityReceived: 0,
         quantityUsed: 0,
         status: "SOLICITADO",
-        requestedAt: rec.entryDate ?? new Date(),
+        requestedAt: waitingDate,
         createdAt: new Date(),
         updatedAt: new Date(),
       })

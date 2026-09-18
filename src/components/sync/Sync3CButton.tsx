@@ -12,7 +12,7 @@ import {
 import { toast } from "sonner"
 
 type SyncState = "idle" | "pending" | "running" | "completed" | "error"
-type AgentStatus = "unknown" | "online" | "running" | "offline"
+type AgentStatus = "unknown" | "online" | "running" | "offline" | "error"
 type SyncModule = "stock" | "reparaciones" | "reparaciones_facturadas" | "articulos" | "alquileres" | "todo"
 
 interface Sync3CResult {
@@ -33,10 +33,18 @@ interface CommandStatus {
 }
 
 interface AgentStatusData {
+  /** Estado explícito que calcula /api/sync-3c/agent-status. */
+  state?: "online" | "running" | "offline" | "no-key" | "error"
   online: boolean
   status: string
   machineName: string | null
   lastHeartbeat: string | null
+  /** Motivo cuando no está online (key inexistente, formato inesperado, error de Redis). */
+  reason?: string | null
+  ageSeconds?: number | null
+  keyFound?: boolean | null
+  redisHost?: string | null
+  error?: string
 }
 
 interface Sync3CButtonProps {
@@ -72,6 +80,10 @@ function agentIndicator(status: AgentStatus): { dot: string; label: string } {
       return { dot: "\u{1F7E1}", label: "Ejecutando" }
     case "offline":
       return { dot: "\u{1F534}", label: "Offline" }
+    // Error al CONSULTAR el indicador (fetch/HTTP/Redis/formato): no significa
+    // que el agente esté detenido, por eso se distingue de "offline".
+    case "error":
+      return { dot: "\u{26A0}\u{FE0F}", label: "Error al consultar el estado" }
     default:
       return { dot: "\u{26AA}", label: "Desconocido" }
   }
@@ -96,6 +108,8 @@ export default function Sync3CButton({
   const [module, setModule] = useState<SyncModule>("todo")
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("unknown")
   const [agentData, setAgentData] = useState<AgentStatusData | null>(null)
+  /** Motivo del último problema detectado al consultar el estado (solo informativo). */
+  const [agentIssue, setAgentIssue] = useState<string | null>(null)
   const [result, setResult] = useState<Sync3CResult | null>(null)
   const [pipeline, setPipeline] = useState<string[]>([])
   const [currentPipelineIndex, setCurrentPipelineIndex] = useState(0)
@@ -119,13 +133,33 @@ export default function Sync3CButton({
 
   const fetchAgentStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/sync-3c/agent-status")
+      const res = await fetch("/api/sync-3c/agent-status", { cache: "no-store" })
+
+      if (!res.ok) {
+        // Falla la CONSULTA del indicador: no es lo mismo que "agente detenido".
+        if (!mountedRef.current) return
+        setAgentData(null)
+        setAgentIssue(`No se pudo consultar el estado del agente (HTTP ${res.status})`)
+        setAgentStatus("error")
+        return
+      }
+
       const data: AgentStatusData = await res.json()
 
       if (!mountedRef.current) return
 
       setAgentData(data)
+      setAgentIssue(data.reason ?? data.error ?? null)
 
+      // El endpoint devuelve `state` explícito (online | running | offline | no-key | error).
+      if (data.state) {
+        if (data.state === "online" || data.state === "running") setAgentStatus(data.state)
+        else if (data.state === "offline" || data.state === "no-key") setAgentStatus("offline")
+        else setAgentStatus("error")
+        return
+      }
+
+      // Compatibilidad con respuestas previas (sin `state`).
       if (data.online && data.status === "running") {
         setAgentStatus("running")
       } else if (data.online) {
@@ -135,7 +169,9 @@ export default function Sync3CButton({
       }
     } catch {
       if (mountedRef.current) {
-        setAgentStatus("offline")
+        setAgentData(null)
+        setAgentIssue("No se pudo consultar el estado del agente (sin respuesta de la API)")
+        setAgentStatus("error")
       }
     }
   }, [])
@@ -309,7 +345,9 @@ export default function Sync3CButton({
 
   const agentInfo = agentIndicator(agentStatus)
   const isBusy = state === "pending" || state === "running"
-  const disabled = agentStatus === "offline" || isBusy
+  // Solo se bloquea si el agente está confirmadamente offline. Un ERROR al
+  // consultar el indicador no debe inutilizar el botón de sincronización.
+  const disabled = isBusy || agentStatus === "offline"
   const moduleLabel = MODULE_LABELS[module]
   const currentPipelineModule = pipeline[currentPipelineIndex]
   const progressText = pipeline.length > 1 
@@ -320,7 +358,7 @@ export default function Sync3CButton({
     <div className={`flex items-center gap-2 ${className ?? ""}`}>
       <span
         className="cursor-pointer text-lg leading-none select-none"
-        title={`Agente: ${agentInfo.label}${agentData?.machineName ? ` | PC: ${agentData.machineName}` : ""} | Último heartbeat: ${formatLastHeartbeat(agentData?.lastHeartbeat ?? null)}`}
+        title={`Agente: ${agentInfo.label}${agentData?.machineName ? ` | PC: ${agentData.machineName}` : ""} | Último heartbeat: ${formatLastHeartbeat(agentData?.lastHeartbeat ?? null)}${agentIssue ? ` | ${agentIssue}` : ""}${agentData?.redisHost ? ` | Redis: ${agentData.redisHost}` : ""}`}
       >
         {agentInfo.dot}
       </span>

@@ -71,7 +71,7 @@ async function loadFromExcel(): Promise<MaintenanceRecord[]> {
   const source = getRows()
   if (!source) return cached ?? []
 
-  return parseMaintenanceRows(source.rows)
+  return isDetalleRows(source.rows) ? parseDetalleRows(source.rows) : parseMaintenanceRows(source.rows)
 }
 
 // ---------------------------------------------------------------------------
@@ -285,6 +285,155 @@ export function parseMaintenanceRows(rows: unknown[][]): MaintenanceRecord[] {
   return [...byOrder.values()].sort((a, b) => b.entryDate.getTime() - a.entryDate.getTime())
 }
 
+// ---------------------------------------------------------------------------
+// PARSER DEL INFORME "Detalle de Ordenes de Reparación" (formato DETALLE)
+// Columnas REALES del export de 3C (verificadas con el Excel real 2026-09):
+//   [0]TIPDOC_TEX [1]FECHA [2]NUMERO [3]ESTADO_REPARA_TXT [4]MOTIVO_ESTADO_REP
+//   [5]CLIENTE [6]OBSERVACIONES [7]DESCRIPCION [8]EXPEDIENTE [9]ENTREGA
+//   [10]GARANTIA [11]PRESUPUESTO [12]VENDEDOR [13]COSTO
+// Es un formato DISTINTO al de ÍTEMS: cada fila es UNA orden con su estado
+// actual y su MOTIVO_ESTADO_REP (fuente EXCLUSIVA de Pedidos Rep. cuando el
+// estado es "A la Espera Repuestos"). NUNCA se usan las posiciones del formato
+// ÍTEMS para interpretar DETALLE.
+// ---------------------------------------------------------------------------
+
+function detalleNormHeader(value: unknown): string {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, "_")
+}
+
+function detalleToDate(value: unknown): Date | undefined {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value
+  if (typeof value === "string") {
+    const t = value.trim()
+    if (/^\d{1,2}\/\d{1,2}\/\d{2,4}$/.test(t)) {
+      const parts = t.split("/")
+      const d = Number(parts[0])
+      const m = Number(parts[1])
+      let y = Number(parts[2])
+      if (y < 100) y += 2000
+      // mediodía local evita el corrimiento de día al serializar a UTC (UTC-3)
+      const parsed = new Date(y, m - 1, d, 12, 0, 0)
+      if (!Number.isNaN(parsed.getTime())) return parsed
+    }
+    const parsed = new Date(value)
+    if (!Number.isNaN(parsed.getTime())) return parsed
+  }
+  return undefined
+}
+
+/** Índice de la fila de encabezados del informe DETALLE, o -1 si no lo es. */
+function detalleHeaderIndex(rows: unknown[][]): number {
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const row = rows[i]
+    if (!Array.isArray(row)) continue
+    const header = row.map(detalleNormHeader)
+    if (
+      header.includes("numero") &&
+      header.includes("estado_repara_txt") &&
+      header.includes("motivo_estado_rep")
+    ) {
+      return i
+    }
+  }
+  return -1
+}
+
+/** ¿Estas filas son del informe DETALLE (y NO del informe de ÍTEMS)? */
+export function isDetalleRows(rows: unknown[][]): boolean {
+  return detalleHeaderIndex(rows) >= 0
+}
+
+/**
+ * Parsea el informe DETALLE por NOMBRE de columna y conserva estado +
+ * MOTIVO_ESTADO_REP de cada orden (fuente de Pedidos Rep. en espera).
+ */
+export function parseDetalleRows(rows: unknown[][]): MaintenanceRecord[] {
+  const headerIdx = detalleHeaderIndex(rows)
+  if (headerIdx < 0) return []
+  const header = rows[headerIdx].map(detalleNormHeader)
+  const col = (names: string[], fallback: number): number => {
+    for (const n of names) {
+      const i = header.indexOf(n)
+      if (i >= 0) return i
+    }
+    return fallback
+  }
+  const cTipDoc = col(["tipdoc_tex"], 0)
+  const cFecha = col(["fecha"], 1)
+  const cNumero = col(["numero"], 2)
+  const cEstado = col(["estado_repara_txt", "estado_repara"], 3)
+  const cMotivo = col(["motivo_estado_rep", "motivo_estado"], 4)
+  const cCliente = col(["cliente", "personas_tex", "razon_social"], 5)
+  const cObs = col(["observaciones"], 6)
+  const cDesc = col(["descripcion"], 7)
+  const cExpediente = col(["expediente"], 8)
+  const cEntrega = col(["entrega"], 9)
+  const cGarantia = col(["garantia"], 10)
+  const cPresupuesto = col(["presupuesto"], 11)
+  const cVendedor = col(["vendedor"], 12)
+  const cCosto = col(["costo"], 13)
+
+  const cell = (row: unknown[], i: number): string =>
+    i >= 0 ? String(row[i] ?? "").trim() : ""
+
+  const out: MaintenanceRecord[] = []
+  for (let i = headerIdx + 1; i < rows.length; i++) {
+    const row = rows[i]
+    if (!Array.isArray(row)) continue
+    const orderRaw = cell(row, cNumero).replace(/\s+/g, " ")
+    if (!/^x?\s*\d{3,6}-\d{4,10}$/i.test(orderRaw)) continue
+    const entryDate = detalleToDate(row[cFecha]) ?? new Date()
+    const status = cell(row, cEstado)
+    const motivo = cell(row, cMotivo)
+    const observaciones = cell(row, cObs)
+    const cliente = cell(row, cCliente)
+    out.push({
+      id: orderRaw,
+      orderNumber: orderRaw,
+      type: cell(row, cTipDoc) || undefined,
+      entryDate,
+      returnDate: detalleToDate(row[cEntrega]),
+      // "VARELA ORLANDO (108519)" → nombre + código de cliente
+      clientName: cliente.replace(/\s*\(\s*\d+\s*\)\s*$/, "").trim() || cliente,
+      clientCode: (cliente.match(/\((\d+)\)\s*$/) ?? [])[1],
+      // Máquina/artículo de la orden (DESCRIPCION del DETALLE)
+      machineName: cell(row, cDesc),
+      status,
+      statusDate: entryDate,
+      statusDescription: observaciones || undefined,
+      observations: observaciones || undefined,
+      expediente: cell(row, cExpediente) || undefined,
+      garantia: cell(row, cGarantia) || undefined,
+      presupuesto: cell(row, cPresupuesto) || undefined,
+      vendedor: cell(row, cVendedor) || undefined,
+      costo: cell(row, cCosto) || undefined,
+      motivoEstadoRep: motivo || undefined,
+      // REGLA 3C: solo el estado "A la Espera Repuestos" genera Pedidos Rep.
+      motivoByStatus: motivo && status ? [{ status, motivo }] : [],
+      originalData: { row: row.slice(0, 19) },
+      createdAt: entryDate,
+      updatedAt: new Date(),
+    } as MRecord)
+  }
+  return out.sort((a, b) => b.entryDate.getTime() - a.entryDate.getTime())
+}
+
+/** Parsea un buffer del informe DETALLE. Devuelve [] si no es ese formato. */
+export async function parseDetalleBuffer(buffer: ArrayBuffer | Buffer): Promise<MaintenanceRecord[]> {
+  const XLSX = await import("xlsx")
+  const workbook = XLSX.read(buffer, { type: "buffer" })
+  const sheetName = workbook.SheetNames[0]
+  const sheet = workbook.Sheets[sheetName]
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true }) as unknown[][]
+  return parseDetalleRows(rows)
+}
+
+
 /** Parsea un buffer de Excel de mantenimiento a MaintenanceRecord[]. */
 export async function parseMaintenanceBuffer(buffer: ArrayBuffer | Buffer): Promise<MaintenanceRecord[]> {
   const XLSX = await import("xlsx")
@@ -292,6 +441,9 @@ export async function parseMaintenanceBuffer(buffer: ArrayBuffer | Buffer): Prom
   const sheetName = workbook.SheetNames[0]
   const sheet = workbook.Sheets[sheetName]
   const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true }) as unknown[][]
+  // El informe DETALLE tiene OTRO formato (estado + motivo por orden): se
+  // interpreta con su propio parser y no con las posiciones de ÍTEMS.
+  if (isDetalleRows(rows)) return parseDetalleRows(rows)
   return parseMaintenanceRows(rows)
 }
 

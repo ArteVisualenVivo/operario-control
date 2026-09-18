@@ -11,6 +11,11 @@ export interface ConsolidatedState {
   statusDate?: string
   statusDescription?: string
   statusUser?: string
+  /**
+   * MOTIVO_ESTADO_REP de esa fila del informe de 3C: los repuestos pedidos
+   * cuando el estado es "A la Espera Repuestos". Única fuente de Pedidos Rep.
+   */
+  motivoEstadoRep?: string
   sourceFile?: string
 }
 
@@ -139,11 +144,13 @@ export function extractStatusesExcel(rows: unknown[][], fileName: string): FactM
   const cFecha = col(["fecha"], 1)
   const cEstadoTxt = col(["estado_repara_txt"], 5)
   const cEstado = col(["estado_repara"], 4)
-  const cCliente = col(["personas_tex"], 7)
+  const cCliente = col(["personas_tex", "cliente", "razon_social"], -1)
   const cObs = col(["observaciones"], 8)
-  const cMaquina = col(["orden_compra"], 11)
+  const cMaquina = col(["orden_compra", "descripcion"], -1)
   const cEntrega = col(["entrega"], 13)
   const cUsuario = col(["usuario"], 14)
+  // MOTIVO_ESTADO_REP: repuestos pedidos en ese estado (informe DETALLE de 3C).
+  const cMotivo = col(["motivo_estado_rep", "motivo_estado"], -1)
 
   for (let i = headerIdx + 1; i < rows.length; i++) {
     const row = rows[i]
@@ -175,6 +182,9 @@ export function extractStatusesExcel(rows: unknown[][], fileName: string): FactM
         statusDescription: clean(row[cObs]) || undefined,
         statusUser: clean(row[cUsuario]) || undefined,
         sourceFile: fileName,
+        // Repuestos del motivo de ese estado (solo "A la Espera Repuestos"
+        // genera Pedidos Rep.). Se conserva por estado, sin pisar otros estados.
+        motivoEstadoRep: cMotivo >= 0 ? (clean(row[cMotivo]) || undefined) : undefined,
       }],
       sourceFiles: [fileName],
     })
@@ -293,6 +303,29 @@ export function currentState(consolidated: OrderConsolidated): ConsolidatedState
  * completa (states), trabajos/repuestos (workItems) y origen (sourceFiles).
  * Las órdenes previas que no aparecen en los Excel de esta corrida se conservan.
  */
+/**
+ * Recopila MOTIVO_ESTADO_REP por estado: los que vienen de esta corrida (fila
+ * del informe DETALLE/ESTADOS con su motivo) y los que ya estaban guardados.
+ * Este dato es la ÚNICA fuente de repuestos para Pedidos Rep.: solo el estado
+ * "A la Espera Repuestos" genera pedidos (ver services/sparePartOrders.ts).
+ */
+function collectMotivosByStatus(
+  rec: OrderConsolidated,
+  prev?: MaintenanceRecord,
+): { status: string; motivo: string }[] {
+  const out: { status: string; motivo: string }[] = []
+  const add = (status: unknown, motivo: unknown): void => {
+    const m = clean(motivo)
+    if (!m) return
+    const s = clean(status)
+    if (out.some((e) => e.status === s && e.motivo.toLowerCase() === m.toLowerCase())) return
+    out.push({ status: s, motivo: m })
+  }
+  for (const st of rec.states) add(st.status, st.motivoEstadoRep)
+  for (const e of prev?.motivoByStatus ?? []) add(e.status, e.motivo)
+  return out
+}
+
 export function consolidatedToMaintenanceRecords(
   consolidated: Map<string, OrderConsolidated>,
   existing?: MaintenanceRecord[],
@@ -306,6 +339,11 @@ export function consolidatedToMaintenanceRecords(
   for (const [orderKey, rec] of consolidated.entries()) {
     const cur = currentState(rec)
     const prev = existingByOrder.get(orderKey)
+    const motivosByStatus = collectMotivosByStatus(rec, prev)
+    // Texto plano de todos los motivos (compatibilidad con datos previos).
+    const motivoEstadoRepText = motivosByStatus.length > 0
+      ? [...new Set(motivosByStatus.map((e) => e.motivo))].join("\n")
+      : prev?.motivoEstadoRep
     const merged = {
       ...(prev ?? {}),
       id: prev?.id ?? rec.orderNumber,
@@ -328,8 +366,10 @@ export function consolidatedToMaintenanceRecords(
       sourceFiles: rec.sourceFiles,
       // Preservar motivo + estado de 3C del parse del Excel de Detalle
       // (necesario para la regla "A la Espera Repuestos" → Pedidos Rep.)
-      motivoEstadoRep: prev?.motivoEstadoRep,
-      motivoByStatus: prev?.motivoByStatus,
+      // Motivo + estado de 3C del parse del Excel de Detalle/Estados
+      // (necesario para la regla "A la Espera Repuestos" → Pedidos Rep.)
+      motivoEstadoRep: motivoEstadoRepText ?? prev?.motivoEstadoRep,
+      motivoByStatus: motivosByStatus.length > 0 ? motivosByStatus : prev?.motivoByStatus,
     } as MaintenanceRecord
     result.push(merged)
     existingByOrder.delete(orderKey)

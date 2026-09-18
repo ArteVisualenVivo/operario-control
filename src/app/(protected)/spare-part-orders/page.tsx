@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo, useEffect, useRef } from "react"
+import { useState, useMemo, useEffect, useRef, Fragment } from "react"
 import { useRouter } from "next/navigation"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,7 @@ import { importPendingPartsFromMaintenance } from "@/services/sparePartOrders"
 import { SparePartOrderBadge } from "@/components/repairs/SparePartOrderBadge"
 import { SparePartOrderOrderedDialog } from "@/components/repairs/SparePartOrderOrderedDialog"
 import { formatDate } from "@/lib/ui"
+import { buildSparePartOrderGroups } from "@/lib/sparePartOrderGroups"
 import { toast } from "sonner"
 import type { SparePartOrderStatus, SparePartOrder } from "@/types"
 
@@ -114,7 +115,8 @@ export default function SparePartOrdersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  const daysOld = (d: Date): number => {
+  const daysOld = (d: Date | null): number => {
+    if (!d) return 0
     return Math.floor((MODULE_LOAD_TS - new Date(d).getTime()) / (1000 * 60 * 60 * 24))
   }
 
@@ -157,8 +159,8 @@ export default function SparePartOrdersPage() {
         const matchesQ = !q || o.description.toLowerCase().includes(q) || o.code.toLowerCase().includes(q)
         const matchesOq = !oq || o.orderNumber.toLowerCase().includes(oq) || o.machineName.toLowerCase().includes(oq)
         const matchesDates =
-          (!from || new Date(o.requestedAt) >= from) &&
-          (!to || new Date(o.requestedAt) <= to)
+          (!from || (o.requestedAt && new Date(o.requestedAt) >= from)) &&
+          (!to || (o.requestedAt && new Date(o.requestedAt) <= to))
         return matchesQ && matchesOq && matchesDates
       })
   }, [orders, search, orderSearch, dateFrom, dateTo, matchesFilter])
@@ -173,6 +175,10 @@ export default function SparePartOrdersPage() {
     const cancelados = orders.filter((o) => o.status === "CANCELADO").length
     return { pendientes, encargados, recibidosSinUsar, parciales, atrasados, utilizados, cancelados, total: orders.length }
   }, [orders])
+
+  // Agrupamiento SOLO de presentación: una fila visual por número de orden.
+  // No altera los registros originales ni los datos que vienen de la fuente.
+  const groups = useMemo(() => buildSparePartOrderGroups(visible), [visible])
 
   if (loading) return <p className="text-muted-foreground">Cargando pedidos...</p>
 
@@ -256,7 +262,7 @@ export default function SparePartOrdersPage() {
         </div>
       </div>
 
-      {visible.length === 0 ? (
+      {groups.length === 0 ? (
         <p className="text-sm text-muted-foreground">No hay pedidos que coincidan con el filtro.</p>
       ) : (
         <div className="rounded-md border overflow-x-auto">
@@ -277,19 +283,26 @@ export default function SparePartOrdersPage() {
               </tr>
             </thead>
             <tbody>
-              {visible.map((o) => {
-                const parcial = (o.status === "SOLICITADO" || o.status === "PEDIDO" || o.status === "RECIBIDO") && (o.quantityReceived < o.quantityRequested || (o.quantityUsed > 0 && o.quantityUsed < o.quantityReceived))
-                return (
-                  <tr key={o.id} className="border-b last:border-0 hover:bg-muted/20">
-<td className="py-2 px-3"><input type="checkbox" checked={selected.has(o.id)} onChange={() => toggleSelect(o.id)} /></td>
-                    <td className="py-2 px-3 font-medium">{o.orderNumber || "—"}</td>
-                    <td className="py-2 px-3">{o.machineName}</td>
-                    <td className="py-2 px-3">{o.description}{parcial && <span className="ml-1 text-xs text-violet-600 font-semibold">parcial</span>}</td>
-                    <td className="py-2 px-3 font-mono text-xs">{o.code}</td>
-                    <td className="py-2 px-3 text-right">{o.quantityRequested}</td>
-                    <td className="py-2 px-3 text-right">{o.quantityReceived}</td>
-                    <td className="py-2 px-3 text-right">{o.quantityUsed}</td>
-                    <td className="py-2 px-3">
+              {groups.map((g) => (
+                <Fragment key={g.key}>
+                  {g.parts.map((part, idx) => {
+                    const o = part.order
+                    const lastRow = idx === g.parts.length - 1
+                    return (
+                  <tr key={o.id} className={`hover:bg-muted/20 ${lastRow ? "border-b last:border-0" : ""}`}>
+<td className="py-2 px-3 align-top"><input type="checkbox" checked={selected.has(o.id)} onChange={() => toggleSelect(o.id)} /></td>
+                    {idx === 0 && (
+                      <td className="py-2 px-3 font-medium align-top" rowSpan={g.parts.length}>{g.orderNumber || "—"}</td>
+                    )}
+                    {idx === 0 && (
+                      <td className="py-2 px-3 align-top" rowSpan={g.parts.length}>{g.machineName}</td>
+                    )}
+                    <td className="py-2 px-3 align-top">{part.description}{part.partial && <span className="ml-1 text-xs text-violet-600 font-semibold">parcial</span>}</td>
+                    <td className="py-2 px-3 font-mono text-xs align-top">{part.code || "—"}</td>
+                    <td className="py-2 px-3 text-right align-top">{o.quantityRequested}</td>
+                    <td className="py-2 px-3 text-right align-top">{o.quantityReceived}</td>
+                    <td className="py-2 px-3 text-right align-top">{o.quantityUsed}</td>
+                    <td className="py-2 px-3 align-top">
                       <SparePartOrderBadge status={o.status} />
                       {o.status === "ENCARGADO" && (o.orderedAt || o.expectedAt) && (
                         <span className="block text-xs text-muted-foreground mt-1">
@@ -297,8 +310,8 @@ export default function SparePartOrdersPage() {
                         </span>
                       )}
                     </td>
-                    <td className="py-2 px-3 text-xs">{formatDate(o.requestedAt)}</td>
-                    <td className="py-2 px-3 text-right">
+                    <td className="py-2 px-3 text-xs align-top">{formatDate(o.requestedAt)}</td>
+                    <td className="py-2 px-3 text-right align-top">
                       <div className="flex items-center justify-end gap-1 flex-wrap">
                         {(o.status === "SOLICITADO" || o.status === "PEDIDO") && (
                           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setOrderedTarget(o)}>Encargar</Button>
@@ -308,8 +321,10 @@ export default function SparePartOrdersPage() {
                       </div>
                     </td>
                   </tr>
-                )
-              })}
+                    )
+                  })}
+                </Fragment>
+              ))}
             </tbody>
           </table>
         </div>

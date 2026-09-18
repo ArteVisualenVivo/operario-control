@@ -49,7 +49,7 @@ export default function PurchaseListPage() {
     })()
   }, [])
 
-  const fmtDate = (d: Date | undefined) => (d ? d.toLocaleDateString("es-AR") : "—")
+  const fmtDate = (d: Date | null | undefined) => (d ? d.toLocaleDateString("es-AR") : "—")
   const today = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })
   const hasContent = orders.length > 0 || encargados.length > 0
 

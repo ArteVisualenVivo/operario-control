@@ -26,7 +26,7 @@ import {
     type PrimaryModuleId,
 } from "../src/lib/sync-3c/redisPrimary"
 import { parseMaintenanceBuffer } from "../src/lib/local-sync-excel"
-import { importSparePartsFromRepairMotivo, getAllOrders } from "../src/services/sparePartOrders"
+import { importSparePartsFromRecords, getAllOrders } from "../src/services/sparePartOrders"
 import {
     parseRepairStatusBuffer,
     getLatestStatusByOrder,
@@ -968,7 +968,7 @@ async function processModule(
             }
 
             // —— CONSOLIDACIÓN: cruzar TODOS los Excel de 3C disponibles ——
-            await consolidateMaintenanceFromExports(redis, exportInfo, runStart)
+            const consolidatedRecords = await consolidateMaintenanceFromExports(redis, exportInfo, runStart)
 
             // —— IMPORTACIÓN DE REPUESTOS DESDE MOTIVO_ESTADO_REP ——
             // REGLA 3C: solo los motivos del estado "A la Espera Repuestos"
@@ -989,7 +989,9 @@ async function processModule(
               if (cleaned.deleted > 0) {
                 console.log(`[AGENT] Spare parts cleanup: delete=${cleaned.deleted}, kept=${cleaned.kept} (invalidos eliminados)`)
               }
-              const sparePartsResult = await importSparePartsFromRepairMotivo()
+              // Se importan los repuestos desde los MISMOS registros consolidados que el
+              // agente ya tiene en memoria (sin fetch relativo, que falla en Node).
+              const sparePartsResult = await importSparePartsFromRecords(consolidatedRecords ?? maintenanceRecords)
               console.log(`[AGENT] Spare parts from MOTIVO_ESTADO_REP: created=${sparePartsResult.created}, updated=${sparePartsResult.updated}, skippedAdmin=${sparePartsResult.skippedAdmin}`)
               if (sparePartsResult.createdOrders.length > 0) {
                 console.log(`[AGENT] Spare parts detail:`, sparePartsResult.createdOrders)
