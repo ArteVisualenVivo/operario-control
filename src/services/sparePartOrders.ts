@@ -615,23 +615,61 @@ function isTruncatedIdentification(
 }
 
 /**
- * MODELO de Pedidos de repuesto = contenido EXACTO de la columna DENOMINACION
- * del Excel de Reparaciones de 3C (`Ítems → denominacion`), copiado TAL CUAL:
- * se conserva el prefijo "REPARACION: ", los espacios y las mayúsculas tal como
- * los exporta 3C. No se corta, no se reconstruye y no se completa con ninguna
- * otra columna (descripcion, orden_compra, expediente).
+ * MODELO de Pedidos de repuesto = contenido de la columna DENOMINACION
+ * del Excel de Reparaciones de 3C (`Ítems → denominacion`), copiado con su
+ * prefijo "REPARACION: ", espacios y mayúsculas tal como los exporta 3C.
+ *
+ * Opción B (corte automático): 3C mezcla en ese mismo texto la máquina con
+ * la descripción del trabajo realizado
+ * (ej. "...GWS 2200-230, SE CAMBIA CABLE..."). Se corta SOLO la parte del
+ * trabajo, quedando la máquina completa: se recorta en la primera coma que
+ * NO sea decimal (no está entre dos dígitos, para no romper "0,9 X 2 MTS")
+ * o en el primer punto seguido de espacio o guion (casos "NIWA.- ...",
+ * "MANUAL. se coloca..."). Si no hay ninguno, se devuelve el texto igual.
+ *
+ * No se usa descripcion / orden_compra / expediente.
  *
  * Ej. O.R. X 0001-00011233 → "REPARACION: Amoladora bosch 230 GWS- 25-230 Bare | 3 601 HF4 0H0"
+ * Ej. O.R. X 0001-00011270 → "REPARACION: AMOLADORA BOSCH 230- GWS 2200-230"
+ *     (se corta ", SE CAMBIA CABLE DE ALIMENTACION, SE CAMBIAN CARBONES")
  *
  * Devuelve null cuando la orden no trae DENOMINACION: en ese caso el llamador
  * conserva el modelo derivado de la identificación (nunca se inventa el dato).
  */
 export function modelFromDenominacion(denominacion: unknown): string | null {
   // Solo se quitan los espacios sobrantes de los EXTREMOS (convención de la
-  // casa al leer celdas): el texto interno, el prefijo y las mayúsculas quedan
+  // casa al leer celdas). El texto interno, el prefijo y las mayúsculas quedan
   // EXACTAMENTE como los exporta 3C.
   const raw = String(denominacion ?? "").trim()
-  return raw || null
+  if (!raw) return null
+  // 1. Primera coma que NO sea decimal (no rodeada de dígitos a ambos lados).
+  let commaIdx = -1
+  for (let i = 0; i < raw.length; i++) {
+    if (raw[i] !== ",") continue
+    const prev = i > 0 ? raw[i - 1] : ""
+    const next = i + 1 < raw.length ? raw[i + 1] : ""
+    const prevIsDigit = prev >= "0" && prev <= "9"
+    const nextIsDigit = next >= "0" && next <= "9"
+    if (prevIsDigit && nextIsDigit) continue
+    commaIdx = i
+    break
+  }
+  // 2. Primer punto seguido de espacio o guion ("NIWA.- ...", "MANUAL. ...").
+  let dotIdx = -1
+  for (let i = 0; i < raw.length; i++) {
+    if (raw[i] !== ".") continue
+    const next = i + 1 < raw.length ? raw[i + 1] : ""
+    if (next === " " || next === "-" || next === "\t") {
+      dotIdx = i
+      break
+    }
+  }
+  let cut = -1
+  if (commaIdx >= 0 && dotIdx >= 0) cut = Math.min(commaIdx, dotIdx)
+  else if (commaIdx >= 0) cut = commaIdx
+  else if (dotIdx >= 0) cut = dotIdx
+  const result = (cut >= 0 ? raw.slice(0, cut) : raw).trim()
+  return result || null
 }
 
 /**
