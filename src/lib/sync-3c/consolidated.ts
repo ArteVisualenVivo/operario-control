@@ -129,11 +129,33 @@ function touch(map: FactMap, order: string): OrderConsolidated {
   return rec
 }
 
+/** Compara sin espacios ni mayúsculas para detectar recortes de 3C. */
+function normCompact(value: string): string {
+  return value.replace(/\s+/g, "").toUpperCase()
+}
+
+/**
+ * Prefiere la identificación MÁS COMPLETA de la máquina: si una es el recorte
+ * de la otra (mismo prefijo porque 3C la partió en dos celdas), conserva la más
+ * larga. Si son textos distintos, conserva el primero (comportamiento previo).
+ */
+function pickLongerIdentification(current: string | undefined, incoming: string | undefined): string | undefined {
+  if (incoming && !current) return incoming
+  if (!incoming || !current) return current
+  const c = normCompact(current)
+  const n = normCompact(incoming)
+  if (c === n) return current
+  if (n.startsWith(c)) return incoming
+  if (c.startsWith(n)) return current
+  return current
+}
+
 /** Fusiona sin perder datos: solo completa lo que falta, nunca pisa real con vacío. */
 function mergeFacts(target: OrderConsolidated, src: Partial<OrderConsolidated>): void {
   if (src.clientName && !target.clientName) target.clientName = src.clientName
   if (src.clientCode && !target.clientCode) target.clientCode = src.clientCode
   if (src.machineName && !target.machineName) target.machineName = src.machineName
+  else if (src.machineName && target.machineName) target.machineName = pickLongerIdentification(target.machineName, src.machineName)
   if (src.observations && !target.observations) target.observations = src.observations
   if (src.entryDate && !target.entryDate) target.entryDate = src.entryDate
   if (src.returnDate && !target.returnDate) target.returnDate = src.returnDate

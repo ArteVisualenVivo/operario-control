@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { getAllOrders, splitMachineModel } from "@/services/sparePartOrders"
+import { getAllOrders, splitMachineIdentification } from "@/services/sparePartOrders"
 import { buildSparePartOrderGroups, type SparePartOrderGroup } from "@/lib/sparePartOrderGroups"
 import { updateOrderSupplier } from "@/services/sparePartOrderSupplier"
 import { getRepairs } from "@/services/repairs"
@@ -238,8 +238,10 @@ export default function PurchaseListPage() {
 
   const displayCode = (code: string | null | undefined) =>
     code && code.trim() !== "" && code.trim().toUpperCase() !== "S/C" ? code : "—"
+  // Modelo a mostrar: el guardado; si falta, se deriva con el mismo divisor del
+  // importador (conserva el modelo completo, sin recortar ni duplicar).
   const displayModel = (o: SparePartOrder) =>
-    o.machineModel ?? splitMachineModel(o.machineName).model
+    o.machineModel ?? splitMachineIdentification(o.machineName).model
 
   const printCols = ["", "N° Orden", "Máquina", "Modelo", "Repuesto", "Código repuesto", "Pedido", "Entrega", "Casa de repuesto"]
   const thStyle = { border: "1px solid #999", padding: "4px 6px", textAlign: "left" as const, background: "#f3f3f3" }
