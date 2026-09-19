@@ -113,7 +113,11 @@ interface AdminFirestoreLike {
   collection: (name: string) => {
     get: () => Promise<{ docs: { id: string; data: () => Record<string, unknown> }[] }>
     add: (data: Record<string, unknown>) => Promise<{ id: string }>
-    doc: (id: string) => { update: (data: Record<string, unknown>) => Promise<unknown> }
+    doc: (id: string) => {
+      update: (data: Record<string, unknown>) => Promise<unknown>
+      get: () => Promise<{ exists: boolean; data: () => Record<string, unknown> }>
+      delete: () => Promise<unknown>
+    }
   }
 }
 
@@ -152,18 +156,96 @@ async function getAdminDb(): Promise<AdminFirestoreLike | null> {
   }
 }
 
+/**
+ * Registra una escritura que Firestore rechazó (cuota/permisos) en la cola local.
+ * El cambio NO se pierde: se refleja en el snapshot que muestra la web y se
+ * reintenta cuando la cuota vuelva.
+ */
+async function queueOfflineOp(
+  op: "upsert" | "delete",
+  id: string,
+  data: Record<string, unknown> | undefined,
+  err: unknown,
+): Promise<void> {
+  console.error(
+    `[sparePartOrders] Escritura encolada (${op} ${id}) por Firestore no disponible:`,
+    err instanceof Error ? err.message : err,
+  )
+  try {
+    const { queuePendingOp } = await import("@/lib/sync-3c/orderStore")
+    await queuePendingOp({ id, op, data, queuedAt: Date.now() })
+  } catch {
+    // sin cola local disponible: el snapshot en Redis igual refleja el cambio
+  }
+}
+
 /** Actualiza un pedido existente (client SDK en el navegador, Admin en Node). */
 async function updateOrderDoc(id: string, updates: Record<string, unknown>): Promise<void> {
   const admin = await getAdminDb()
   if (admin) {
-    await admin.collection(COLLECTION).doc(id).update(updates)
-    return
+    try {
+      await admin.collection(COLLECTION).doc(id).update(updates)
+      return
+    } catch (err) {
+      // Cuota agotada en el agente: se encola y el cambio se ve en la web.
+      await queueOfflineOp("upsert", id, updates, err)
+      return
+    }
   }
   await updateDoc(doc(db, COLLECTION, id), updates)
 }
 
-/** Lee los pedidos desde FIRESTORE: fuente de verdad para ESCRIBIR. */
-async function getAllOrdersFromFirestore(): Promise<SparePartOrder[]> {
+/** id sintético para un alta que Firestore rechazó (se reemplaza al reintentar). */
+function offlineOrderId(input: CreateSparePartOrderInput): string {
+  const code = String(input.code ?? "").trim() || String(input.description ?? "").trim()
+  return `local:${normOrderKey(input.orderNumber)}|${code}`
+}
+
+/**
+ * Aplica en Firestore la cola de escrituras pendientes (cuando la cuota volvió).
+ * Se llama desde el agente después de publicar el snapshot.
+ */
+export async function flushPendingOrderWrites(): Promise<{ applied: number; remaining: number }> {
+  if (typeof window !== "undefined") return { applied: 0, remaining: 0 }
+  const { readPendingOps, removePendingOps } = await import("@/lib/sync-3c/orderStore")
+  const pending = await readPendingOps()
+  if (pending.length === 0) return { applied: 0, remaining: 0 }
+  const admin = await getAdminDb()
+  if (!admin) return { applied: 0, remaining: pending.length }
+
+  const applied: string[] = []
+  let remaining = 0
+  for (const op of pending) {
+    try {
+      if (op.op === "delete") {
+        remaining++
+        continue // las bajas se resuelven con el próximo reconcile
+      }
+      if (!op.data) continue
+      if (op.id.startsWith("local:")) {
+        // Alta pendiente (creada sin cuota): se materializa como documento
+        // nuevo en Firestore con los mismos datos.
+        await admin.collection(COLLECTION).add(op.data)
+      } else {
+        await admin.collection(COLLECTION).doc(op.id).update(op.data)
+      }
+      applied.push(op.id)
+    } catch {
+      remaining++
+    }
+  }
+  if (applied.length > 0) await removePendingOps(applied)
+  return { applied: applied.length, remaining }
+}
+
+/**
+ * Lee los pedidos desde FIRESTORE y, si la cuota está agotada, cae a las FUENTES
+ * LOCALES que reflejan el mismo estado: snapshot de Redis → caché en disco.
+ *
+ * Devuelve null cuando NINGUNA fuente está disponible ("estado desconocido"): en
+ * ese caso las rutas de importación se abortan en lugar de crear duplicados.
+ */
+async function getAllOrdersFromFirestore(): Promise<SparePartOrder[] | null> {
   try {
     const q = query(collection(db, COLLECTION), orderBy("requestedAt", "desc"))
     const snap = await getDocs(q)
@@ -179,15 +261,50 @@ async function getAllOrdersFromFirestore(): Promise<SparePartOrder[]> {
           .sort((a, b) => (b.requestedAt?.getTime() ?? 0) - (a.requestedAt?.getTime() ?? 0))
       } catch (adminErr) {
         console.error(
-          "[sparePartOrders] Admin getAllOrders falló:",
+          "[sparePartOrders] Firestore no disponible (cuota/permisos):",
           adminErr instanceof Error ? adminErr.message : adminErr,
         )
       }
     }
     if (LOCAL_MODE) return []
-    console.error("[sparePartOrders] getAllOrders falló:", err instanceof Error ? err.message : err)
-    throw err
+    // —— RESILIENCIA: fuentes locales (misma foto que Firestore) ——
+    const fallback = await loadOrdersFromLocalSources()
+    if (fallback) {
+      console.error(
+        `[sparePartOrders] Se usa la fuente local (${fallback.length} pedidos) porque Firestore no respondió.`,
+      )
+      return fallback
+    }
+    console.error("[sparePartOrders] Sin fuentes disponibles:", err instanceof Error ? err.message : err)
+    return null
   }
+}
+
+/** Snapshot de Redis → caché en disco. null si ninguna tiene datos. */
+async function loadOrdersFromLocalSources(): Promise<SparePartOrder[] | null> {
+  if (typeof window !== "undefined") return null
+  try {
+    const { readModuleData, getRedis } = await import("@/lib/sync-3c/redisPrimary")
+    const env = await readModuleData("spare_part_orders", getRedis())
+    if (env && Array.isArray(env.data) && env.data.length > 0) {
+      return (env.data as Record<string, unknown>[]).map(rawToOrder)
+    }
+  } catch {
+    // sigue con el caché en disco
+  }
+  try {
+    const { readCachedOrders } = await import("@/lib/sync-3c/orderStore")
+    const rows = await readCachedOrders()
+    if (rows && rows.length > 0) return rows.map(rawToOrder)
+  } catch {
+    // sin fuentes locales
+  }
+  return null
+}
+
+/** Pedidos conocidos (Firestore → local). [] cuando no hay ninguna fuente. */
+async function getAllOrdersKnown(): Promise<SparePartOrder[]> {
+  return (await getAllOrdersFromFirestore()) ?? []
 }
 
 /**
@@ -275,7 +392,7 @@ async function invalidatePrimarySparePartOrders(): Promise<void> {
 async function publishSnapshotFromBrowser(): Promise<number> {
   if (typeof window === "undefined") return 0
   try {
-    const orders = await getAllOrdersFromFirestore()
+    const orders = (await getAllOrdersFromFirestore()) ?? []
     if (orders.length === 0) return 0
     const payload = orders.map(orderToPlain)
     await fetch(`/api/sync-3c/data/spare_part_orders`, {
@@ -306,29 +423,86 @@ export async function getAllOrders(): Promise<SparePartOrder[]> {
     const primary = await loadSparePartOrdersPrimary()
     if (primary && primary.length > 0) return primary.map(rawToOrder)
   }
-  return getAllOrdersFromFirestore()
+  return (await getAllOrdersFromFirestore()) ?? []
+}
+
+/**
+ * Aplica las escrituras pendientes (las que Firestore rechazó por cuota/
+ * permisos) sobre una lista de pedidos: altas/actualizaciones se fusionan por
+ * id y las bajas se quitan. Así el snapshot publicado refleja SIEMPRE el
+ * estado real, aunque Firestore no esté disponible.
+ */
+function applyPendingOrderOps(
+  orders: SparePartOrder[],
+  pending: { id: string; op: "upsert" | "delete"; data?: Record<string, unknown> }[],
+): SparePartOrder[] {
+  const map = new Map<string, SparePartOrder>()
+  for (const o of orders) map.set(o.id, o)
+  for (const op of pending) {
+    if (!op?.id) continue
+    if (op.op === "delete") {
+      map.delete(op.id)
+      continue
+    }
+    if (!op.data) continue
+    const base = map.get(op.id)
+    const merged: Record<string, unknown> = {
+      ...(base ? orderToPlain(base) : {}),
+      ...op.data,
+      id: op.id,
+    }
+    map.set(op.id, rawToOrder(merged))
+  }
+  return [...map.values()].sort(
+    (a, b) => (b.requestedAt?.getTime() ?? 0) - (a.requestedAt?.getTime() ?? 0),
+  )
 }
 
 /**
  * PUBLICACIÓN DEL SNAPSHOT en Redis (solo NODE / agente).
  *
  * Deja en Redis la última foto COMPLETA de Pedidos Rep. para que la web la
- * muestre sin depender de Firestore. Si Firestore no está disponible (cuota
- * agotada) se CONSERVA el snapshot anterior en lugar de publicar vacío, así la
- * pantalla sigue mostrando la última foto buena.
+ * muestre sin depender de Firestore.
+ *
+ * SALTO AUTOMÁTICO A REDIS: si Firestore no responde (cuota/permisos), en
+ * lugar de abortar se publica el estado LOCAL (caché en disco / snapshot
+ * anterior de Redis) CON las escrituras pendientes aplicadas — la web sigue
+ * viendo el estado actualizado y, cuando la cuota vuelve, flushPendingOrderWrites
+ * sincroniza Firestore.
  */
 export async function publishSparePartOrdersSnapshot(): Promise<number> {
   if (typeof window !== "undefined") return 0
   try {
     const { getRedis, saveModuleData } = await import("@/lib/sync-3c/redisPrimary")
     const redis = getRedis()
-    let orders: SparePartOrder[] = []
+    let orders: SparePartOrder[] | null = null
     try {
       orders = await getAllOrdersFromFirestore()
     } catch {
-      orders = []
+      orders = null
     }
-    if (orders.length === 0) return 0
+    if (orders === null || orders.length === 0) {
+      const local = await loadOrdersFromLocalSources()
+      if (local && local.length > 0) orders = local
+    }
+    if (!orders || orders.length === 0) return 0
+    // Escrituras que Firestore rechazó: se aplican al snapshot para que la
+    // web las vea de inmediato (se reintentan en Firestore cuando la cuota
+    // vuelva, ver flushPendingOrderWrites).
+    try {
+      const { readPendingOps } = await import("@/lib/sync-3c/orderStore")
+      const pending = await readPendingOps()
+      if (pending.length > 0) orders = applyPendingOrderOps(orders, pending)
+    } catch {
+      // sin cola local disponible: se publica el estado conocido
+    }
+    // Foto local duradera (disco) para el próximo salto a Redis.
+    try {
+      const { writeCachedOrders } = await import("@/lib/sync-3c/orderStore")
+      await writeCachedOrders(orders.map(orderToPlain))
+    } catch {
+      // si falla el caché en disco, el snapshot en Redis igual queda publicado
+    }
     await saveModuleData(redis, {
       module: "spare_part_orders",
       syncId: `spare-part-orders-${Date.now()}`,
@@ -337,6 +511,12 @@ export async function publishSparePartOrdersSnapshot(): Promise<number> {
       degraded: false,
       firestoreStatus: "synced",
     })
+    // Si Firestore ya responde, vaciar la cola de escrituras pendientes.
+    try {
+      await flushPendingOrderWrites()
+    } catch {
+      // se reintenta en la próxima sincronización
+    }
     return orders.length
   } catch (err) {
     console.error(
@@ -434,11 +614,21 @@ export async function createOrder(
   }
 
   // En Node (agente) se escribe con el Admin SDK: mismo documento, misma forma.
+  // RESILIENCIA: si Firestore rechaza la escritura (cuota/permisos), el alta NO
+  // aborta la importación: se encola localmente con un id sintético
+  // determinista y queda reflejada en el snapshot que el agente publica en
+  // Redis. Cuando la cuota vuelve, flushPendingOrderWrites la materializa.
   const admin = await getAdminDb()
   if (admin) {
-    const created = await admin.collection(COLLECTION).add(docData)
-    await createAuditLog("create", "spare_part_order", created.id, null, docData)
-    return created.id
+    try {
+      const created = await admin.collection(COLLECTION).add(docData)
+      await createAuditLog("create", "spare_part_order", created.id, null, docData)
+      return created.id
+    } catch (err) {
+      const syntheticId = offlineOrderId(input)
+      await queueOfflineOp("upsert", syntheticId, docData, err)
+      return syntheticId
+    }
   }
 
   const ref = await addDoc(collection(db, COLLECTION), docData)
@@ -611,18 +801,40 @@ export async function cancelOrder(id: string): Promise<void> {
 export async function deleteOrders(ids: string[]): Promise<void> {
   const unique = Array.from(new Set(ids)).filter(Boolean)
   if (unique.length === 0) return
+  const admin = await getAdminDb()
   await Promise.all(
     unique.map(async (id) => {
-      const ref = doc(db, COLLECTION, id)
       let before: Record<string, unknown> | null = null
-      try {
-        const snap = await getDoc(ref)
-        if (snap.exists()) before = snap.data()
-      } catch {
-        before = null
+      if (admin) {
+        // Node (agente): Admin SDK con resiliencia. Si Firestore rechaza la
+        // baja (cuota/permisos) se encola y el snapshot local deja de mostrar
+        // el pedido hasta que la baja se materialice al volver la cuota.
+        try {
+          const snap = await admin.collection(COLLECTION).doc(id).get()
+          if (snap.exists) before = snap.data() as Record<string, unknown>
+        } catch {
+          before = null
+        }
+        try {
+          await admin.collection(COLLECTION).doc(id).delete()
+        } catch (err) {
+          await queueOfflineOp("delete", id, undefined, err)
+        }
+      } else {
+        const ref = doc(db, COLLECTION, id)
+        try {
+          const snap = await getDoc(ref)
+          if (snap.exists()) before = snap.data()
+        } catch {
+          before = null
+        }
+        await deleteDoc(ref)
       }
-      await deleteDoc(ref)
-      await createAuditLog("delete", "spare_part_order", id, before ?? {}, {})
+      try {
+        await createAuditLog("delete", "spare_part_order", id, before ?? {}, {})
+      } catch {
+        // la auditoría no debe bloquear la operación de datos
+      }
     }),
   )
   await invalidatePrimarySparePartOrders()
@@ -924,6 +1136,12 @@ export async function refreshModelsFromDenominacion(records?: MaintenanceRecord[
   }
 
   const existing = await getAllOrdersFromFirestore()
+  if (!existing) {
+    // Estado desconocido (Firestore sin cuota y sin fuentes locales): abortar
+    // sin escribir, para no crear duplicados.
+    console.error("[sparePartOrders] Refresco de DENOMINACION abortado: sin fuente de pedidos disponible.")
+    return { scanned: 0, updated: 0, withDenominacion: 0, withoutDenominacion: 0, examples: [] }
+  }
   const examples: { orderNumber: string; machineModel: string }[] = []
   let updated = 0
   let withDenominacion = 0
@@ -975,6 +1193,12 @@ export async function importPendingPartsFromMaintenance(): Promise<{
   createdOrders: { orderNumber: string; description: string }[]
 }> {
   const existing = await getAllOrdersFromFirestore()
+  if (!existing) {
+    // Estado desconocido (Firestore sin cuota y sin fuentes locales): abortar
+    // sin escribir, para no crear duplicados.
+    console.error("[sparePartOrders] Importación abortada: sin fuente de pedidos disponible.")
+    return { created: 0, updated: 0, skippedExisting: 0, withoutDate: 0, modelsUpdated: 0, createdOrders: [] }
+  }
   // Mapa (no Set) para poder reconstruir `requestedAt` desde la fecha real de 3C
   // cuando el pedido ya existe con una fecha incorrecta o vacía.
   const seen = new Map<string, SparePartOrder>(
@@ -1693,6 +1917,12 @@ export async function reconcileSpareOrdersFromWaitingStatus(): Promise<{
   const { loadMaintenanceRecords } = await import("@/lib/local-sync")
   const maintenance = await loadMaintenanceRecords()
   const existing = await getAllOrdersFromFirestore()
+  if (!existing) {
+    // Estado desconocido (Firestore sin cuota y sin fuentes locales): no
+    // reconciliar (no borrar) hasta tener una fuente confiable.
+    console.error("[sparePartOrders] Reconcile abortado: sin fuente de pedidos disponible.")
+    return { deleted: 0, deletedOrders: [] }
+  }
 
   const validKeys = new Set<string>()
   const orderHasWaiting = new Map<string, boolean>()
@@ -1782,6 +2012,10 @@ export async function cleanupInvalidSpareOrders(): Promise<{
   deletedOrders: { orderNumber: string; code: string; description: string }[]
 }> {
   const existing = await getAllOrdersFromFirestore()
+  if (!existing) {
+    console.error("[sparePartOrders] Cleanup abortado: sin fuente de pedidos disponible.")
+    return { deleted: 0, kept: 0, deletedOrders: [] }
+  }
   const deletedOrders: { orderNumber: string; code: string; description: string }[] = []
   let deleted = 0
   let kept = 0
@@ -1876,6 +2110,12 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
   const maintenance = records
 
   const existing = await getAllOrdersFromFirestore()
+  if (!existing) {
+    // Estado desconocido (Firestore sin cuota y sin fuentes locales): abortar
+    // sin escribir, para no crear duplicados.
+    console.error("[sparePartOrders] Importación abortada: sin fuente de pedidos disponible.")
+    return { created: 0, updated: 0, skippedAdmin: 0, modelsUpdated: 0, createdOrders: [] }
+  }
   const seen = new Map<string, SparePartOrder>()
   for (const o of existing) {
     // La clave debe normalizarse IGUAL que la consulta de abajo (código en
