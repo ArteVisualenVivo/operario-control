@@ -459,6 +459,44 @@ function applyPendingOrderOps(
 }
 
 /**
+ * Unión de TODAS las fuentes de Pedidos Rep., deduplicada por id:
+ *   Firestore (Admin/client) + snapshot de Redis + caché en disco,
+ *   con las escrituras pendientes aplicadas encima.
+ *
+ * Por qué existe: el importador deduplica contra esta lista. Si deduplicara
+ * solo contra Firestore (o solo contra el snapshot de Redis), todo pedido que
+ * exista en una fuente y no en la otra se volvía a crear → duplicados (eso
+ * produjo 269 documentos para 40 repuestos reales el 19/09/2026). Con la
+ * unión, un pedido existente en CUALQUIER fuente nunca se vuelve a crear.
+ */
+export async function getAllOrdersMerged(): Promise<SparePartOrder[]> {
+  const byId = new Map<string, SparePartOrder>()
+  const push = (list: SparePartOrder[] | null | undefined): void => {
+    if (!list) return
+    for (const o of list) if (o?.id) byId.set(o.id, o)
+  }
+  try {
+    push(await getAllOrdersFromFirestore())
+  } catch {
+    // Firestore no disponible: siguen las fuentes locales
+  }
+  try {
+    push(await loadOrdersFromLocalSources())
+  } catch {
+    // sin fuentes locales disponibles
+  }
+  let list = [...byId.values()]
+  try {
+    const { readPendingOps } = await import("@/lib/sync-3c/orderStore")
+    const pending = await readPendingOps()
+    if (pending.length > 0) list = applyPendingOrderOps(list, pending)
+  } catch {
+    // sin cola local disponible
+  }
+  return list
+}
+
+/**
  * PUBLICACIÓN DEL SNAPSHOT en Redis (solo NODE / agente).
  *
  * Deja en Redis la última foto COMPLETA de Pedidos Rep. para que la web la
@@ -1135,13 +1173,7 @@ export async function refreshModelsFromDenominacion(records?: MaintenanceRecord[
     if (!prev || value.length > prev.length) denominacionByOrder.set(key, value)
   }
 
-  const existing = await getAllOrdersFromFirestore()
-  if (!existing) {
-    // Estado desconocido (Firestore sin cuota y sin fuentes locales): abortar
-    // sin escribir, para no crear duplicados.
-    console.error("[sparePartOrders] Refresco de DENOMINACION abortado: sin fuente de pedidos disponible.")
-    return { scanned: 0, updated: 0, withDenominacion: 0, withoutDenominacion: 0, examples: [] }
-  }
+  const existing = await getAllOrdersMerged()
   const examples: { orderNumber: string; machineModel: string }[] = []
   let updated = 0
   let withDenominacion = 0
@@ -1192,13 +1224,7 @@ export async function importPendingPartsFromMaintenance(): Promise<{
   modelsUpdated: number
   createdOrders: { orderNumber: string; description: string }[]
 }> {
-  const existing = await getAllOrdersFromFirestore()
-  if (!existing) {
-    // Estado desconocido (Firestore sin cuota y sin fuentes locales): abortar
-    // sin escribir, para no crear duplicados.
-    console.error("[sparePartOrders] Importación abortada: sin fuente de pedidos disponible.")
-    return { created: 0, updated: 0, skippedExisting: 0, withoutDate: 0, modelsUpdated: 0, createdOrders: [] }
-  }
+  const existing = await getAllOrdersMerged()
   // Mapa (no Set) para poder reconstruir `requestedAt` desde la fecha real de 3C
   // cuando el pedido ya existe con una fecha incorrecta o vacía.
   const seen = new Map<string, SparePartOrder>(
@@ -1916,13 +1942,7 @@ export async function reconcileSpareOrdersFromWaitingStatus(): Promise<{
 }> {
   const { loadMaintenanceRecords } = await import("@/lib/local-sync")
   const maintenance = await loadMaintenanceRecords()
-  const existing = await getAllOrdersFromFirestore()
-  if (!existing) {
-    // Estado desconocido (Firestore sin cuota y sin fuentes locales): no
-    // reconciliar (no borrar) hasta tener una fuente confiable.
-    console.error("[sparePartOrders] Reconcile abortado: sin fuente de pedidos disponible.")
-    return { deleted: 0, deletedOrders: [] }
-  }
+  const existing = await getAllOrdersMerged()
 
   const validKeys = new Set<string>()
   const orderHasWaiting = new Map<string, boolean>()
@@ -2011,11 +2031,7 @@ export async function cleanupInvalidSpareOrders(): Promise<{
   kept: number
   deletedOrders: { orderNumber: string; code: string; description: string }[]
 }> {
-  const existing = await getAllOrdersFromFirestore()
-  if (!existing) {
-    console.error("[sparePartOrders] Cleanup abortado: sin fuente de pedidos disponible.")
-    return { deleted: 0, kept: 0, deletedOrders: [] }
-  }
+  const existing = await getAllOrdersMerged()
   const deletedOrders: { orderNumber: string; code: string; description: string }[] = []
   let deleted = 0
   let kept = 0
@@ -2109,13 +2125,7 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
   // fetch relativo: esa ruta falla cuando el proceso corre en Node (agente).
   const maintenance = records
 
-  const existing = await getAllOrdersFromFirestore()
-  if (!existing) {
-    // Estado desconocido (Firestore sin cuota y sin fuentes locales): abortar
-    // sin escribir, para no crear duplicados.
-    console.error("[sparePartOrders] Importación abortada: sin fuente de pedidos disponible.")
-    return { created: 0, updated: 0, skippedAdmin: 0, modelsUpdated: 0, createdOrders: [] }
-  }
+  const existing = await getAllOrdersMerged()
   const seen = new Map<string, SparePartOrder>()
   for (const o of existing) {
     // La clave debe normalizarse IGUAL que la consulta de abajo (código en
