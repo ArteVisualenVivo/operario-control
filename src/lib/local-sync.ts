@@ -38,8 +38,8 @@ async function loadFromExcel(): Promise<MaintenanceRecord[]> {
   if (typeof window !== "undefined") {
     return []
   }
-  const { loadFromExcel: loadFromExcelImpl } = await import("./local-sync-excel")
-  return loadFromExcelImpl()
+  const { loadFromExcelServer } = await import("./local-sync.server")
+  return loadFromExcelServer()
 }
 
 // ----------------------------------------------
@@ -68,35 +68,15 @@ async function loadFromFirestore()
   // responde "Missing or insufficient permissions". Se usa el Admin SDK con la
   // service account (mismo mecanismo que engine.ts / firestoreSync.ts).
   if (typeof window === "undefined") {
-    const { getAdminFirestore } = await import("./sync-3c/adminDb")
-    const admin = await getAdminFirestore()
-    if (admin) {
-      try {
-        const snap = await admin.collection("maintenance").get()
-        return snap.docs.map((d) => {
-          const data = d.data()
-          return {
-            id: d.id,
-            ...data,
-            entryDate: data.entryDate ? new Date(data.entryDate as string) : new Date(),
-            returnDate: data.returnDate ? new Date(data.returnDate as string) : undefined,
-            repairDate: data.repairDate ? new Date(data.repairDate as string) : undefined,
-            statusDate: data.statusDate ? new Date(data.statusDate as string) : undefined,
-            createdAt: data.createdAt ? new Date(data.createdAt as string) : new Date(),
-            updatedAt: data.updatedAt ? new Date(data.updatedAt as string) : new Date(),
-          } as MaintenanceRecord
-        })
-      } catch (err) {
-        console.error(
-          "[local-sync] Admin loadFromFirestore falló:",
-          err instanceof Error ? err.message : err,
-        )
-      }
-    }
+    // El puente .server hace el trabajo completo (service account → colección
+    // "maintenance" → MaintenanceRecord[]); devuelve null si el Admin SDK no está
+    // disponible.
+    const { loadMaintenanceAdminServer } = await import("./local-sync.server")
+    const records = await loadMaintenanceAdminServer()
     // Sin Admin disponible y sin fuente primaria: [] en lugar de excepción, para
     // no abortar el ciclo del agente (antes esto frenaba toda la importación de
     // repuestos con "Missing or insufficient permissions").
-    return []
+    return records ?? []
   }
 
   const { getMaintenanceRecords } = await import(

@@ -27,6 +27,7 @@ import {
 } from "../src/lib/sync-3c/redisPrimary"
 import { parseMaintenanceBuffer } from "../src/lib/local-sync-excel"
 import { importSparePartsFromRecords, getAllOrders } from "../src/services/sparePartOrders"
+import { installSparePartOrdersServerStore } from "../src/services/sparePartOrderStore.server"
 import {
     parseRepairStatusBuffer,
     getLatestStatusByOrder,
@@ -34,6 +35,11 @@ import {
 } from "../src/lib/repairStatus"
 import type { MaintenanceRecord } from "../src/services/maintenance"
 import type { Sync3CItem, Sync3CResult } from "../src/lib/sync-3c/types"
+
+// Backend SERVIDOR de Pedidos Rep. (Admin SDK + cola/caché en disco): el agente
+// corre en Node, así que lo instala acá. `sparePartOrders.ts` es isomorfo y el
+// navegador nunca importa fs/path (el puente es server-only).
+installSparePartOrdersServerStore()
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PROJECT_ROOT = path.resolve(__dirname, "..")

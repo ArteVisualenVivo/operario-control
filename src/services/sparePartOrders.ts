@@ -102,13 +102,16 @@ function docToOrder(snap: { id: string; data: () => Record<string, unknown> }): 
 // ============================================================================
 // BACKEND DE FIRESTORE SEGÚN EL ENTORNO
 // - NAVEGADOR: client SDK con la sesión del usuario (comportamiento actual).
-// - NODE (agente local, sin sesión): el client SDK responde "Missing or
-//   insufficient permissions", así que se usa el Admin SDK — el MISMO mecanismo
-//   que ya usan src/lib/sync-3c/engine.ts y firestoreSync.ts con la service
-//   account de sync-agent/service-account.json. No es un backend nuevo: es el
-//   camino server-side que ya existe en el proyecto.
+// - NODE (agente local, sin sesión): el llamador (agente/API routes) usa el
+//   puente `sparePartOrderStore.server.ts` con el Admin SDK y la service
+//   account de sync-agent/service-account.json. Este módulo cliente NUNCA
+//   importa ese puente (ni siquiera vía import dinámico: Turbopack lo bundlearía).
 // ============================================================================
 
+/**
+ * Forma del Admin SDK que usa este módulo. Es SOLO un tipo: TypeScript lo borra
+ * al compilar, así que no agrega nada al bundle del navegador.
+ */
 interface AdminFirestoreLike {
   collection: (name: string) => {
     get: () => Promise<{ docs: { id: string; data: () => Record<string, unknown> }[] }>
@@ -121,45 +124,60 @@ interface AdminFirestoreLike {
   }
 }
 
-let adminDb: AdminFirestoreLike | null = null
-let adminDbResolved = false
+/** Escritura que Firestore rechazó (cuota/permisos) y quedó encolada en disco. */
+export interface PendingOrderOp {
+  id: string
+  op: "upsert" | "delete"
+  data?: Record<string, unknown>
+  queuedAt: number
+}
+
+/**
+ * Backend SERVIDOR de este módulo: Admin SDK de Firestore + cola y caché en
+ * disco (fs). Lo provee el puente server-only `sparePartOrderStore.server.ts`.
+ *
+ * REGLA DE ARQUITECTURA: este módulo es ISOMORFO (lo importan páginas cliente),
+ * así que NO puede importar fs/path/firebase-admin ni siquiera con `import()`
+ * dinámico: Turbopack resuelve los especificadores literales de forma ESTÁTICA y
+ * los incluiría en el bundle del navegador → "Can't resolve 'fs'". Por eso el
+ * backend NO se importa: se INYECTA desde Node (ver
+ * `registerSparePartOrdersServerStore`).
+ */
+export interface SparePartOrdersServerStore {
+  getAdminDb: () => Promise<AdminFirestoreLike | null>
+  readPendingOps: () => Promise<PendingOrderOp[]>
+  removePendingOps: (ids: string[]) => Promise<void>
+  queuePendingOp: (op: PendingOrderOp) => Promise<void>
+  readCachedOrders: () => Promise<Record<string, unknown>[] | null>
+  writeCachedOrders: (rows: Record<string, unknown>[]) => Promise<boolean>
+}
+
+let serverStore: SparePartOrdersServerStore | null = null
+
+/**
+ * Instala el backend servidor (Admin SDK + disco). La llama el agente local al
+ * arrancar, que SÍ corre en Node. En el navegador nunca se llama → `serverStore`
+ * queda null y todas las rutas siguen usando el client SDK (comportamiento
+ * actual de la web).
+ */
+export function registerSparePartOrdersServerStore(store: SparePartOrdersServerStore): void {
+  serverStore = store
+}
 
 /** Admin SDK de Firestore cuando corremos en Node; null en el navegador. */
 async function getAdminDb(): Promise<AdminFirestoreLike | null> {
   if (typeof window !== "undefined") return null
-  if (adminDbResolved) return adminDb
-  adminDbResolved = true
-  try {
-    // API modular + service account: MISMA credencial que ya usa el agente
-    // (src/lib/sync-3c/engine.ts y scripts/*.mjs).
-    const fs = await import("fs")
-    const path = await import("path")
-    const { initializeApp, cert, getApps } = await import("firebase-admin/app")
-    const { getFirestore } = await import("firebase-admin/firestore")
-    const candidates = [
-      path.resolve(process.cwd(), "sync-agent", "service-account.json"),
-      path.resolve(process.cwd(), "..", "sync-agent", "service-account.json"),
-    ]
-    const saPath = candidates.find((candidate) => fs.existsSync(candidate))
-    if (!saPath) throw new Error(`No se encontró service-account.json en: ${candidates.join(", ")}`)
-    const serviceAccount = JSON.parse(fs.readFileSync(saPath, "utf-8"))
-    const app = getApps().length > 0 ? getApps()[0] : initializeApp({ credential: cert(serviceAccount) })
-    adminDb = getFirestore(app) as unknown as AdminFirestoreLike
-    return adminDb
-  } catch (err) {
-    console.error(
-      "[sparePartOrders] Admin SDK no disponible (se usa el client SDK):",
-      err instanceof Error ? err.message : err,
-    )
-    adminDb = null
-    return null
-  }
+  if (!serverStore) return null
+  return serverStore.getAdminDb()
 }
 
 /**
  * Registra una escritura que Firestore rechazó (cuota/permisos) en la cola local.
  * El cambio NO se pierde: se refleja en el snapshot que muestra la web y se
- * reintenta cuando la cuota vuelva.
+ * reintenta cuando la cuota vuelva (ver flushPendingOrderWrites).
+ *
+ * La cola vive en disco (orderStore), que solo existe en Node: se accede por el
+ * backend inyectado para no meter fs en el bundle del navegador.
  */
 async function queueOfflineOp(
   op: "upsert" | "delete",
@@ -172,8 +190,7 @@ async function queueOfflineOp(
     err instanceof Error ? err.message : err,
   )
   try {
-    const { queuePendingOp } = await import("@/lib/sync-3c/orderStore")
-    await queuePendingOp({ id, op, data, queuedAt: Date.now() })
+    await serverStore?.queuePendingOp({ id, op, data, queuedAt: Date.now() })
   } catch {
     // sin cola local disponible: el snapshot en Redis igual refleja el cambio
   }
@@ -204,11 +221,14 @@ function offlineOrderId(input: CreateSparePartOrderInput): string {
 /**
  * Aplica en Firestore la cola de escrituras pendientes (cuando la cuota volvió).
  * Se llama desde el agente después de publicar el snapshot.
+ *
+ * La cola vive en disco (orderStore): solo Node puede leerla/escribirla, por eso
+ * se accede por el backend inyectado. En el navegador es un no-op.
  */
 export async function flushPendingOrderWrites(): Promise<{ applied: number; remaining: number }> {
   if (typeof window !== "undefined") return { applied: 0, remaining: 0 }
-  const { readPendingOps, removePendingOps } = await import("@/lib/sync-3c/orderStore")
-  const pending = await readPendingOps()
+  if (!serverStore) return { applied: 0, remaining: 0 }
+  const pending = await serverStore.readPendingOps()
   if (pending.length === 0) return { applied: 0, remaining: 0 }
   const admin = await getAdminDb()
   if (!admin) return { applied: 0, remaining: pending.length }
@@ -234,7 +254,7 @@ export async function flushPendingOrderWrites(): Promise<{ applied: number; rema
       remaining++
     }
   }
-  if (applied.length > 0) await removePendingOps(applied)
+  if (applied.length > 0) await serverStore.removePendingOps(applied)
   return { applied: applied.length, remaining }
 }
 
@@ -280,10 +300,11 @@ async function getAllOrdersFromFirestore(): Promise<SparePartOrder[] | null> {
   }
 }
 
-/** Snapshot de Redis → caché en disco. null si ninguna tiene datos. */
+/** Snapshot de Redis → caché en disco. null si ninguna de las dos tiene datos. */
 async function loadOrdersFromLocalSources(): Promise<SparePartOrder[] | null> {
   if (typeof window !== "undefined") return null
   try {
+    // redisPrimary es JS puro (@upstash/redis por REST): NO usa fs.
     const { readModuleData, getRedis } = await import("@/lib/sync-3c/redisPrimary")
     const env = await readModuleData("spare_part_orders", getRedis())
     if (env && Array.isArray(env.data) && env.data.length > 0) {
@@ -293,8 +314,7 @@ async function loadOrdersFromLocalSources(): Promise<SparePartOrder[] | null> {
     // sigue con el caché en disco
   }
   try {
-    const { readCachedOrders } = await import("@/lib/sync-3c/orderStore")
-    const rows = await readCachedOrders()
+    const rows = await serverStore?.readCachedOrders()
     if (rows && rows.length > 0) return rows.map(rawToOrder)
   } catch {
     // sin fuentes locales
@@ -466,8 +486,8 @@ function applyPendingOrderOps(
  * Por qué existe: el importador deduplica contra esta lista. Si deduplicara
  * solo contra Firestore (o solo contra el snapshot de Redis), todo pedido que
  * exista en una fuente y no en la otra se volvía a crear → duplicados (eso
- * produjo 269 documentos para 40 repuestos reales el 19/09/2026). Con la
- * unión, un pedido existente en CUALQUIER fuente nunca se vuelve a crear.
+ * produjo 269 documentos para 40 repuestos reales). Con la unión, un pedido
+ * existente en CUALQUIER fuente nunca se vuelve a crear.
  */
 export async function getAllOrdersMerged(): Promise<SparePartOrder[]> {
   const byId = new Map<string, SparePartOrder>()
@@ -487,8 +507,7 @@ export async function getAllOrdersMerged(): Promise<SparePartOrder[]> {
   }
   let list = [...byId.values()]
   try {
-    const { readPendingOps } = await import("@/lib/sync-3c/orderStore")
-    const pending = await readPendingOps()
+    const pending = (await serverStore?.readPendingOps()) ?? []
     if (pending.length > 0) list = applyPendingOrderOps(list, pending)
   } catch {
     // sin cola local disponible
@@ -511,6 +530,7 @@ export async function getAllOrdersMerged(): Promise<SparePartOrder[]> {
 export async function publishSparePartOrdersSnapshot(): Promise<number> {
   if (typeof window !== "undefined") return 0
   try {
+    // redisPrimary es JS puro (@upstash/redis por REST): NO usa fs.
     const { getRedis, saveModuleData } = await import("@/lib/sync-3c/redisPrimary")
     const redis = getRedis()
     let orders: SparePartOrder[] | null = null
@@ -528,16 +548,14 @@ export async function publishSparePartOrdersSnapshot(): Promise<number> {
     // web las vea de inmediato (se reintentan en Firestore cuando la cuota
     // vuelva, ver flushPendingOrderWrites).
     try {
-      const { readPendingOps } = await import("@/lib/sync-3c/orderStore")
-      const pending = await readPendingOps()
+      const pending = (await serverStore?.readPendingOps()) ?? []
       if (pending.length > 0) orders = applyPendingOrderOps(orders, pending)
     } catch {
       // sin cola local disponible: se publica el estado conocido
     }
     // Foto local duradera (disco) para el próximo salto a Redis.
     try {
-      const { writeCachedOrders } = await import("@/lib/sync-3c/orderStore")
-      await writeCachedOrders(orders.map(orderToPlain))
+      await serverStore?.writeCachedOrders(orders.map(orderToPlain))
     } catch {
       // si falla el caché en disco, el snapshot en Redis igual queda publicado
     }

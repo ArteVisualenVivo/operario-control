@@ -3,27 +3,18 @@ import type { MaintenanceRecord } from "@/services/maintenance"
 // Este archivo SOLO se usa en el servidor (Node.js)
 // No debe importarse desde el cliente
 
-async function loadFromExcel(): Promise<MaintenanceRecord[]> {
-  const fs = await import("fs").then(
+export async function loadFromExcelFromDirs(exportsDir: string, cacheFile: string): Promise<MaintenanceRecord[]> {
+  const fs = await import("node:fs").then(
     (m) => m.default || m
   )
-  const path = await import("path").then(
+  const path = await import("node:path").then(
     (m) => m.default || m
   )
   const XLSX = await import("xlsx")
 
-  const EXPORTS_DIR = path.resolve(
-    process.cwd(),
-    "automation-watcher/3c_exports"
-  )
-  const CACHE_DIR = path.resolve(
-    process.cwd(),
-    "automation-watcher/cache"
-  )
-  const MAINTENANCE_CACHE_FILE = path.join(
-    CACHE_DIR,
-    "maintenance-cache.json"
-  )
+  const EXPORTS_DIR = exportsDir
+  const MAINTENANCE_CACHE_FILE = cacheFile
+  void path
 
   function latestExportFile(): string | null {
     if (!fs.existsSync(EXPORTS_DIR)) return null
@@ -447,7 +438,7 @@ export async function parseMaintenanceBuffer(buffer: ArrayBuffer | Buffer): Prom
   return parseMaintenanceRows(rows)
 }
 
-// Se exporta para compatibilidad con local-sync.ts (import dinámico).
-export { loadFromExcel }
+// (loadFromExcelFromDirs es la única vía de lectura desde disco; recibe rutas
+// del llamador para no resolver process.cwd() en este módulo compartido).
 
 
