@@ -28,6 +28,8 @@ interface CommandStatus {
   error?: string | null
   startedAt?: string | null
   completedAt?: string | null
+  /** Momento en que la web creó el comando (ISO o epoch en ms). */
+  createdAt?: string | number
 }
 
 interface AgentStatusData {
@@ -54,6 +56,10 @@ interface Sync3CButtonProps {
 
 const AGENT_POLL_INTERVAL = 60_000
 const STATUS_POLL_INTERVAL = 10_000
+// Si el comando sigue "pending" pasado este margen, el agente no lo tomó (estaba
+// ocupado o detenido): se avisa y se deja de esperar en vez de agotar los 25 min.
+// Es algo mayor que el descarte del agente (2 min) para que su motivo llegue antes.
+const PENDING_NOTICE_TIMEOUT = 150_000
 // El agente puede tardar más de 3 min (AHK ~100s + procesamiento + escritura
 // Redis). Ampliamos el timeout a 10 min para no cortar sincronizaciones reales.
 // El pipeline completo ("Todo") puede tardar más de 15 min (5 módulos × AHK
@@ -239,6 +245,19 @@ export default function Sync3CButton({
         setState("error")
         const currentIdx = currentIndexRef.current
         toast.error(data.error ?? `Error en ${MODULE_LABELS[pipeline[currentIdx] as SyncModule] || "sincronización"}`)
+      } else if (data.status === "not_found") {
+        // El comando ya no está en Redis (expirado o borrado): no se realizó.
+        stopPolling()
+        setState("error")
+        toast.error("No se realizó la sincronización. Volvé a intentar.")
+      } else if (data.status === "pending") {
+        const createdAt = Number(data.createdAt ?? 0)
+        if (createdAt > 0 && Date.now() - createdAt > PENDING_NOTICE_TIMEOUT) {
+          // El agente nunca lo tomó (ocupado o detenido): se avisa y se corta.
+          stopPolling()
+          setState("error")
+          toast.error("No se realizó la sincronización: el agente no la tomó a tiempo. Volvé a intentar.")
+        }
       } else if (data.status === "running") {
         setState("running")
       }
