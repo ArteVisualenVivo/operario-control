@@ -2,14 +2,12 @@
 
 import { useState, useCallback, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { toast } from "sonner"
+import {
+  SYNC_MODULES,
+  DEFAULT_SYNC_MODULES,
+  type SyncModuleId,
+} from "@/lib/sync-3c/syncConfig"
 
 type SyncState = "idle" | "pending" | "running" | "completed" | "error"
 type AgentStatus = "unknown" | "online" | "running" | "offline" | "error"
@@ -105,7 +103,11 @@ export default function Sync3CButton({
   className,
 }: Sync3CButtonProps) {
   const [state, setState] = useState<SyncState>("idle")
-  const [module, setModule] = useState<SyncModule>("todo")
+  // Selección ÚNICA de módulos, compartida con el auto-sync del agente.
+  // Fuente de verdad: Redis (`sync-3c:sync-config`) vía /api/sync-3c/config.
+  // Sobrevive recarga web, reinicio del agente y reinicio de la PC.
+  const [selectedModules, setSelectedModules] = useState<SyncModuleId[]>([...DEFAULT_SYNC_MODULES])
+  const [configLoaded, setConfigLoaded] = useState(false)
   const [agentStatus, setAgentStatus] = useState<AgentStatus>("unknown")
   const [agentData, setAgentData] = useState<AgentStatusData | null>(null)
   /** Motivo del último problema detectado al consultar el estado (solo informativo). */
@@ -249,6 +251,10 @@ export default function Sync3CButton({
   }, [stopPolling, onComplete, pipeline])
 
   const handleSync = useCallback(async () => {
+    if (selectedModules.length === 0) {
+      toast.error("Seleccioná al menos un módulo para sincronizar.")
+      return
+    }
     setState("pending")
     setPipeline([])
     setCurrentPipelineIndex(0)
@@ -261,7 +267,7 @@ export default function Sync3CButton({
       const res = await fetch("/api/sync-3c", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ module }),
+        body: JSON.stringify({ modules: selectedModules }),
       })
       const data = await res.json()
 
@@ -272,7 +278,7 @@ export default function Sync3CButton({
       }
 
       // Guardar pipeline y commandIds
-      setPipeline(data.pipeline || [module])
+      setPipeline((data.pipeline || [...selectedModules]) as SyncModule[])
       commandIdsRef.current = [data.commandId, ...(data.autoEnqueued || [])]
 
        // 2. Iniciar el agente (solo en desarrollo local)
@@ -330,6 +336,48 @@ export default function Sync3CButton({
     handleSync()
   }, [reset, handleSync])
 
+  // Cargar la selección única guardada (misma que usa el auto-sync).
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/sync-3c/config", { cache: "no-store" })
+      .then((r) => r.json())
+      .then((data: { success?: boolean; modules?: unknown }) => {
+        if (cancelled || !data?.success || !Array.isArray(data.modules)) return
+        const valid = (data.modules as string[]).filter((m): m is SyncModuleId =>
+          (SYNC_MODULES as string[]).includes(m),
+        )
+        setSelectedModules(SYNC_MODULES.filter((m) => valid.includes(m)))
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setConfigLoaded(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // Tildar/destildar un módulo: persiste en Redis (la lee también el agente).
+  const toggleModule = useCallback(async (mod: SyncModuleId) => {
+    const next = selectedModules.includes(mod)
+      ? selectedModules.filter((m) => m !== mod)
+      : SYNC_MODULES.filter((m) => m === mod || selectedModules.includes(m))
+    setSelectedModules(next)
+    try {
+      const res = await fetch("/api/sync-3c/config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modules: next }),
+      })
+      const data = (await res.json()) as { success?: boolean; error?: string }
+      if (!res.ok || !data.success) {
+        toast.error(data.error ?? "No se pudo guardar la selección de módulos.")
+      }
+    } catch {
+      toast.error("No se pudo guardar la selección de módulos.")
+    }
+  }, [selectedModules])
+
   useEffect(() => {
     mountedRef.current = true
     fetchAgentStatus()
@@ -347,15 +395,20 @@ export default function Sync3CButton({
   const isBusy = state === "pending" || state === "running"
   // Solo se bloquea si el agente está confirmadamente offline. Un ERROR al
   // consultar el indicador no debe inutilizar el botón de sincronización.
-  const disabled = isBusy || agentStatus === "offline"
-  const moduleLabel = MODULE_LABELS[module]
+  const hasSelection = selectedModules.length > 0
+  const disabled = isBusy || agentStatus === "offline" || !configLoaded || !hasSelection
+  const selectionLabel = !configLoaded
+    ? "Cargando módulos…"
+    : hasSelection
+      ? selectedModules.map((m) => MODULE_LABELS[m]).join(" + ")
+      : "Sin módulos seleccionados"
   const currentPipelineModule = pipeline[currentPipelineIndex]
-  const progressText = pipeline.length > 1 
+  const progressText = pipeline.length > 1
     ? `${MODULE_LABELS[currentPipelineModule as SyncModule] || currentPipelineModule} (${currentPipelineIndex + 1}/${pipeline.length})`
-    : moduleLabel
+    : selectionLabel
 
   return (
-    <div className={`flex items-center gap-2 ${className ?? ""}`}>
+    <div className={`flex flex-wrap items-center gap-2 ${className ?? ""}`}>
       <span
         className="cursor-pointer text-lg leading-none select-none"
         title={`Agente: ${agentInfo.label}${agentData?.machineName ? ` | PC: ${agentData.machineName}` : ""} | Último heartbeat: ${formatLastHeartbeat(agentData?.lastHeartbeat ?? null)}${agentIssue ? ` | ${agentIssue}` : ""}${agentData?.redisHost ? ` | Redis: ${agentData.redisHost}` : ""}`}
@@ -363,30 +416,31 @@ export default function Sync3CButton({
         {agentInfo.dot}
       </span>
 
-      <Select
-        value={module}
-        onValueChange={(val: string | null) => {
-          if (val === "todo" || val === "stock" || val === "reparaciones" || val === "reparaciones_facturadas" || val === "articulos" || val === "alquileres") setModule(val)
-        }}
-        disabled={disabled || state !== "idle"}
-      >
-        <SelectTrigger className="w-[140px]" aria-label="Módulo de sincronización">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectItem value="todo">Todo</SelectItem>
-          <SelectItem value="todo">Todo (5 módulos)</SelectItem>
-          <SelectItem value="stock">Stock</SelectItem>
-          <SelectItem value="reparaciones">Reparaciones</SelectItem>
-          <SelectItem value="reparaciones_facturadas">Rep. Facturadas</SelectItem>
-          <SelectItem value="articulos">Artículos</SelectItem>
-          <SelectItem value="alquileres">Alquileres</SelectItem>
-        </SelectContent>
-      </Select>
+      <fieldset className="flex flex-wrap items-center gap-x-3 gap-y-1" aria-label="Módulos de sincronización (manual y automática)">
+        {SYNC_MODULES.map((mod) => (
+          <label key={mod} className="flex cursor-pointer items-center gap-1 text-sm select-none">
+            <input
+              type="checkbox"
+              className="h-4 w-4 accent-current"
+              checked={selectedModules.includes(mod)}
+              onChange={() => toggleModule(mod)}
+              disabled={isBusy || !configLoaded}
+              aria-label={MODULE_LABELS[mod]}
+            />
+            <span>{MODULE_LABELS[mod]}</span>
+          </label>
+        ))}
+      </fieldset>
 
       {state === "idle" && (
-        <Button variant={variant} size={size} onClick={handleSync} disabled={disabled}>
-          Sincronizar {moduleLabel}
+        <Button
+          variant={variant}
+          size={size}
+          onClick={handleSync}
+          disabled={disabled}
+          title={!hasSelection ? "Seleccioná al menos un módulo para sincronizar." : undefined}
+        >
+          Sincronizar {selectionLabel}
         </Button>
       )}
 

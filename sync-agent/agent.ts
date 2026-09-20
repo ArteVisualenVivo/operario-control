@@ -1454,14 +1454,27 @@ async function triggerAutoSync(redis: Redis) {
         return
     }
 
+    // Selección ÚNICA compartida con la sincronización manual (web).
+    // Fuente de verdad: Redis `sync-3c:sync-config` (sin ella: default inicial).
+    // Desmarcado = no se ejecuta. Sin cascada. Orden canónico del pipeline.
+    const { SYNC_MODULES, getSyncConfig } = await import("../src/lib/sync-3c/syncConfig")
+    const syncConfig = await getSyncConfig(redis)
+    const selected = new Set(syncConfig.modules)
+    const modules = SYNC_MODULES.filter((m) => selected.has(m)) as ModuleName[]
+
+    if (modules.length === 0) {
+        console.log(`[AGENT] Auto-sync ${hour}:00 omitido: ningún módulo seleccionado (ver /api/sync-3c/config)`)
+        lastAutoSyncHour = hour
+        return
+    }
+
     lastAutoSyncHour = hour
 
     console.log(`[AGENT] ════════════════════════════════════════`)
-    console.log(`[AGENT] AUTO-SYNC programado ${hour}:00`)
+    console.log(`[AGENT] AUTO-SYNC programado ${hour}:00 (módulos: ${modules.join(", ")})`)
     console.log(`[AGENT] ════════════════════════════════════════`)
 
-    // Pipeline de los 3 módulos (cada processModule usa el caché compartido)
-    const modules: ModuleName[] = ["stock", "alquileres", "reparaciones"]
+    // Pipeline de los módulos seleccionados (cada processModule usa el caché compartido)
     const pipeline: { commandId: string; module: ModuleName }[] = modules.map((m) => ({
         commandId: `auto-${new Date().toISOString().replace(/[:.]/g, "-")}-${m}`,
         module: m,
