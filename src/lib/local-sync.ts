@@ -1,10 +1,13 @@
+// local-sync.ts — LECTURAS ISOMORFAS.
+//
+// REGLA DE ARQUITECTURA: fs/path/xlsx/firebase-admin viven en
+// local-sync.server.ts y se cargan con `await import()` SOLO dentro de
+// `typeof window === "undefined"`, así el bundle del navegador no los ejecuta.
+//
+// - NAVEGADOR: lee vía fetch a /api/* (Redis) o Firestore client SDK.
+// - NODE (agente/API routes): usa local-sync.server.ts o /api/local/maintenance.
 import type { MachineRepair } from "@/types"
 import type { MaintenanceRecord } from "@/services/maintenance"
-
-// ----------------------------------------------
-// PURE UTILITY FUNCTIONS (no fs/path/xlsx)
-// ----------------------------------------------
-
 function normalize(value: unknown): string {
   return String(value ?? "")
     .trim()

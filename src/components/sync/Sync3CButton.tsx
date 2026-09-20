@@ -288,7 +288,7 @@ export default function Sync3CButton({
            headers: { "Content-Type": "application/json" },
            body: JSON.stringify({ 
              commandId: data.commandId, 
-             module,
+             module: selectedModules[0],
              autoEnqueued: data.autoEnqueued || []
            }),
          })
@@ -320,7 +320,7 @@ export default function Sync3CButton({
       toast.error("Error de conexión al sincronizar")
       setState("idle")
     }
-  }, [module, pollStatus, stopPolling])
+  }, [selectedModules, pollStatus, stopPolling])
 
   const reset = useCallback(() => {
     setState("idle")
