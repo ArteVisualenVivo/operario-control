@@ -1,31 +1,36 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import type { MaintenanceRecord } from "@/services/maintenance"
-import MaintenanceClient from "./maintenance-client"
+// /maintenance ya no tiene entrada propia en el menú: Mantenimiento ahora es la
+// pestaña "Estado 3C" dentro de Reparaciones.
+//
+// Esta ruta se CONSERVA como redirect (no se elimina) para no romper los enlaces
+// existentes: Dashboard (WorkshopSummary), botones de /repairs y marcadores
+// guardados. Se preservan todos los parámetros recibidos (en especial ?order=...)
+// y se fuerza tab=estado3c.
+//
+// La vista en sí (carga de datos + MaintenanceTable) vive en RepairsTabs, que la
+// monta de forma lazy al entrar a la pestaña. No hay lógica duplicada.
 
-const ORDER_PATTERN = /^X\s?\d{4}-\d{8}$/i
+import { Suspense, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 
-export default function MaintenancePage() {
-  const [orders, setOrders] = useState<MaintenanceRecord[]>([])
-  const [loading, setLoading] = useState(true)
+function RedirectToEstado3C() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
   useEffect(() => {
-    const load = async () => {
-      const { loadMaintenanceRecords } = await import("@/lib/local-sync")
-      const loadedOrders = await loadMaintenanceRecords()
-      const visibleOrders = [...loadedOrders]
-        .filter((order) => ORDER_PATTERN.test(order.orderNumber))
-        .sort((a, b) => b.entryDate.getTime() - a.entryDate.getTime())
-      setOrders(visibleOrders)
-      setLoading(false)
-    }
-    load()
-  }, [])
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("tab", "estado3c")
+    router.replace(`/repairs?${params.toString()}`)
+  }, [router, searchParams])
 
-  if (loading) {
-    return <p className="text-muted-foreground">Cargando...</p>
-  }
+  return <p className="text-muted-foreground">Redirigiendo a Reparaciones...</p>
+}
 
-  return <MaintenanceClient initialOrders={orders} />
+export default function MaintenanceRedirectPage() {
+  return (
+    <Suspense fallback={<p className="text-muted-foreground">Redirigiendo a Reparaciones...</p>}>
+      <RedirectToEstado3C />
+    </Suspense>
+  )
 }

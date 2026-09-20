@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { useRepairs } from "@/hooks/useRepairs"
 import { Input } from "@/components/ui/input"
@@ -12,6 +12,7 @@ import {
 import { formatDate } from "@/lib/ui"
 import { toast } from "sonner"
 import { hasMaintenanceLink } from "@/lib/machine-links"
+import RepairsTabs, { useRepairsTabNav } from "@/components/repairs/RepairsTabs"
 import type { MachineRepair } from "@/types"
 
 // Normaliza la clave de vinculación (externalId/machineId ↔ orderNumber):
@@ -54,13 +55,22 @@ export default function RepairsPage() {
   const { repairs, loading, remove } = useRepairs()
   const router = useRouter()
   const searchParams = useSearchParams()
+  // Navegación entre las pestañas Taller / Estado 3C (misma pantalla).
+  const { gotoEstado3C } = useRepairsTabNav()
+  const orderParam = searchParams.get("order")
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  // Filtro por orden recibido vía ?order= (botón "Ver reparaciones" en
-  // Mantenimiento). Se inicializa desde el query y el usuario puede limpiarlo.
-  const [orderFilter, setOrderFilter] = useState<string | null>(searchParams.get("order") ?? null)
+  // Filtro por orden recibido vía ?order= (botón "Ver reparaciones" en la
+  // pestaña Estado 3C). Se inicializa desde el query y el usuario puede limpiarlo.
+  const [orderFilter, setOrderFilter] = useState<string | null>(orderParam)
+
+  // ?order= manda: si cambia (por ejemplo al llegar desde "Ver reparaciones" en
+  // Estado 3C), el filtro se aplica sin recargar la pantalla.
+  useEffect(() => {
+    setOrderFilter(orderParam)
+  }, [orderParam])
 
   const filtered = useMemo(() => {
     return repairs.filter((r) => {
@@ -106,17 +116,12 @@ export default function RepairsPage() {
 
   if (loading) return <p className="text-muted-foreground">Cargando...</p>
 
-  return (
+  // Contenido de la pestaña "Taller": es la pantalla de siempre, sin cambios.
+  // El título y las pestañas (Taller / Estado 3C) los renderiza RepairsTabs.
+  const tallerContent = (
     <div className="space-y-6">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 className="text-2xl font-bold">Reparaciones</h1>
-
-        <div className="flex gap-2">
-          <Button onClick={() => router.push("/repairs/new")}>Nueva reparación</Button>
-          <Button variant="outline" onClick={() => router.push("/maintenance")}>
-            Mantenimiento
-          </Button>
-        </div>
+      <div className="flex flex-wrap gap-2">
+        <Button onClick={() => router.push("/repairs/new")}>Nueva reparación</Button>
       </div>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
@@ -155,7 +160,7 @@ export default function RepairsPage() {
             size="sm"
             onClick={() => {
               setOrderFilter(null)
-              router.push("/repairs")
+              router.push("/repairs?tab=taller")
             }}
           >
             Ver todas
@@ -197,7 +202,7 @@ export default function RepairsPage() {
                     onClick={(e) => {
                       e.stopPropagation()
                       const orderKey = r.externalId ?? r.machineId
-                      router.push(`/maintenance?order=${encodeURIComponent(orderKey)}`)
+                      gotoEstado3C(orderKey)
                     }}
                   >
                     Ver orden
@@ -224,4 +229,6 @@ export default function RepairsPage() {
       </Table>
     </div>
   )
+
+  return <RepairsTabs taller={tallerContent} />
 }

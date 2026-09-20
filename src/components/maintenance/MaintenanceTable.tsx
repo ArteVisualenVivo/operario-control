@@ -28,6 +28,12 @@ const STATUS_CONFIG: Record<string, { label: string; className: string }> = {
 interface Props {
   initialOrders: MaintenanceRecord[]
   focusOrder?: string | null
+  /**
+   * Callback opcional del botón "Ver reparaciones (n)". En la pantalla unificada
+   * de Reparaciones cambia a la pestaña "Taller" con el filtro de esa orden.
+   * Si no se pasa, se conserva el comportamiento anterior (navegar a /repairs?order=...).
+   */
+  onOpenTaller?: (orderNumber: string) => void
 }
 
 // Normalización de número de orden (misma estrategia del proyecto):
@@ -40,7 +46,7 @@ function normKey(value?: string | null): string {
     .trim()
 }
 
-export function MaintenanceTable({ initialOrders, focusOrder }: Props) {
+export function MaintenanceTable({ initialOrders, focusOrder, onOpenTaller }: Props) {
   const [search, setSearch] = useState("")
   const [estadoFilter, setEstadoFilter] = useState<"all" | "taller" | "recepcion" | "finalizada">("all")
   const [desde, setDesde] = useState("")
@@ -228,13 +234,14 @@ export function MaintenanceTable({ initialOrders, focusOrder }: Props) {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() =>
+                              onClick={() => {
+                                // Dentro de la pantalla unificada, cambiar a la pestaña "Taller" sin                                 // salir de /repairs. Si no hay callback, se navega como antes.                                 if (onOpenTaller) {                                   onOpenTaller(order.orderNumber)                                   return                                 }
                                 window.open(
                                   "/repairs?order=" +
                                     encodeURIComponent(order.orderNumber),
                                   "_self"
                                 )
-                              }
+                              }}
                             >
                               Ver reparaciones ({linkedRepairs.length})
                             </Button>

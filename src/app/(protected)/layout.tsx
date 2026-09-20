@@ -19,7 +19,9 @@ const navItems = [
   { href: "/spare-part-orders", label: "Pedidos Rep." },
   // { href: "/stock-movements", label: "Mov. Stock" },
   // { href: "/inventory-movements", label: "Mov. Materiales" },
-  { href: "/maintenance", label: "Mantenimiento" },
+  // "Mantenimiento" (/maintenance) ya no tiene entrada propia: ahora es la
+  // pestaña "Estado 3C" dentro de Reparaciones. La ruta /maintenance se conserva
+  // como redirect para no romper enlaces existentes.
 ]
 
 /**
