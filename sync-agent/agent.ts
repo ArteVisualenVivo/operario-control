@@ -769,41 +769,17 @@ async function consolidateMaintenanceFromExports(
 type ModuleName = "stock" | "reparaciones" | "reparaciones_facturadas" | "articulos" | "alquileres"
 
 // ============================================================================
-// CANDADO ÚNICO DE SINCRONIZACIÓN + POLÍTICA DE COMANDOS MANUALES
+// CANDADO ÚNICO DE SINCRONIZACIÓN — UN SOLO CARRIL
 // ----------------------------------------------------------------------------
 // Reglas que comparten el auto-sync, la cola manual y el modo on-demand:
 //  1) Nunca dos módulos a la vez: los scripts AHK se pisarían sobre la misma
 //     ventana de 3C y el export nunca aparecería.
-//  2) Un comando manual que no se puede ejecutar AHORA no se guarda: se marca
-//     como "failed" con el motivo y se deja expirar solo en Redis. La web ya
-//     muestra ese motivo y ofrece "Reintentar".
+//  2) NADA se descarta ni expira por tiempo: se ejecutan TODOS los módulos
+//     seleccionados. Cuando termina uno, arranca el siguiente.
 // ============================================================================
-
-/** Vida máxima de un comando manual antes de descartarlo. El listener revisa
- *  la cola cada 5s, así que uno sano arranca en segundos; si supera este umbral
- *  es porque el agente estaba ocupado o detenido. */
-const MANUAL_COMMAND_MAX_AGE_MS = 2 * 60 * 1000
-
-/** Cuánto se conserva en Redis el motivo de un comando descartado. */
-const DISCARDED_COMMAND_TTL_SECONDS = 60 * 60
 
 let syncBusy = false
 let syncBusyLabel = ""
-
-/** Marca un comando como NO realizado y lo deja expirar solo en Redis. */
-async function discardCommand(
-    redis: Redis,
-    commandId: string,
-    reason: string,
-): Promise<void> {
-    console.log(`[AGENT] Comando ${commandId} DESCARTADO: ${reason}`)
-    await redis.hset(`sync-3c:command:${commandId}`, {
-        status: "failed",
-        error: reason,
-        completedAt: Date.now(),
-    })
-    await redis.expire(`sync-3c:command:${commandId}`, DISCARDED_COMMAND_TTL_SECONDS)
-}
 
 type ProcessModuleOptions = {
     diagnosticCallback?: (module: string, items: Sync3CItem[]) => void
@@ -1507,8 +1483,6 @@ async function triggerAutoSync(redis: Redis) {
     if (autoSyncInProgress) return
     autoSyncInProgress = true
     try {
-        // Candado compartido con la cola manual (ver processModule).
-        if (syncBusy) return
         await runAutoSync(redis)
     } finally {
         autoSyncInProgress = false
@@ -1540,6 +1514,20 @@ async function runAutoSync(redis: Redis) {
             `[AGENT] Auto-sync ${hour}:00 descartado: 3C no está abierto. Próxima: ${nextAutoSyncLabel(hour)}`,
         )
         return
+    }
+
+    // UN SOLO CARRIL: si hay una sincronización en curso o comandos manuales
+    // esperando en la cola, el auto-sync ESPERA su turno. No hay límite de
+    // tiempo y no se descarta nada: cuando termina la anterior, arranca esta.
+    let waitedForTurn = false
+    while (syncBusy || (await redis.llen("sync-3c:queue")) > 0) {
+        if (!waitedForTurn) {
+            console.log(
+                `[AGENT] Auto-sync ${hour}:00 esperando su turno (en curso: ${syncBusyLabel || "cola manual"})`,
+            )
+            waitedForTurn = true
+        }
+        await new Promise((r) => setTimeout(r, 5000))
     }
 
     if (!(await canSyncToday(redis))) {
@@ -1672,46 +1660,36 @@ async function startAgentListener() {
      // === Bucle principal de escucha (usando cola FIFO) ===
      while (running) {
          try {
-             // Obtener command de la cola (RPOP es atómico)
-             const commandId = await redis.rpop<string>("sync-3c:queue")
+             // UN SOLO CARRIL: solo se toma un comando nuevo cuando no hay nada
+             // corriendo. Si el auto-sync está trabajando, los comandos esperan en
+             // la cola sin expirar y arrancan cuando termina el anterior.
+             if (!syncBusy) {
+                 // Obtener command de la cola (RPOP es atómico)
+                 const commandId = await redis.rpop<string>("sync-3c:queue")
 
-             if (commandId) {
-                 // Obtener datos del command
-                 const data = await redis.hgetall<Record<string, unknown>>(`sync-3c:command:${commandId}`)
+                 if (commandId) {
+                     // Obtener datos del command
+                     const data = await redis.hgetall<Record<string, unknown>>(`sync-3c:command:${commandId}`)
 
-                if (data && data.status === "pending") {
-                    const module = (data.module as string) || "stock"
-                    const createdAt = Number(data.createdAt) || 0
-                    const ageMs = createdAt > 0 ? Date.now() - createdAt : 0
-
-                    if (syncBusy) {
-                        // (1) Hay otra sincronización en curso: NO se espera ni se
-                        // guarda. Se descarta y la web muestra el motivo.
-                        await discardCommand(
-                            redis,
-                            commandId,
-                            `No se realizó la sincronización: hay otra en curso (${syncBusyLabel || "ocupado"}). Volvé a intentar cuando termine.`,
-                        )
-                    } else if (ageMs > MANUAL_COMMAND_MAX_AGE_MS) {
-                        // (2) Superó su vida útil (el agente estaba ocupado o
-                        // detenido): se descarta en lugar de ejecutarlo tarde.
-                        await discardCommand(
-                            redis,
-                            commandId,
-                            `No se realizó la sincronización: pasó demasiado tiempo desde que la pediste (${Math.round(ageMs / 60000)} min). Volvé a sincronizar.`,
-                        )
-                    } else {
-                        // (3) Se puede hacer AHORA.
-                        console.log(`[AGENT] === Processing command from queue: ${commandId} [module: ${module}] ===`)
-                        try {
-                            await processModule(redis, commandId, module as ModuleName)
-                            console.log(`[AGENT] Command ${commandId} processed successfully`)
-                        } catch (err) {
-                            console.error(`[AGENT] Command ${commandId} failed:`, err)
-                        }
-                    }
-                 } else {
-                     console.log(`[AGENT] Command ${commandId} not pending (status: ${data?.status || "not found"}), skipping`)
+                     if (data && data.status === "pending") {
+                         const module = (data.module as string) || "stock"
+                         // Re-chequeo inmediato (sin await en el medio): si el
+                         // auto-sync tomó el carril en este instante, el comando
+                         // vuelve a la cola y NO se pierde.
+                         if (syncBusy) {
+                             await redis.lpush("sync-3c:queue", commandId)
+                         } else {
+                             console.log(`[AGENT] === Processing command from queue: ${commandId} [module: ${module}] ===`)
+                             try {
+                                 await processModule(redis, commandId, module as ModuleName)
+                                 console.log(`[AGENT] Command ${commandId} processed successfully`)
+                             } catch (err) {
+                                 console.error(`[AGENT] Command ${commandId} failed:`, err)
+                             }
+                         }
+                     } else {
+                         console.log(`[AGENT] Command ${commandId} not pending (status: ${data?.status || "not found"}), skipping`)
+                     }
                  }
              }
          } catch (err) {
