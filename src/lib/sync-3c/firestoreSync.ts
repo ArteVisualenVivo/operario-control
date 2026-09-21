@@ -1,6 +1,6 @@
 import type { Sync3CItem } from "./types"
 import type { RepairStatusEntry } from "../repairStatus"
-import { getFirebaseAdmin, loadInventoryIndex } from "./engine"
+import { getFirebaseAdmin, loadInventoryIndex, sanitizeForFirestore } from "./engine"
 
 // ============================================================================
 // firestoreSync.ts — Reescritura Firestore idempotente para el OUTBOX.
@@ -68,17 +68,17 @@ export async function writeStockItemsIdempotent(
 
     if (matchId) {
       // Reusar el doc existente (idempotente respecto al histórico)
-      batch.set(collection.doc(matchId), payload, { merge: true })
+      batch.set(collection.doc(matchId), sanitizeForFirestore(payload), { merge: true })
     } else {
       // Crear doc nuevo con id auto-generado (igual que syncItems en strictMode=false)
-      batch.set(collection.doc(), {
+      batch.set(collection.doc(), sanitizeForFirestore({
         ...payload,
         name: item.name,
         category: item.category ?? "consumibles",
         locationType: "deposito",
         size: null,
         createdAt: new Date(),
-      })
+      }))
     }
     counter++
     if (counter >= BATCH_LIMIT) {
@@ -120,7 +120,7 @@ export async function writeMaintenanceStatusesIdempotent(
       updatedAt: new Date(),
     }
     // identity lógica de mantenimiento: doc id = número de orden normalizado
-    batch.set(collection.doc(orderNumber), payload, { merge: true })
+    batch.set(collection.doc(orderNumber), sanitizeForFirestore(payload), { merge: true })
     counter++
     if (counter >= BATCH_LIMIT) {
       await batch.commit()

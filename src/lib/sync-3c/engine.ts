@@ -2,6 +2,27 @@ import * as XLSX from "xlsx"
 import type { Sync3CItem, Sync3CResult, Sync3CConfig } from "./types"
 import { classifyScaffoldStock } from "@/lib/scaffoldMatcher"
 
+/**
+ * Limpia un payload antes de enviarlo a Firestore: elimina claves con valor
+ * `undefined` de forma recursiva (Firestore las rechaza con
+ * "Cannot use undefined as a Firestore value"). Los `null` se conservan
+ * porque sí son valores válidos. No muta el objeto original.
+ */
+export function sanitizeForFirestore<T>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((v) => sanitizeForFirestore(v)) as unknown as T
+  }
+  if (value !== null && typeof value === "object" && !(value instanceof Date)) {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (v === undefined) continue
+      out[k] = sanitizeForFirestore(v)
+    }
+    return out as unknown as T
+  }
+  return value
+}
+
 const DEFAULTS: Sync3CConfig = {
   unit: "unidad",
   category: "consumibles",
@@ -300,7 +321,7 @@ export async function syncItems(
         return newVal !== oldVal
       })
       if (hasChanges) {
-        batch.set(collection.doc(match.id), payload, { merge: true })
+        batch.set(collection.doc(match.id), sanitizeForFirestore(payload), { merge: true })
         result.updated++
         counter++
       } else {
@@ -308,7 +329,7 @@ export async function syncItems(
       }
     } else if (!config.strictMode) {
       const newDocRef = collection.doc()
-      batch.set(newDocRef, {
+      batch.set(newDocRef, sanitizeForFirestore({
         ...payload,
         name: item.name,
         category: item.category ?? scaffold.category ?? config.category,
@@ -316,7 +337,7 @@ export async function syncItems(
         subtype: item.subtype ?? scaffold.subtype ?? null,
         size: null,
         createdAt: new Date(),
-      })
+      }))
       result.created++
       counter++
     } else {
@@ -869,7 +890,7 @@ export async function syncRepairsToMaintenance(
     const ref = collection.doc(orderNumber)
 
     try {
-      batch.set(ref, payload, { merge: true })
+      batch.set(ref, sanitizeForFirestore(payload), { merge: true })
       counter++
     } catch (err) {
       console.error(err)

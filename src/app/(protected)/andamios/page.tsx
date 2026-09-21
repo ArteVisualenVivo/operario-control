@@ -11,13 +11,12 @@ import MachineCard from "@/components/machines/MachineCard"
 import type { MachineStatus } from "@/types"
 import { statusLabels } from "@/lib/ui"
 import { SCAFFOLD_CATALOG } from "@/lib/scaffoldConfig"
-import { loadScaffoldRentalStats, type ScaffoldRentalStats } from "@/lib/dashboardStats"
+import { loadScaffoldRentalStats, type ScaffoldRentalStats, type PuntalAlquilados } from "@/lib/dashboardStats"
 import { SearchInput } from "@/components/ui/SearchInput"
 import {
   computeScaffoldTotals,
   type ScaffoldRowKey,
 } from "@/lib/scaffoldTotals"
-import { type PuntalAlquilados } from "@/lib/sync-3c/scaffoldRentals"
 import { toast } from "sonner"
 
 // Artículos principales de la zona de carga (los que definen un juego).

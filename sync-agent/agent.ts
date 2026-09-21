@@ -28,6 +28,7 @@ import {
 import { parseMaintenanceBuffer } from "../src/lib/local-sync-excel"
 import { importSparePartsFromRecords, getAllOrders } from "../src/services/sparePartOrders"
 import { installSparePartOrdersServerStore } from "../src/services/sparePartOrderStore.server"
+import { installLocalSyncServerStore } from "../src/lib/local-sync.server"
 import {
     parseRepairStatusBuffer,
     getLatestStatusByOrder,
@@ -36,10 +37,12 @@ import {
 import type { MaintenanceRecord } from "../src/services/maintenance"
 import type { Sync3CItem, Sync3CResult } from "../src/lib/sync-3c/types"
 
-// Backend SERVIDOR de Pedidos Rep. (Admin SDK + cola/caché en disco): el agente
-// corre en Node, así que lo instala acá. `sparePartOrders.ts` es isomorfo y el
-// navegador nunca importa fs/path (el puente es server-only).
+// Backends SERVIDOR (Admin SDK + cola/caché en disco + Excel local): el agente
+// corre en Node, así que los instala acá. `sparePartOrders.ts` y `local-sync.ts`
+// son isomorfos y el navegador nunca importa fs/path/xlsx/firebase-admin
+// (los puentes son server-only y se inyectan).
 installSparePartOrdersServerStore()
+installLocalSyncServerStore()
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PROJECT_ROOT = path.resolve(__dirname, "..")
@@ -75,6 +78,12 @@ process.on("SIGINT", () => { logStream.end(); process.exit(0) })
 process.on("SIGTERM", () => { logStream.end(); process.exit(0) })
 
 const MACHINE_NAME = process.env.COMPUTERNAME || process.env.HOSTNAME || "unknown-pc"
+
+/** Detecta el error de Firestore por valor `undefined` en el payload. */
+function isUndefinedValueError(err: unknown): boolean {
+    const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
+    return /Cannot use "undefined" as a Firestore value/i.test(msg)
+}
 
 const LOCK_FILE = "C:\\Users\\Cesar\\Desktop\\operario-control\\sync-agent\\.agent.lock"
 
@@ -1167,10 +1176,15 @@ async function runModule(
                         created: 0,
                         updated: 0,
                         skipped: items.length,
-                        warnings: [
-                            "Firebase temporalmente bloqueado por cuota (24h)",
-                            "Datos procesados pero no persistidos en inventario",
-                        ],
+                        warnings: isUndefinedValueError(err)
+                            ? [
+                                "Firestore rechazó los datos (campo vacío no válido)",
+                                "Datos procesados pero no persistidos en inventario",
+                            ]
+                            : [
+                                "Firebase temporalmente bloqueado por cuota (24h)",
+                                "Datos procesados pero no persistidos en inventario",
+                            ],
                         degraded: true,
                     }
                     // —— FUENTE PRIMARIA: guardar datos completos recuperables ——

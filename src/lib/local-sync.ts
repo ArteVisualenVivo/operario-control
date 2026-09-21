@@ -1,13 +1,46 @@
 // local-sync.ts — LECTURAS ISOMORFAS.
 //
-// REGLA DE ARQUITECTURA: fs/path/xlsx/firebase-admin viven en
-// local-sync.server.ts y se cargan con `await import()` SOLO dentro de
-// `typeof window === "undefined"`, así el bundle del navegador no los ejecuta.
+// REGLA DE ARQUITECTURA (frontera cliente/servidor):
+// fs/path/xlsx/firebase-admin viven en local-sync.server.ts y NO se importan
+// desde acá. Este módulo lo importan páginas cliente (dashboard, mantenimiento)
+// y sparePartOrders.ts (que también corre en el navegador), así que ni siquiera
+// un `await import("./local-sync.server")` es seguro: Turbopack resuelve los
+// especificadores literales de forma ESTÁTICA y metería xlsx (CommonJS) y
+// firebase-admin en el bundle del navegador → "module is not defined".
 //
-// - NAVEGADOR: lee vía fetch a /api/* (Redis) o Firestore client SDK.
-// - NODE (agente/API routes): usa local-sync.server.ts o /api/local/maintenance.
+// En su lugar el backend servidor se INYECTA desde Node con
+// `registerLocalSyncServerStore()` (lo llama el agente al arrancar; ver
+// installLocalSyncServerStore() en local-sync.server.ts). Es el mismo patrón que
+// usa Pedidos Rep. con sparePartOrderStore.server.ts.
+//
+// - NAVEGADOR: fetch a /api/* (Redis) o Firestore client SDK.
+// - NODE (agente): backend servidor inyectado (Excel local / Admin SDK).
 import type { MachineRepair } from "@/types"
 import type { MaintenanceRecord } from "@/services/maintenance"
+
+/**
+ * Backend SERVIDOR (Node) de las lecturas: Excel local de 3C (fs/xlsx) y
+ * Admin SDK de Firestore. Lo provee `local-sync.server.ts` por INYECCIÓN.
+ *
+ * REGLA: este archivo es ISOMORFO. No puede importar fs/path/xlsx/firebase-admin
+ * ni con `import()` dinámico: el bundler incluye los especificadores literales
+ * igual, aunque el guard de `typeof window` impida ejecutarlos.
+ */
+export interface LocalSyncServerStore {
+  loadFromExcelServer: () => Promise<MaintenanceRecord[]>
+  loadMaintenanceAdminServer: () => Promise<MaintenanceRecord[] | null>
+}
+
+let localSyncServerStore: LocalSyncServerStore | null = null
+
+/**
+ * Instala el backend servidor (Excel local + Admin SDK). La llama el agente local
+ * al arrancar, que SÍ corre en Node. En el navegador nunca se llama → las
+ * lecturas usan la API (Redis) o el client SDK de Firestore.
+ */
+export function registerLocalSyncServerStore(store: LocalSyncServerStore): void {
+  localSyncServerStore = store
+}
 function normalize(value: unknown): string {
   return String(value ?? "")
     .trim()
@@ -37,12 +70,9 @@ function normalizeRepairState(
 // Solo se ejecuta en el servidor (verificado con typeof window)
 // ----------------------------------------------
 async function loadFromExcel(): Promise<MaintenanceRecord[]> {
-  // En el cliente, no hay fs
-  if (typeof window !== "undefined") {
-    return []
-  }
-  const { loadFromExcelServer } = await import("./local-sync.server")
-  return loadFromExcelServer()
+  // En el cliente no hay fs; en Node, sin backend inyectado tampoco hay lectura local.
+  if (typeof window !== "undefined") return []
+  return (await localSyncServerStore?.loadFromExcelServer()) ?? []
 }
 
 // ----------------------------------------------
@@ -71,11 +101,10 @@ async function loadFromFirestore()
   // responde "Missing or insufficient permissions". Se usa el Admin SDK con la
   // service account (mismo mecanismo que engine.ts / firestoreSync.ts).
   if (typeof window === "undefined") {
-    // El puente .server hace el trabajo completo (service account → colección
-    // "maintenance" → MaintenanceRecord[]); devuelve null si el Admin SDK no está
-    // disponible.
-    const { loadMaintenanceAdminServer } = await import("./local-sync.server")
-    const records = await loadMaintenanceAdminServer()
+    // El backend inyectado hace el trabajo completo (service account → colección
+    // "maintenance" → MaintenanceRecord[]); null si el Admin SDK no está
+    // disponible o si nadie instaló el backend.
+    const records = (await localSyncServerStore?.loadMaintenanceAdminServer()) ?? null
     // Sin Admin disponible y sin fuente primaria: [] en lugar de excepción, para
     // no abortar el ciclo del agente (antes esto frenaba toda la importación de
     // repuestos con "Missing or insufficient permissions").

@@ -7,6 +7,7 @@
 //
 // Los componentes web leen vía fetch a /api/* (Redis) o Firestore client SDK.
 
+import { registerLocalSyncServerStore } from "./local-sync"
 import type { MaintenanceRecord } from "@/services/maintenance"
 
 /** Lee el Excel local de 3C (solo disco del servidor/agente). */
@@ -46,4 +47,19 @@ export async function loadMaintenanceAdminServer(): Promise<MaintenanceRecord[] 
     console.error("[local-sync.server] Admin loadFromFirestore falló:", err instanceof Error ? err.message : err)
     return null
   }
+}
+
+/**
+ * Instala el backend servidor en `local-sync.ts` (Excel local + Admin SDK).
+ *
+ * Igual que Pedidos Rep.: `local-sync.ts` es ISOMORFO y no puede importar este
+ * archivo (Turbopack incluiría xlsx/firebase-admin en el bundle del navegador →
+ * "module is not defined"). Por eso el backend se INYECTA desde Node. Solo la
+ * llama el agente local al arrancar; el navegador nunca ejecuta esto.
+ */
+export function installLocalSyncServerStore(): void {
+  registerLocalSyncServerStore({
+    loadFromExcelServer,
+    loadMaintenanceAdminServer,
+  })
 }
