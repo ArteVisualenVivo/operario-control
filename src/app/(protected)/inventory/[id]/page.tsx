@@ -121,6 +121,13 @@ export default function StockDetailPage() {
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSave} className="space-y-4">
+            <div className="rounded-lg bg-muted/30 p-3">
+              <p className="text-xs text-muted-foreground">Código 3C</p>
+              <p className="font-mono font-semibold">{item.codigo ?? "—"}</p>
+              <p className="mt-1 text-xs text-muted-foreground">
+                El código viene del Excel de existencias de 3C; no se edita desde acá.
+              </p>
+            </div>
             <div className="space-y-2">
               <Label htmlFor="name">Nombre</Label>
               <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />

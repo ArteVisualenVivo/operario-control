@@ -21,6 +21,8 @@ interface StockRow {
   type: StockRowType
   id: string
   name: string
+  // CÓDIGO 3C del artículo (columna C "ARTICULO" del Excel de existencias).
+  codigo?: string
   category: string
   total: number
   available: number
@@ -37,6 +39,26 @@ const STATUS_CONFIG: Record<string, { color: string; label: string }> = {
   sin_stock: { color: "bg-red-200 text-red-800", label: "Sin stock" },
   vacio: { color: "bg-muted text-muted-foreground", label: "Vacío" },
 
+}
+
+// Búsqueda tolerante: ignora acentos y separadores, así el código 3C "00-10101"
+// se encuentra escribiendo "0010101" y el nombre "PAÑO" escribiendo "pano".
+function normalizeQuery(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+}
+
+function matchesQuery(row: StockRow, rawQuery: string): boolean {
+  const q = rawQuery.trim().toLowerCase()
+  if (!q) return true
+  if (row.name.toLowerCase().includes(q)) return true
+  if ((row.codigo ?? "").toLowerCase().includes(q)) return true
+  const qn = normalizeQuery(rawQuery)
+  if (!qn) return false
+  return normalizeQuery(row.name).includes(qn) || normalizeQuery(row.codigo ?? "").includes(qn)
 }
 
 function groupMachines(machines: Machine[], categoryFilter: string): StockRow[] {
@@ -122,6 +144,7 @@ export default function StockPage() {
           type: "Material",
           id: m.id,
           name: `${m.name}${m.size ? ` (${m.size})` : ""}`,
+          codigo: m.codigo,
           category: m.category,
           total: m.stockTotal,
           available: m.stockAvailable,
@@ -141,6 +164,7 @@ export default function StockPage() {
           type: "Repuesto",
           id: p.id,
           name: `${p.partCode} — ${p.partName}`,
+          codigo: p.partCode,
           category: p.category,
           total: p.stockTotal,
           available: p.stockAvailable,
@@ -157,8 +181,7 @@ export default function StockPage() {
 
   const filtered = useMemo(() => {
     return allRows.filter((row) => {
-      const q = search.toLowerCase()
-      const matchesSearch = !q || row.name.toLowerCase().includes(q)
+      const matchesSearch = matchesQuery(row, search)
       const matchesStatus =
         statusFilter === "all" || row.status === statusFilter
       return matchesSearch && matchesStatus
@@ -217,7 +240,7 @@ export default function StockPage() {
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <Sync3CButton onComplete={refreshAll} variant="outline" size="sm" />
         <Input
-          placeholder="Buscar por nombre..."
+          placeholder="Buscar por nombre o código..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm"
@@ -256,6 +279,7 @@ export default function StockPage() {
             <TableHeader>
               <TableRow>
                 <TableHead className="w-24">Tipo</TableHead>
+                <TableHead className="w-32">Código 3C</TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Categoría</TableHead>
                 <TableHead className="text-right">Total</TableHead>
@@ -269,6 +293,7 @@ export default function StockPage() {
               {filtered.map((row, idx) => (
                 <TableRow key={`${row.type}-${row.id}-${idx}`}>
                   <TableCell>{row.type}</TableCell>
+                  <TableCell className="font-mono text-xs">{row.codigo || "—"}</TableCell>
                   <TableCell className="font-medium">{row.name}</TableCell>
                   <TableCell>{row.category}</TableCell>
                   <TableCell className="text-right">{row.total}</TableCell>

@@ -12,6 +12,16 @@ import {
 } from "@/components/ui/table"
 import { toast } from "sonner"
 
+// Búsqueda tolerante: ignora acentos y separadores, así el código 3C "00-10101"
+// se encuentra escribiendo "0010101" y el nombre "PAÑO" escribiendo "pano".
+function normalizeQuery(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "")
+}
+
 export default function InventoryPage() {
   const router = useRouter()
   const { items, loading, remove } = useInventoryStock()
@@ -30,8 +40,14 @@ export default function InventoryPage() {
 
   const filtered = useMemo(() => {
     return items.filter((item) => {
-      const q = search.toLowerCase()
-      const matchesSearch = !q || item.name.toLowerCase().includes(q) || (item.codigo ?? "").toLowerCase().includes(q)
+      const q = search.trim().toLowerCase()
+      const qn = normalizeQuery(search)
+      const matchesSearch =
+        !q ||
+        item.name.toLowerCase().includes(q) ||
+        (item.codigo ?? "").toLowerCase().includes(q) ||
+        (qn !== "" &&
+          (normalizeQuery(item.name).includes(qn) || normalizeQuery(item.codigo ?? "").includes(qn)))
       const matchesCategory = categoryFilter === "all" || item.category === categoryFilter
       return matchesSearch && matchesCategory
     })
@@ -101,7 +117,7 @@ export default function InventoryPage() {
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
         <Input
-          placeholder="Buscar por nombre..."
+          placeholder="Buscar por nombre o código..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm"
@@ -128,6 +144,7 @@ export default function InventoryPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Código 3C</TableHead>
                 <TableHead>Nombre</TableHead>
                 <TableHead>Categoría</TableHead>
                 <TableHead>Subtipo</TableHead>
@@ -142,6 +159,7 @@ export default function InventoryPage() {
             <TableBody>
               {filtered.map((item) => (
                 <TableRow key={item.id}>
+                  <TableCell className="font-mono text-xs">{item.codigo ?? "—"}</TableCell>
                   <TableCell className="font-medium">{item.name}</TableCell>
                   <TableCell>{item.category}</TableCell>
                   <TableCell>{item.subtype ?? "—"}</TableCell>
