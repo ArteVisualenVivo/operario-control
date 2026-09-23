@@ -17,11 +17,8 @@ import { writeStockItemsIdempotent, writeMaintenanceStatusesIdempotent } from ".
 import { buildConsolidatedOrders, consolidatedToMaintenanceRecords } from "../src/lib/sync-3c/consolidated"
 import {
     saveModuleData,
-    enqueueOutbox,
-    updateOutboxItem,
     removeOutboxItem,
     listOutboxPending,
-    readOutboxItem,
     readModuleData,
     type PrimaryModuleId,
 } from "../src/lib/sync-3c/redisPrimary"
@@ -700,11 +697,94 @@ function buildSparePartsSeedFromStock(items: Sync3CItem[]) {
  * primaria Redis y lo replica a Firestore (con outbox si falla).
  * Reutilizable desde las ramas "reparaciones" y "reparaciones_facturadas".
  */
+/**
+ * Normaliza `statusDate` a epoch ms. El snapshot que viene de Redis es JSON (la
+ * fecha llega como string ISO), mientras que el registro consolidado trae `Date`.
+ */
+function statusDateMs(value: unknown): number {
+    if (!value) return 0
+    if (value instanceof Date) return value.getTime()
+    const parsed = new Date(String(value)).getTime()
+    return Number.isFinite(parsed) ? parsed : 0
+}
+
+/**
+ * Los 4 campos del estado que escribe `writeMaintenanceStatusesIdempotent`.
+ * Tanto `MaintenanceRecord` (doc consolidado) como `RepairStatusEntry` (línea
+ * base de Redis) los traen, así `statusDiffers` acepta cualquiera de los dos.
+ */
+interface StatusFieldsLike {
+    status?: unknown
+    statusDate?: unknown
+    statusDescription?: unknown
+    statusUser?: unknown
+}
+
+/**
+ * ¿El estado que se va a escribir difiere del que ya está guardado? Se comparan
+ * sólo los campos del estado (no `updatedAt` ni `sourceRow`), que son los únicos
+ * que este paso escribe.
+ */
+function statusDiffers(prev: StatusFieldsLike | undefined, next: StatusFieldsLike): boolean {
+    if (!prev) return true
+    if (String(prev.status ?? "") !== String(next.status ?? "")) return true
+    if (String(prev.statusDescription ?? "") !== String(next.statusDescription ?? "")) return true
+    if (String(prev.statusUser ?? "") !== String(next.statusUser ?? "")) return true
+    return statusDateMs(prev.statusDate) !== statusDateMs(next.statusDate)
+}
+
+/**
+ * Clave de Redis con el ÚLTIMO estado de cada orden que quedó escrito en Firestore.
+ * Es la línea base para decidir qué hace falta reescribir y se actualiza SÓLO
+ * después de un commit exitoso: si una corrida no pudo escribir (cuota, red,
+ * diferido) la siguiente reescribe todo en vez de dejar huecos.
+ *
+ * No sirve comparar contra `sync-3c:data:maintenance` porque ese snapshot se
+ * reescribe en cada paso del pipeline (y queda "pending" cuando la escritura se
+ * difiere), lo que forzaba otra pasada completa de ~1.126 escrituras.
+ */
+const MAINTENANCE_STATUS_BASELINE_KEY = "sync-3c:data:maintenance:status-baseline"
+
+async function readStatusBaseline(redis: Redis): Promise<Map<string, RepairStatusEntry>> {
+    const map = new Map<string, RepairStatusEntry>()
+    try {
+        const raw = await redis.get<unknown>(MAINTENANCE_STATUS_BASELINE_KEY)
+        if (!raw) return map
+        // Upstash auto-deserializa JSON: puede llegar objeto o string.
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw
+        if (parsed && typeof parsed === "object") {
+            for (const [orderNumber, entry] of Object.entries(parsed as Record<string, RepairStatusEntry>)) {
+                if (orderNumber && entry && typeof entry === "object") map.set(orderNumber, entry)
+            }
+        }
+    } catch (err) {
+        console.warn(
+            "[AGENT] No se pudo leer la línea base de estados (se reescribirá todo):",
+            err instanceof Error ? err.message : err,
+        )
+    }
+    return map
+}
+
+async function saveStatusBaseline(redis: Redis, all: Map<string, RepairStatusEntry>): Promise<void> {
+    try {
+        const obj: Record<string, RepairStatusEntry> = {}
+        for (const [orderNumber, entry] of all) obj[orderNumber] = entry
+        await redis.set(MAINTENANCE_STATUS_BASELINE_KEY, JSON.stringify(obj))
+    } catch (err) {
+        console.warn(
+            "[AGENT] No se pudo guardar la línea base de estados:",
+            err instanceof Error ? err.message : err,
+        )
+    }
+}
+
 async function consolidateMaintenanceFromExports(
     redis: Redis,
     exportInfo: Record<string, unknown> | null,
     runStart: number,
     statusBuffer?: Buffer,
+    opts?: { deferFirestoreWrite?: boolean },
 ): Promise<MaintenanceRecord[] | null> {
     try {
         const env = await readModuleData("maintenance", redis)
@@ -725,21 +805,56 @@ async function consolidateMaintenanceFromExports(
             exportInfo,
         })
 
+        // DIFERIDO: este pipeline va a ejecutar `reparaciones_facturadas` más
+        // adelante, y ese paso reescribe el conjunto COMPLETO (con el informe de
+        // estados). Escribir acá también costaba ~1.126 escrituras por corrida.
+        if (opts?.deferFirestoreWrite) {
+            console.log(
+                "[AGENT] Consolidado: escritura Firestore DIFERIDA al paso 'reparaciones_facturadas' del pipeline",
+            )
+            return records
+        }
+
         // —— FIRESTORE (copia secundaria) + OUTBOX si falla ——
         try {
-            const latest = new Map<string, RepairStatusEntry>()
+            // Sólo se escribe lo que CAMBIÓ respecto de lo que Firestore ya tiene: el
+            // consolidado se recalcula completo en cada corrida, pero casi siempre es
+            // idéntico al anterior (era otra pasada redundante de ~1.126 escrituras).
+            // Sin línea base (primer sync, o Redis limpio) se escribe todo: la
+            // omisión nunca puede dejar datos sin escribir.
+            const previousByOrder = await readStatusBaseline(redis)
+
+            const allStatuses = new Map<string, RepairStatusEntry>()
+            const changed = new Map<string, RepairStatusEntry>()
+            let unchanged = 0
             for (const r of records) {
-                if (r.status) {
-                    latest.set(r.orderNumber, {
-                        orderNumber: r.orderNumber,
-                        status: r.status,
-                        statusDate: r.statusDate,
-                        statusDescription: r.statusDescription,
-                        statusUser: r.statusUser,
-                    })
+                if (!r.status) continue
+                const entry: RepairStatusEntry = {
+                    orderNumber: r.orderNumber,
+                    status: r.status,
+                    statusDate: r.statusDate,
+                    statusDescription: r.statusDescription,
+                    statusUser: r.statusUser,
                 }
+                allStatuses.set(r.orderNumber, entry)
+                if (!statusDiffers(previousByOrder.get(r.orderNumber), entry)) {
+                    unchanged++
+                    continue
+                }
+                changed.set(r.orderNumber, entry)
             }
-            await writeMaintenanceStatusesIdempotent(latest)
+
+            console.log(
+                `[AGENT] Mantenimiento: ${changed.size} estado(s) a escribir, ` +
+                `${unchanged} sin cambios (omitidos para no gastar cuota)`,
+            )
+
+            if (changed.size > 0) {
+                await writeMaintenanceStatusesIdempotent(changed)
+            }
+            // Se llega acá sólo si el commit salió bien: la línea base refleja
+            // siempre lo que realmente tiene Firestore.
+            await saveStatusBaseline(redis, allStatuses)
             await saveModuleData(redis, {
                 module: "maintenance",
                 syncId,
@@ -750,20 +865,14 @@ async function consolidateMaintenanceFromExports(
                 exportInfo,
             })
         } catch (fbErr) {
+            // SIN COLAS (pedido 23/09/2026): si Firestore falla, NO se encola ni se guarda
+            // nada a medias. La línea base de estados se actualiza SÓLO después de un commit
+            // exitoso, así que la próxima corrida que sí pueda escribir reescribe todo.
             const fbMsg = fbErr instanceof Error ? fbErr.message : String(fbErr)
-            console.error(`[AGENT] Firebase bloqueado: consolidado de reparaciones pendiente en outbox:`, fbMsg)
-            await enqueueOutbox(redis, {
-                syncId,
-                module: "maintenance",
-                target: "maintenance_status",
-                createdAt: Date.now(),
-                attempts: 0,
-                lastAttemptAt: Date.now(),
-                nextRetryAt: Date.now(),
-                lastError: fbMsg,
-                dataKey: "sync-3c:data:maintenance",
-                bufferBase64: statusBuffer?.toString("base64"),
-            })
+            console.error(
+                `[AGENT] Firebase bloqueado: consolidado de reparaciones NO guardado (sin cola; se reescribe en la próxima corrida):`,
+                fbMsg,
+            )
         }
         return records
     } catch (err) {
@@ -792,6 +901,16 @@ let syncBusyLabel = ""
 
 type ProcessModuleOptions = {
     diagnosticCallback?: (module: string, items: Sync3CItem[]) => void
+    /**
+     * `reparaciones_facturadas` viene DESPUÉS en el MISMO pipeline: la consolidación
+     * de este paso sólo refresca Redis y NO escribe Firestore, porque el paso final
+     * reescribe el conjunto COMPLETO (incluido el informe de estados).
+     *
+     * Motivo (auditoría 22/09/2026): el conjunto de ~1.126 órdenes se grababa 3 veces
+     * por corrida; 2 de esas pasadas eran redundantes y representaban el 22% de la
+     * cuota diaria de escrituras del plan Spark (20k/día).
+     */
+    consolidationDeferredToPipeline?: boolean
 }
 
 /**
@@ -928,18 +1047,12 @@ async function runModule(
                     console.error("[AGENT] Firebase bloqueado: no se persistió dashboard_stats/scaffold_rentals:", fbMsg)
                     result.degraded = true
                     result.warnings.push("Firebase temporalmente bloqueado: stats de alquileres no persistidas en dashboard_stats/scaffold_rentals")
-                    // OUTBOX: conservar el payload completo para re-persistir luego
-                    await enqueueOutbox(redis, {
-                        syncId,
-                        module: "alquileres",
-                        target: "dashboard_stats/scaffold_rentals",
-                        createdAt: Date.now(),
-                        attempts: 0,
-                        lastAttemptAt: Date.now(),
-                        nextRetryAt: Date.now(),
-                        lastError: fbMsg,
-                        dataKey: "sync-3c:data:alquileres",
-                    })
+                    // SIN COLAS: no se encola. El snapshot queda en Redis y la próxima corrida
+                    // que sí pueda escribir Firestore lo persiste completo.
+                    console.warn(
+                        `[AGENT] Dashboard de alquileres NO guardado en Firestore (sin cola; se reescribe en la próxima corrida):`,
+                        fbMsg,
+                    )
                 }
             } catch (parseErr) {
                 const pMsg = parseErr instanceof Error ? parseErr.message : String(parseErr)
@@ -1001,24 +1114,24 @@ async function runModule(
                     ...result,
                     maintenanceError: maintMsg,
                 }
-                // OUTBOX: conservar el buffer original para re-ejecutar syncRepairsToMaintenance
-                const buf = Buffer.from(buffer)
-                await enqueueOutbox(redis, {
-                    syncId,
-                    module: "maintenance",
-                    target: "maintenance",
-                    createdAt: Date.now(),
-                    attempts: 0,
-                    lastAttemptAt: Date.now(),
-                    nextRetryAt: Date.now(),
-                    lastError: maintMsg,
-                    dataKey: "sync-3c:data:maintenance",
-                    bufferBase64: buf.toString("base64"),
-                })
+                // SIN COLAS: no se encola ni se guarda a medias. La próxima corrida que
+                // pueda escribir reescribe el informe de reparaciones completo.
+                console.warn(
+                    `[AGENT] Mantenimiento NO guardado en Firestore (sin cola; se reescribe en la próxima corrida):`,
+                    maintMsg,
+                )
             }
 
             // —— CONSOLIDACIÓN: cruzar TODOS los Excel de 3C disponibles ——
-            const consolidatedRecords = await consolidateMaintenanceFromExports(redis, exportInfo, runStart)
+            // Si `reparaciones_facturadas` sigue en este pipeline, acá sólo se
+            // refresca Redis: ese paso reescribe el consolidado completo.
+            const consolidatedRecords = await consolidateMaintenanceFromExports(
+                redis,
+                exportInfo,
+                runStart,
+                undefined,
+                { deferFirestoreWrite: options?.consolidationDeferredToPipeline === true },
+            )
 
             // —— IMPORTACIÓN DE REPUESTOS DESDE MOTIVO_ESTADO_REP ——
             // REGLA 3C: solo los motivos del estado "A la Espera Repuestos"
@@ -1197,18 +1310,12 @@ async function runModule(
                         firestoreStatus: "degraded",
                         exportInfo,
                     })
-                    // —— OUTBOX: registrar pendiente con referencia a los datos ——
-                    await enqueueOutbox(redis, {
-                        syncId: `${module}-${runStart}`,
-                        module: (module as PrimaryModuleId),
-                        target: "inventory_stock",
-                        createdAt: Date.now(),
-                        attempts: 0,
-                        lastAttemptAt: Date.now(),
-                        nextRetryAt: Date.now(),
-                        lastError: errMsg,
-                        dataKey: `sync-3c:data:${module}`,
-                    })
+                    // SIN COLAS: no se encola. El snapshot queda en Redis y la próxima
+                    // corrida que pueda escribir Firestore lo reescribe completo.
+                    console.warn(
+                        `[AGENT] ${module}: NO guardado en Firestore (sin cola; se reescribe en la próxima corrida):`,
+                        errMsg,
+                    )
                 }
             }
         }
@@ -1292,167 +1399,21 @@ async function runModule(
 async function processOutbox(redis: Redis): Promise<void> {
     try {
         const pendingIds = await listOutboxPending(redis)
-        if (pendingIds.length === 0) return
-        console.log(`[OUTBOX] ${pendingIds.length} item(s) pendiente(s)`)
-
+        // POLITICA (2026-09-21): Firestore es copia secundaria best-effort y NO
+        // tiene cola de reintentos. Todo item heredado del diseno anterior se
+        // descarta sin tocar Firestore: la proxima sincronizacion reescribe el
+        // modulo completo desde Redis, asi que rescatarlo solo gastaba cuota.
         for (const syncId of pendingIds) {
-            const item = await readOutboxItem(redis, syncId)
-            if (!item) continue
-            // no reintentar antes de la próxima ventana (backoff)
-            if (Date.now() < item.nextRetryAt) continue
-
-            // ── VERSIONADO (REGLA 6/7/27): si ya existe un estado primario más
-            //    nuevo para este módulo, este outbox quedó obsoleto y NO debe
-            //    sobrescribirlo. El snapshot más reciente lo reemplaza.
-            const moduleForVersion: PrimaryModuleId =
-              item.module === "maintenance" || item.module === "alquileres"
-                ? item.module
-                : (item.module as PrimaryModuleId)
-            const currentEnv = await readModuleData(moduleForVersion, redis)
-            if (currentEnv && currentEnv.syncId !== item.syncId) {
-                console.log(`[OUTBOX] ${syncId} obsoleto (estado ${moduleForVersion} ahora es ${currentEnv.syncId}) → descartado sin sobrescribir`)
-                await removeOutboxItem(redis, syncId)
-                continue
-            }
-
-            item.attempts += 1
-            item.lastAttemptAt = Date.now()
-
-            let ok = false
-            try {
-                if (item.target === "maintenance") {
-                    // Reintento de REPARACIONES: re-ejecutar con el buffer original
-                    if (item.bufferBase64) {
-                        const buf = Buffer.from(item.bufferBase64, "base64")
-                        const r = await syncRepairsToMaintenance(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer)
-                        console.log(`[OUTBOX] maintenance ${syncId} → created=${r.created} updated=${r.updated} skipped=${r.skipped}`)
-                        ok = true
-                    } else {
-                        console.warn(`[OUTBOX] maintenance ${syncId} sin bufferBase64 — se conserva pendiente`)
-                        ok = false
-                    }
-                } else if (item.target === "maintenance_status") {
-                    // Reintento del consolidado de estados: si hay buffer del Excel
-                    // de estados se re-parsea; si no, se aplican los estados ya
-                    // consolidados en la fuente primaria Redis.
-                    let latestByOrder: Map<string, RepairStatusEntry> | null = null
-                    if (item.bufferBase64) {
-                        const buf = Buffer.from(item.bufferBase64, "base64")
-                        const entries = await parseRepairStatusBuffer(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength) as ArrayBuffer)
-                        latestByOrder = getLatestStatusByOrder(entries)
-                    } else {
-                        const env = await readModuleData("maintenance", redis)
-                        if (env && Array.isArray(env.data)) {
-                            latestByOrder = new Map()
-                            for (const r of env.data as MaintenanceRecord[]) {
-                                if (r.status) {
-                                    latestByOrder.set(r.orderNumber, {
-                                        orderNumber: r.orderNumber,
-                                        status: r.status,
-                                        statusDate: r.statusDate,
-                                        statusDescription: r.statusDescription,
-                                        statusUser: r.statusUser,
-                                    })
-                                }
-                            }
-                        }
-                    }
-                    if (latestByOrder && latestByOrder.size > 0) {
-                        await writeMaintenanceStatusesIdempotent(latestByOrder)
-                        console.log(`[OUTBOX] maintenance_status ${syncId} → ${latestByOrder.size} órdenes actualizadas`)
-                        ok = true
-                    } else {
-                        console.warn(`[OUTBOX] maintenance_status ${syncId} sin datos de estado — se conserva pendiente`)
-                        ok = false
-                    }
-                } else if (item.target === "dashboard_stats/scaffold_rentals") {
-                    // Reintento de ALQUILERES
-                    const env = await readModuleData("alquileres", redis)
-                    if (env && env.data) {
-                        await saveScaffoldRentalStats(env.data as ScaffoldRentalStats)
-                        console.log(`[OUTBOX] alquileres ${syncId} → scaffold_rentals reescrito`)
-                        ok = true
-                    } else {
-                        console.warn(`[OUTBOX] alquileres ${syncId} sin datos primarios — se conserva pendiente`)
-                        ok = false
-                    }
-                } else {
-                    // Reintento de STOCK / ARTÍCULOS → inventory_stock (idempotente)
-                    const mod = item.module as "stock" | "articulos"
-                    const env = await readModuleData(mod, redis)
-                    if (env && Array.isArray(env.data)) {
-                        await writeStockItemsIdempotent(env.data as Sync3CItem[], mod)
-                        console.log(`[OUTBOX] ${mod} ${syncId} → inventory_stock reescrito (${(env.data as Sync3CItem[]).length} items)`)
-                        ok = true
-                    } else {
-                        console.warn(`[OUTBOX] ${mod} ${syncId} sin datos primarios — se conserva pendiente`)
-                        ok = false
-                    }
-                }
-            } catch (err) {
-                item.lastError = err instanceof Error ? err.message : String(err)
-                console.error(`[OUTBOX] ${syncId} falló (intento ${item.attempts}): ${item.lastError}`)
-            }
-
-            if (ok) {
-                // marcar la fuente primaria como sincronizada y quitar del outbox
-                const syncTargetModule: PrimaryModuleId =
-                  item.target === "maintenance" || item.target === "maintenance_status"
-                    ? "maintenance"
-                    : item.target === "dashboard_stats/scaffold_rentals"
-                      ? "alquileres"
-                      : (item.module as PrimaryModuleId)
-                const envSynced = await readModuleData(syncTargetModule, redis)
-                if (envSynced) {
-                    await saveModuleData(redis, {
-                        module: syncTargetModule,
-                        syncId: envSynced.syncId,
-                        data: envSynced.data,
-                        recordCount: envSynced.recordCount,
-                        degraded: false,
-                        firestoreStatus: "synced",
-                        exportInfo: envSynced.exportInfo ?? null,
-                    })
-                }
-                await removeOutboxItem(redis, syncId)
-                console.log(`[OUTBOX] ${syncId} procesado y eliminado`)
-            } else {
-                // NO se abandona nunca (REGLA 5/18). Backoff adaptado al tipo de error:
-                // - Si la cuota diaria está agotada (RESOURCE_EXHAUSTED/UNAUTHENTICATED),
-                //   reintentar cada minuto es golpear Firestore 24h seguidas. Espaciamos
-                //   a HORAS (la cuota se resetea diariamente), sin abandonar el dato.
-                // - Para errores transitorios de red, usamos backoff exponencial corto.
-                const errMsg = (item.lastError ?? "").toLowerCase()
-                const quotaLike =
-                  errMsg.includes("resource_exhausted") ||
-                  errMsg.includes("quota exceeded") ||
-                  errMsg.includes("unauthenticated") ||
-                  errMsg.includes("permission_denied")
-                let nextDelayMs: number
-                if (quotaLike) {
-                    // Cuota diaria agotada (RESOURCE_EXHAUSTED): reintentar cada ~1h
-                    // (se resetea a diario y golpear más seguido solo agota el cupo del
-                    // día), con espaciamiento creciente sin abandonar nunca el dato.
-                    nextDelayMs = 60 * 60 * 1000 * Math.min(item.attempts, 4)
-                    if (errMsg.includes("unauthenticated") || errMsg.includes("permission_denied")) {
-                        // Auth inválida NO se resuelve sola: espaciar a 4h y registrar claro.
-                        console.warn(`[OUTBOX] ${syncId}: error de AUTENTICACIÓN (UNAUTHENTICATED). Reintento lento. Revisar service-account.json. Dato conservado en outbox.`)
-                        nextDelayMs = 4 * 60 * 60 * 1000
-                    }
-                } else {
-                    // Error transitorio de red: backoff exponencial corto (15s..1h)
-                    nextDelayMs = 15_000 * Math.min(Math.pow(2, Math.min(item.attempts, 12) - 1), 256)
-                }
-                item.nextRetryAt = Date.now() + nextDelayMs
-                await updateOutboxItem(redis, item)
-            }
+            await removeOutboxItem(redis, syncId)
+        }
+        if (pendingIds.length > 0) {
+            console.log(`[OUTBOX] ${pendingIds.length} item(s) heredado(s) descartado(s) sin reintentar (Firestore es best-effort)`)
         }
     } catch (err) {
-        console.error(`[OUTBOX] error procesando cola:`, err instanceof Error ? err.message : String(err))
+        console.error(`[OUTBOX] error drenando cola:`, err instanceof Error ? err.message : String(err))
     }
 }
 
-// ============================================================================
 // AUTO-SYNC PROGRAMADO — corre el pipeline a horas fijas (10, 12, 15, 17)
 // reutilizando el índice compartido para cuidar la cuota de Firestore.
 // ============================================================================
@@ -1576,10 +1537,19 @@ async function runAutoSync(redis: Redis) {
         module: m,
     }))
 
-    for (const step of pipeline) {
+    for (let i = 0; i < pipeline.length; i++) {
+        const step = pipeline[i]
+        // Diferir la escritura del consolidado sólo si el informe de ESTADOS
+        // (`reparaciones_facturadas`) viene DESPUÉS: es el que reescribe el
+        // conjunto completo y deja la escritura anterior sin efecto.
+        const consolidationDeferred = pipeline
+            .slice(i + 1)
+            .some((s) => s.module === "reparaciones_facturadas")
         console.log(`[AGENT] === Auto-sync step: ${step.module} (${step.commandId}) ===`)
         try {
-            await processModule(redis, step.commandId, step.module, sharedInventoryIndex ?? undefined)
+            await processModule(redis, step.commandId, step.module, sharedInventoryIndex ?? undefined, {
+                consolidationDeferredToPipeline: consolidationDeferred,
+            })
         } catch (err) {
             const msg = err instanceof Error ? err.message : String(err)
             await redis.hset(`sync-3c:command:${step.commandId}`, {
@@ -1783,11 +1753,16 @@ async function main() {
         }
         
         // Procesar pipeline normal con callback de diagnóstico
-        for (const { commandId: cmdId, module: mod } of pipeline) {
+        for (let i = 0; i < pipeline.length; i++) {
+            const { commandId: cmdId, module: mod } = pipeline[i]
+            const consolidationDeferred = pipeline
+                .slice(i + 1)
+                .some((s) => s.module === "reparaciones_facturadas")
             console.log(`[AGENT] === Processing pipeline step: ${mod} (${cmdId}) ===`)
             try {
                 await processModule(redis, cmdId, mod, undefined, {
                     diagnosticCallback,
+                    consolidationDeferredToPipeline: consolidationDeferred,
                 })
             } catch (err) {
                 console.error(`[AGENT] Command ${cmdId} failed:`, err)
@@ -1816,9 +1791,15 @@ async function main() {
 
         // Procesar cada módulo del pipeline
         // Cada módulo carga su propio inventoryIndex optimizado con los códigos del Excel
-        for (const { commandId: cmdId, module: mod } of pipeline) {
+        for (let i = 0; i < pipeline.length; i++) {
+            const { commandId: cmdId, module: mod } = pipeline[i]
+            const consolidationDeferred = pipeline
+                .slice(i + 1)
+                .some((s) => s.module === "reparaciones_facturadas")
             console.log(`[AGENT] === Processing pipeline step: ${mod} (${cmdId}) ===`)
-            await processModule(redis, cmdId, mod)
+            await processModule(redis, cmdId, mod, undefined, {
+                consolidationDeferredToPipeline: consolidationDeferred,
+            })
         }
 
         // Heartbeat final (idle)
