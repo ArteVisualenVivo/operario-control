@@ -141,10 +141,11 @@ async function getSharedInventoryIndex(
     sharedInventoryIndex = index
     sharedIndexLoadedAt = Date.now()
 
-    // Contabilizar lecturas estimadas (1 batch de 30 códigos ≈ 1 petición)
-    const batchCount = Math.ceil(codes.length / 30)
-    await addDailyReads(redis, batchCount)
-    console.log(`[AGENT] Índice compartido actualizado (${index.size} entries)`)
+    // Contabilizar LECTURAS REALES: cada doc devuelto por las queries `in` cuenta
+    // como 1 lectura de Firestore (antes se contaba 1 por batch de 30 códigos, lo
+    // que subestimaba ~50x y el freno nunca se activaba).
+    await addDailyReads(redis, index.size)
+    console.log(`[AGENT] Índice compartido actualizado (${index.size} entries, ${index.size} lecturas contabilizadas)`)
     return index
 }
 
@@ -327,31 +328,49 @@ function printDiagnosticReport(context: DiagnosticContext): void {
 // ============================================================================
 // LOCK MANAGEMENT
 // ============================================================================
+function isPidAlive(pid: unknown): boolean {
+    if (typeof pid !== "number" || !Number.isInteger(pid) || pid <= 0) return false
+    try {
+        process.kill(pid, 0)
+        return true
+    } catch {
+        return false
+    }
+}
+
 function acquireSingletonLock() {
     try {
         if (fs.existsSync(LOCK_FILE)) {
-            const lockData = JSON.parse(fs.readFileSync(LOCK_FILE, "utf-8"))
-            const lockPid = lockData.pid
-            const lockTime = lockData.timestamp
-            const now = Date.now()
-            
-            // Si el lock expiró (más de 60 segundos), eliminarlo
-            if (lockTime && now - lockTime > 60000) {
-                console.log(`[AGENT] Lock expired (${now - lockTime}ms old), removing stale lock`)
-                fs.unlinkSync(LOCK_FILE)
-            } else {
-                // Verificar si el proceso del lock está vivo
-                try {
-                    process.kill(lockPid, 0)
-                    console.error(`[AGENT] Another instance is already running (PID ${lockPid})`)
-                    process.exit(1)
-                } catch (e) {
-                    // El proceso está muerto, eliminar el lock
-                    console.log(`[AGENT] Lock process (PID ${lockPid}) is dead, removing stale lock`)
-                    fs.unlinkSync(LOCK_FILE)
-                }
+            let lockPid: unknown = null
+            try {
+                lockPid = JSON.parse(fs.readFileSync(LOCK_FILE, "utf-8")).pid
+            } catch {
+                lockPid = null // lock corrupto → se elimina abajo
             }
+            // Si el proceso del lock sigue vivo → hay otro agente: salir.
+            // Esto va PRIMERO porque el timestamp queda viejo en corridas
+            // largas y NO significa que el proceso haya muerto.
+            if (isPidAlive(lockPid)) {
+                console.error(`[AGENT] Another instance is already running (PID ${lockPid})`)
+                process.exit(1)
+            }
+            // Proceso muerto o lock corrupto → lock colgado, se elimina.
+            console.log(`[AGENT] Removing stale lock (PID ${String(lockPid)})`)
+            try { fs.unlinkSync(LOCK_FILE) } catch { /* ignore */ }
         }
+
+        // Refrescar el timestamp periódicamente para que otros arranques vean
+        // un lock "fresco" mientras este proceso siga vivo (el chequeo real de
+        // duplicados es por PID, no por tiempo: ver isPidAlive arriba).
+        setInterval(() => {
+            try {
+                fs.writeFileSync(LOCK_FILE, JSON.stringify({
+                    pid: process.pid,
+                    timestamp: Date.now(),
+                    machineName: MACHINE_NAME,
+                }))
+            } catch { /* ignore */ }
+        }, 30_000).unref()
         
         const lockData = {
             pid: process.pid,
@@ -744,6 +763,46 @@ function statusDiffers(prev: StatusFieldsLike | undefined, next: StatusFieldsLik
  * difiere), lo que forzaba otra pasada completa de ~1.126 escrituras.
  */
 const MAINTENANCE_STATUS_BASELINE_KEY = "sync-3c:data:maintenance:status-baseline"
+/**
+ * Línea base de FIRMAS de fila completa de `maintenance` (una por N° de orden).
+ * La usa `syncRepairsToMaintenance({ signatureBaseline })` para no reescribir
+ * filas idénticas a la última corrida exitosa. Se guarda SÓLO tras commit OK:
+ * si una corrida falla, la próxima reescribe todo (sin huecos, sin colas).
+ */
+const MAINTENANCE_ROW_BASELINE_KEY = "sync-3c:data:maintenance:row-baseline"
+
+async function readRowBaseline(redis: Redis): Promise<Map<string, string>> {
+    const map = new Map<string, string>()
+    try {
+        const raw = await redis.get<unknown>(MAINTENANCE_ROW_BASELINE_KEY)
+        if (!raw) return map
+        const parsed = typeof raw === "string" ? JSON.parse(raw) : raw
+        if (parsed && typeof parsed === "object") {
+            for (const [orderNumber, sig] of Object.entries(parsed as Record<string, unknown>)) {
+                if (orderNumber && typeof sig === "string") map.set(orderNumber, sig)
+            }
+        }
+    } catch (err) {
+        console.warn(
+            "[AGENT] No se pudo leer la línea base de filas (se reescribirá todo):",
+            err instanceof Error ? err.message : err,
+        )
+    }
+    return map
+}
+
+async function saveRowBaseline(redis: Redis, all: Map<string, string>): Promise<void> {
+    try {
+        const obj: Record<string, string> = {}
+        for (const [orderNumber, sig] of all) obj[orderNumber] = sig
+        await redis.set(MAINTENANCE_ROW_BASELINE_KEY, JSON.stringify(obj))
+    } catch (err) {
+        console.warn(
+            "[AGENT] No se pudo guardar la línea base de filas:",
+            err instanceof Error ? err.message : err,
+        )
+    }
+}
 
 async function readStatusBaseline(redis: Redis): Promise<Map<string, RepairStatusEntry>> {
     const map = new Map<string, RepairStatusEntry>()
@@ -1083,10 +1142,15 @@ async function runModule(
             try {
                 console.log("[AGENT] MAINTENANCE SYNC START")
                 console.log("[AGENT] Ejecutando syncRepairsToMaintenance")
-                const maintenanceResult = await syncRepairsToMaintenance(buffer)
+                // Línea base de firmas: no reescribe filas idénticas a la última
+                // corrida exitosa (ahorra cuota; sin línea base escribe todo).
+                const rowBaseline = await readRowBaseline(redis)
+                const maintenanceResult = await syncRepairsToMaintenance(buffer, {
+                    signatureBaseline: rowBaseline,
+                })
                 console.log("[AGENT] MAINTENANCE SYNC RESULT", maintenanceResult)
-                console.log(`[AGENT] Resultado mantenimiento: created=${maintenanceResult.created}, updated=${maintenanceResult.updated}, skipped=${maintenanceResult.skipped}`)
-                console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped`)
+                console.log(`[AGENT] Resultado mantenimiento: created=${maintenanceResult.created}, updated=${maintenanceResult.updated}, skipped=${maintenanceResult.skipped}, unchanged=${maintenanceResult.unchanged}`)
+                console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped, ${maintenanceResult.unchanged} sin cambios`)
                 if (maintenanceResult.warnings.length > 0) {
                     console.warn(`[AGENT] Maintenance warnings:`, maintenanceResult.warnings)
                 }
@@ -1095,9 +1159,12 @@ async function runModule(
                     maintenanceCreated: maintenanceResult.created,
                     maintenanceUpdated: maintenanceResult.updated,
                     maintenanceSkipped: maintenanceResult.skipped,
+                    maintenanceUnchanged: maintenanceResult.unchanged,
                     maintenanceWarnings: maintenanceResult.warnings,
                 }
-                // Firestore OK → marcar como sincronizado
+                // Firestore OK → guardar la línea base de firmas (refleja lo que
+                // Firestore tiene AHORA) y marcar como sincronizado.
+                await saveRowBaseline(redis, maintenanceResult.signatures)
                 await saveModuleData(redis, {
                     module: "maintenance",
                     syncId,

@@ -451,9 +451,43 @@ export async function syncItems(
   return result
 }
 
+/**
+ * Firma estable de una fila de mantenimiento: TODO lo que se escribe, menos los
+ * campos que cambian solos (`updatedAt`) o que son sólo procedencia (`sourceRow`).
+ * Sirve para no reescribir filas idénticas a la última corrida exitosa.
+ */
+function maintenanceRowSignature(payload: Record<string, unknown>): string {
+  const out: Record<string, unknown> = {}
+  for (const key of Object.keys(payload).sort()) {
+    if (key === "updatedAt" || key === "sourceRow") continue
+    const value = payload[key]
+    out[key] = value instanceof Date ? value.toISOString() : value
+  }
+  return JSON.stringify(out)
+}
+
 export async function syncRepairsToMaintenance(
   buffer: ArrayBuffer | Buffer,
-): Promise<{ success: boolean; created: number; updated: number; skipped: number; warnings: string[] }> {
+  options?: {
+    /**
+     * Firma por N° de orden de la ÚLTIMA escritura exitosa (línea base en Redis).
+     * Si la firma calculada coincide, la fila NO se escribe: Firestore ya tiene ese
+     * contenido. Sin línea base (primer sync o Redis limpio) se escribe todo: la
+     * omisión nunca puede dejar datos sin escribir.
+     */
+    signatureBaseline?: Map<string, string>
+  },
+): Promise<{
+  success: boolean
+  created: number
+  updated: number
+  skipped: number
+  /** Filas omitidas por no haber cambiado (no son `skipped`: son datos ya guardados). */
+  unchanged: number
+  warnings: string[]
+  /** Firma de todas las filas vistas, para guardar como línea base tras el commit. */
+  signatures: Map<string, string>
+}> {
   const admin = getFirebaseAdmin()
   const { getFirestore } = require("firebase-admin/firestore")
   const db = getFirestore()
@@ -469,8 +503,10 @@ export async function syncRepairsToMaintenance(
     created: 0,
     updated: 0,
     skipped: 0,
+    unchanged: 0,
     warnings: [] as string[],
   }
+  const signatures = new Map<string, string>()
 
   const auditLogs = {
     totalRowsRead: 0,
@@ -888,9 +924,22 @@ export async function syncRepairsToMaintenance(
     }
 
     const ref = collection.doc(orderNumber)
+    const signature = maintenanceRowSignature(payload)
+    signatures.set(orderNumber, signature)
+
+    // SIN CAMBIOS: la fila es idéntica a la que ya quedó escrita en la última
+    // corrida exitosa → no se toca Firestore (esto es lo que ahorra cuota).
+    if (options?.signatureBaseline?.get(orderNumber) === signature) {
+      result.unchanged++
+      auditLogs.validRows++
+      continue
+    }
 
     try {
       batch.set(ref, sanitizeForFirestore(payload), { merge: true })
+      // Los contadores pendientes deben sumarse al encolar (antes quedaban en 0 y
+      // el reporte decía "0 updated" aunque se escribieran miles de documentos).
+      pendingUpdated++
       counter++
     } catch (err) {
       console.error(err)
@@ -909,5 +958,10 @@ export async function syncRepairsToMaintenance(
   }
 
   console.log("[MAINTENANCE BATCH] finished")
-  return result
+  if (result.unchanged > 0) {
+    console.log(
+      `[MAINTENANCE] ${result.unchanged} fila(s) sin cambios omitidas (no se reescribieron en Firestore)`,
+    )
+  }
+  return { ...result, signatures }
 }

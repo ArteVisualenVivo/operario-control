@@ -41,6 +41,7 @@ export interface Sync3CResult {
   maintenanceCreated?: number
   maintenanceUpdated?: number
   maintenanceSkipped?: number
+  maintenanceUnchanged?: number
   maintenanceWarnings?: string[]
   maintenanceError?: string
   sparePartsCreated?: number
