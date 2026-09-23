@@ -125,15 +125,36 @@ async function addDailyReads(redis: Redis, reads: number): Promise<void> {
 }
 
 /**
- * Devuelve el índice compartido con cache de 10 min. Si la corrida es seguida,
- * reutiliza el mismo para no releer Firestore.
+ * Devuelve el índice compartido con cache de 10 min.
+ *
+ * FIX 23/09/2026 — el caché NUNCA se reutiliza a ciegas entre módulos: los
+ * códigos de stock y artículos son distintos, y devolver el índice del módulo
+ * anterior hacía que syncItems() no encontrara los docs y los marcara como
+ * "created" (duplicados + miles de escrituras de más). Ahora se cargan sólo
+ * los códigos FALTANTES y se fusionan al caché (merge incremental): cada
+ * módulo lee de Firestore únicamente lo que aún no está en memoria.
  */
 async function getSharedInventoryIndex(
     redis: Redis,
     codes: string[],
 ): Promise<Map<string, { id: string; data: Record<string, unknown> }>> {
-    if (sharedInventoryIndex && Date.now() - sharedIndexLoadedAt < INDEX_TTL_MS) {
-        console.log(`[AGENT] Reutilizando inventoryIndex en cache (${sharedInventoryIndex.size} entries, ${Math.round((Date.now() - sharedIndexLoadedAt) / 1000)}s viejos)`)
+    const cacheFresh = sharedInventoryIndex && Date.now() - sharedIndexLoadedAt < INDEX_TTL_MS
+
+    if (cacheFresh && sharedInventoryIndex) {
+        // Merge incremental: pedir a Firestore sólo los códigos que faltan.
+        const missing = [...new Set(codes.filter((c) => c && c.trim().length > 0))].filter(
+            (c) => !sharedInventoryIndex!.has(c),
+        )
+        if (missing.length === 0) {
+            console.log(`[AGENT] Reutilizando inventoryIndex en cache (${sharedInventoryIndex.size} entries, ${Math.round((Date.now() - sharedIndexLoadedAt) / 1000)}s viejos, 0 lecturas extra)`)
+            return sharedInventoryIndex
+        }
+        const extra = await loadInventoryIndexByCodes(missing)
+        for (const [k, v] of extra) sharedInventoryIndex.set(k, v)
+        sharedIndexLoadedAt = Date.now()
+        // Contabilizar LECTURAS REALES: cada doc devuelto cuenta como 1 lectura.
+        await addDailyReads(redis, extra.size)
+        console.log(`[AGENT] inventoryIndex fusionado (+${extra.size} entries nuevas de ${missing.length} códigos faltantes, total ${sharedInventoryIndex.size})`)
         return sharedInventoryIndex
     }
 
