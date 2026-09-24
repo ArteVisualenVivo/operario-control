@@ -3,12 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { getAllOrders, splitMachineIdentification, updateOrderDates } from "@/services/sparePartOrders"
+import { getAllOrders, splitMachineIdentification } from "@/services/sparePartOrders"
 import { buildSparePartOrderGroups, type SparePartOrderGroup } from "@/lib/sparePartOrderGroups"
 import { updateOrderSupplier } from "@/services/sparePartOrderSupplier"
 import { getRepairs } from "@/services/repairs"
-import type { SparePartOrder, SparePartOrderDatesInput, MachineRepair } from "@/types"
-import { SparePartOrderDatesEditor } from "@/components/repairs/SparePartOrderDatesEditor"
+import type { SparePartOrder, MachineRepair } from "@/types"
 
 /**
  * Extrae el número real del N° de Orden.
@@ -83,6 +82,23 @@ function buildStoreList(orders: SparePartOrder[]): string[] {
     if (!byKey.has(key)) byKey.set(key, name)
   }
   return [...byKey.values()].sort((a, b) => a.localeCompare(b, "es"))
+}
+
+/**
+ * Fecha tal como se IMPRIME en la hoja de compra (`dd/mm/aaaa`), o `—` cuando el
+ * pedido todavía no tiene esa fecha.
+ *
+ * Las fechas se cargan a mano en "Pedidos Rep." (pantalla principal, panel de la
+ * reparación o detalle del pedido): la hoja de compra SÓLO las muestra, no las
+ * edita.
+ */
+function formatSheetDate(d: Date | null | undefined): string {
+  if (!d) return "—"
+  const dt = new Date(d)
+  if (Number.isNaN(dt.getTime())) return "—"
+  const day = String(dt.getDate()).padStart(2, "0")
+  const month = String(dt.getMonth() + 1).padStart(2, "0")
+  return `${day}/${month}/${dt.getFullYear()}`
 }
 
 export default function PurchaseListPage() {
@@ -236,38 +252,9 @@ export default function PurchaseListPage() {
     }
   }
 
-  /**
-   * Guarda UNA de las 3 fechas del circuito de compra (le pedí al dueño / lo
-   * pidió en la casa / me lo trajo) desde la propia hoja de compra.
-   *
-   * La hoja se actualiza al instante. Si se carga la fecha del pedido a la casa
-   * en un repuesto pendiente, el servicio lo marca ENCARGADO: acá el repuesto
-   * pasa al anexo "Encargados esta semana", igual que al recargar la página.
-   */
-  const handleSaveDates = useCallback(async (orderId: string, input: SparePartOrderDatesInput) => {
-    await updateOrderDates(orderId, input)
-    // Se aplica SÓLO lo que vino en `input` sobre el pedido en memoria. Las
-    // fechas de `orderedAt`/`receivedAt` son opcionales (no admiten null), así
-    // que un borrado las deja en `undefined`; `ownerRequestedAt` sí admite null.
-    const patch = (o: SparePartOrder): SparePartOrder => {
-      if (o.id !== orderId) return o
-      const next: SparePartOrder = { ...o }
-      if ("ownerRequestedAt" in input) next.ownerRequestedAt = input.ownerRequestedAt ?? null
-      if ("orderedAt" in input) next.orderedAt = input.orderedAt ?? undefined
-      if ("receivedAt" in input) next.receivedAt = input.receivedAt ?? undefined
-      return next
-    }
-    const wasPending = orders.some((o) => o.id === orderId)
-    const movesToOrdered = wasPending && Boolean(input.orderedAt)
-    setOrders((prev) => (movesToOrdered ? prev.filter((o) => o.id !== orderId) : prev.map(patch)))
-    setEncargados((prev) => {
-      if (!movesToOrdered) return prev.map(patch)
-      if (prev.some((o) => o.id === orderId)) return prev.map(patch)
-      const moved = orders.find((o) => o.id === orderId)
-      if (!moved) return prev
-      return [...prev, { ...moved, orderedAt: input.orderedAt ?? undefined, status: "ENCARGADO" as const }]
-    })
-  }, [orders])
+  // La hoja de compra NO edita fechas: se cargan a mano en "Pedidos Rep." y acá
+  // sólo se imprimen (ver `formatSheetDate`). La única celda editable de la hoja
+  // es "Casa de repuesto" (ver `persistSupplier`).
 
   const displayCode = (code: string | null | undefined) =>
     code && code.trim() !== "" && code.trim().toUpperCase() !== "S/C" ? code : "—"
@@ -356,16 +343,10 @@ export default function PurchaseListPage() {
                           )}
                           <td style={tdStyle}>{part.description || "—"}</td>
                           <td style={{ ...tdStyle, fontFamily: "monospace" }}>{code}</td>
-                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
-                            <SparePartOrderDatesEditor order={o} only="ownerRequestedAt" hideLabel bordered={false} variant="sheet" onSave={handleSaveDates} />
-                          </td>
-                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
-                            <SparePartOrderDatesEditor order={o} only="orderedAt" hideLabel bordered={false} variant="sheet" onSave={handleSaveDates} />
-                          </td>
-                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
-                            <SparePartOrderDatesEditor order={o} only="receivedAt" hideLabel bordered={false} variant="sheet" onSave={handleSaveDates} />
-                          </td>
-<td style={supplierCellStyle}>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.ownerRequestedAt)}</td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.orderedAt)}</td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.receivedAt)}</td>
+                          <td style={supplierCellStyle}>
                             <input
                               value={supplierDraft[o.id] ?? o.supplier ?? ""}
                               onChange={(e) => handleSupplierChange(o.id, e.target.value, o.supplier)}
@@ -430,15 +411,9 @@ list="casas-repuesto"
                           )}
                           <td style={tdStyle}>{part.description || "—"}</td>
                           <td style={{ ...tdStyle, fontFamily: "monospace" }}>{code}</td>
-                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
-                            <SparePartOrderDatesEditor order={o} only="ownerRequestedAt" hideLabel bordered={false} variant="sheet" onSave={handleSaveDates} />
-                          </td>
-                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
-                            <SparePartOrderDatesEditor order={o} only="orderedAt" hideLabel bordered={false} variant="sheet" onSave={handleSaveDates} />
-                          </td>
-                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
-                            <SparePartOrderDatesEditor order={o} only="receivedAt" hideLabel bordered={false} variant="sheet" onSave={handleSaveDates} />
-                          </td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.ownerRequestedAt)}</td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.orderedAt)}</td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.receivedAt)}</td>
                           <td style={supplierCellStyle}>
                             <input
                               value={supplierDraft[o.id] ?? o.supplier ?? ""}
