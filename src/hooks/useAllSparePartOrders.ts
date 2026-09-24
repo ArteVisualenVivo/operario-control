@@ -2,8 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react"
 import type { SparePartOrder } from "@/types"
-import { getAllOrders, markOrdered, deleteOrders } from "@/services/sparePartOrders"
-import type { MarkOrderedInput } from "@/types"
+import { getAllOrders, markOrdered, markReceived, markUsed, deleteOrders, updateOrderDates } from "@/services/sparePartOrders"
+import type { MarkOrderedInput, SparePartOrderDatesInput } from "@/types"
 
 export function useAllSparePartOrders() {
   const [orders, setOrders] = useState<SparePartOrder[]>([])
@@ -33,5 +33,26 @@ export function useAllSparePartOrders() {
     await load()
   }, [load])
 
-  return { orders, loading, reload: load, markAsOrdered, remove }
+  /** Recepción con cantidad (mueve stock si el repuesto está catalogado). */
+  const markAsReceived = useCallback(async (id: string, quantity: number, receivedAt?: Date, notes?: string) => {
+    await markReceived(id, quantity, receivedAt, notes)
+    await load()
+  }, [load])
+
+  /** Utilización con cantidad (egreso de stock si el repuesto está catalogado). */
+  const markAsUsed = useCallback(async (id: string, quantity: number, usedAt?: Date, notes?: string) => {
+    await markUsed(id, quantity, usedAt, notes)
+    await load()
+  }, [load])
+
+  /**
+   * Fechas del circuito de compra cargadas a mano:
+   * le pedí al dueño · lo pidió en la casa · me lo trajo.
+   */
+  const updateDates = useCallback(async (id: string, input: SparePartOrderDatesInput) => {
+    await updateOrderDates(id, input)
+    await load()
+  }, [load])
+
+  return { orders, loading, reload: load, markAsOrdered, remove, markAsReceived, markAsUsed, updateDates }
 }

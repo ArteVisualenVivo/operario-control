@@ -6,7 +6,7 @@ import { LOCAL_MODE } from "@/lib/runtimeMode"
 import { loadMaintenanceRecords } from "@/lib/local-sync"
 import { createAuditLog } from "./audit"
 import { restockPart, usePart as consumePart } from "./spareParts"
-import type { SparePartOrder, CreateSparePartOrderInput, SparePartOrderStatus, MarkOrderedInput } from "@/types"
+import type { SparePartOrder, SparePartOrderDatesInput, CreateSparePartOrderInput, SparePartOrderStatus, MarkOrderedInput } from "@/types"
 import type { MaintenanceRecord } from "./maintenance"
 
 const COLLECTION = "spare_part_orders"
@@ -87,6 +87,7 @@ function docToOrder(snap: { id: string; data: () => Record<string, unknown> }): 
     status: (d.status as SparePartOrderStatus) ?? "SOLICITADO",
     supplier: (d.supplier as string) || undefined,
     requestedAt: toDate(d.requestedAt),
+    ownerRequestedAt: toDate(d.ownerRequestedAt) ?? undefined,
     orderedAt: toDate(d.orderedAt) ?? undefined,
     expectedAt: toDate(d.expectedAt) ?? undefined,
     receivedAt: toDate(d.receivedAt) ?? undefined,
@@ -349,6 +350,7 @@ function rawToOrder(raw: Record<string, unknown>): SparePartOrder {
     status: (raw.status as SparePartOrderStatus) ?? "SOLICITADO",
     supplier: (raw.supplier as string) || undefined,
     requestedAt: toDate(raw.requestedAt),
+    ownerRequestedAt: toDate(raw.ownerRequestedAt) ?? undefined,
     orderedAt: toDate(raw.orderedAt) ?? undefined,
     expectedAt: toDate(raw.expectedAt) ?? undefined,
     receivedAt: toDate(raw.receivedAt) ?? undefined,
@@ -379,6 +381,7 @@ function orderToPlain(order: SparePartOrder): Record<string, unknown> {
     status: order.status,
     supplier: order.supplier ?? null,
     requestedAt: iso(order.requestedAt),
+    ownerRequestedAt: iso(order.ownerRequestedAt),
     orderedAt: iso(order.orderedAt),
     expectedAt: iso(order.expectedAt),
     receivedAt: iso(order.receivedAt),
@@ -662,6 +665,8 @@ export async function createOrder(
     // REGLA: requestedAt es la fecha real de 3C del estado "A la Espera
     // Repuestos". Si no existe, queda null (la UI muestra "—"); nunca "ahora".
     requestedAt: toDate(input.requestedAt),
+    // Día en que el operario le pidió el repuesto al dueño (lo carga a mano).
+    ownerRequestedAt: toDate(input.ownerRequestedAt),
     receivedAt: null,
     usedAt: null,
     notes: input.notes ?? null,
@@ -903,6 +908,74 @@ export async function updateOrderNotes(id: string, notes: string): Promise<void>
   await createAuditLog("update", "spare_part_order", id, before, { ...before, ...updates })
   await invalidatePrimarySparePartOrders()
 }
+/**
+ * Edita a mano las fechas del circuito de compra (pantalla "Pedidos Rep.",
+ * hoja de compra, panel de la reparación y detalle del pedido):
+ *
+ *   1) `ownerRequestedAt` → día en que el operario le pidió el repuesto al dueño.
+ *   2) `orderedAt`        → día en que el dueño pidió el repuesto en la casa.
+ *   3) `receivedAt`       → día en que el dueño trajo los repuestos.
+ *
+ * REGLAS:
+ * - Sólo se escriben las claves PRESENTES en `input` (undefined = no tocar,
+ *   null = borrar la fecha). Así cada celda de la UI guarda sólo su campo.
+ * - NUNCA toca cantidades ni stock: la entrada de stock sigue siendo
+ *   responsabilidad de `markReceived()`.
+ * - Si se carga la fecha del pedido a la casa en un pedido SOLICITADO/PEDIDO,
+ *   el pedido pasa a ENCARGADO (mismo criterio que `markOrdered`), para que el
+ *   resumen, los filtros y la hoja impresa ("Encargados esta semana") reflejen
+ *   lo que realmente pasó.
+ */
+export async function updateOrderDates(
+  id: string,
+  input: SparePartOrderDatesInput,
+): Promise<void> {
+  const { ref, before } = await loadOrder(id)
+  const updates: Record<string, unknown> = {}
+
+  if ("ownerRequestedAt" in input) {
+    updates.ownerRequestedAt = normalizeEditableDate(
+      input.ownerRequestedAt,
+      "fecha en que se pidió el repuesto al dueño",
+    )
+  }
+  if ("orderedAt" in input) {
+    updates.orderedAt = normalizeEditableDate(
+      input.orderedAt,
+      "fecha en que el dueño pidió el repuesto en la casa",
+    )
+  }
+  if ("receivedAt" in input) {
+    updates.receivedAt = normalizeEditableDate(
+      input.receivedAt,
+      "fecha en que trajeron los repuestos",
+    )
+  }
+  if (Object.keys(updates).length === 0) return
+
+  const status = before.status as SparePartOrderStatus
+  if (updates.orderedAt && (status === "SOLICITADO" || status === "PEDIDO")) {
+    updates.status = "ENCARGADO"
+  }
+
+  updates.updatedAt = new Date()
+  await updateDoc(ref, updates)
+  await createAuditLog("update", "spare_part_order", id, before, { ...before, ...updates })
+  await invalidatePrimarySparePartOrders()
+}
+
+/**
+ * Normaliza una fecha editable a mano: `null`/`undefined` → null (se borra la
+ * fecha), Date válida → Date, cualquier otra cosa → error. NUNCA inventa "ahora".
+ */
+function normalizeEditableDate(value: Date | null | undefined, label: string): Date | null {
+  if (value === null || value === undefined) return null
+  const parsed = toDate(value)
+  if (!parsed) throw new Error(`La ${label} es inválida`)
+  return parsed
+}
+
+
 // Normaliza el número de orden para comparar sin "X" ni espacios.
 function normOrderKey(value: unknown): string {
   return String(value ?? "")

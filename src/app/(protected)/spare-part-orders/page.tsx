@@ -10,6 +10,8 @@ import { useAllSparePartOrders } from "@/hooks/useAllSparePartOrders"
 import { importPendingPartsFromMaintenance } from "@/services/sparePartOrders"
 import { SparePartOrderBadge } from "@/components/repairs/SparePartOrderBadge"
 import { SparePartOrderOrderedDialog } from "@/components/repairs/SparePartOrderOrderedDialog"
+import { SparePartOrderReceiveUseDialog } from "@/components/repairs/SparePartOrderReceiveUseDialog"
+import { SparePartOrderDatesEditor } from "@/components/repairs/SparePartOrderDatesEditor"
 import { formatDate } from "@/lib/ui"
 import { buildSparePartOrderGroups } from "@/lib/sparePartOrderGroups"
 import { toast } from "sonner"
@@ -41,13 +43,16 @@ function extractOrderNumber(orderNumber: string | null | undefined): string {
 
 export default function SparePartOrdersPage() {
   const router = useRouter()
-  const { orders, loading, reload, markAsOrdered, remove } = useAllSparePartOrders()
+  const { orders, loading, reload, markAsOrdered, remove, markAsReceived, markAsUsed, updateDates } = useAllSparePartOrders()
   const [filter, setFilter] = useState<Filter>("todos")
   const [search, setSearch] = useState("")
   const [orderSearch, setOrderSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [orderedTarget, setOrderedTarget] = useState<SparePartOrder | null>(null)
+  // Entrega/uso con cantidad directamente desde esta pantalla (mismo diálogo
+  // que usa la ficha de la reparación).
+  const [action, setAction] = useState<{ type: "receive" | "use"; order: SparePartOrder } | null>(null)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
   const [importing, setImporting] = useState(false)
@@ -91,6 +96,15 @@ export default function SparePartOrdersPage() {
     if (!orderedTarget) return
     await markAsOrdered(orderedTarget.id, { orderedAt, expectedAt, notes })
     setOrderedTarget(null)
+  }
+
+  const handleAction = async (orderId: string, quantity: number, date: Date, notes?: string) => {
+    if (!action) return
+    if (action.type === "receive") {
+      await markAsReceived(orderId, quantity, date, notes)
+    } else {
+      await markAsUsed(orderId, quantity, date, notes)
+    }
   }
 
   const handleImport = async () => {
@@ -289,6 +303,7 @@ export default function SparePartOrdersPage() {
                 <th className="text-right py-2 px-3 font-medium text-muted-foreground">Uso</th>
                 <th className="text-left py-2 px-3 font-medium text-muted-foreground">Estado</th>
                 <th className="text-left py-2 px-3 font-medium text-muted-foreground">F. pedido</th>
+                <th className="text-left py-2 px-3 font-medium text-muted-foreground">Fechas</th>
                 <th className="text-right py-2 px-3 font-medium text-muted-foreground">Acción</th>
               </tr>
             </thead>
@@ -321,10 +336,19 @@ export default function SparePartOrdersPage() {
                       )}
                     </td>
                     <td className="py-2 px-3 text-xs align-top">{formatDate(o.requestedAt)}</td>
+                    <td className="py-2 px-3 align-top">
+                      <SparePartOrderDatesEditor order={o} onSave={updateDates} />
+                    </td>
                     <td className="py-2 px-3 text-right align-top">
                       <div className="flex items-center justify-end gap-1 flex-wrap">
                         {(o.status === "SOLICITADO" || o.status === "PEDIDO") && (
                           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setOrderedTarget(o)}>Encargar</Button>
+                        )}
+                        {o.status !== "UTILIZADO" && o.status !== "CANCELADO" && (
+                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAction({ type: "receive", order: o })}>Recibir</Button>
+                        )}
+                        {o.status === "RECIBIDO" && (
+                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAction({ type: "use", order: o })}>Utilizar</Button>
                         )}
                         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => router.push(`/spare-part-orders/${o.id}`)}>Ver</Button>
 <Button variant="ghost" size="sm" className="h-7 text-xs text-red-600" onClick={() => handleDeleteOne(o.id)} disabled={deleting}>Eliminar</Button>
@@ -345,6 +369,15 @@ export default function SparePartOrdersPage() {
         onOpenChange={(o) => { if (!o) setOrderedTarget(null) }}
         order={orderedTarget}
         onConfirm={handleMarkOrdered}
+      />
+
+      <SparePartOrderReceiveUseDialog
+        key={action ? `${action.type}-${action.order.id}` : "closed"}
+        open={action !== null}
+        onOpenChange={(o) => { if (!o) setAction(null) }}
+        action={action?.type ?? "receive"}
+        order={action?.order ?? null}
+        onConfirm={(q, d, n) => handleAction(action!.order.id, q, d, n)}
       />
     </div>
   )

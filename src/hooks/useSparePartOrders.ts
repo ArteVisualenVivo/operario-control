@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import type { SparePartOrder, CreateSparePartOrderInput, MarkOrderedInput } from "@/types"
+import type { SparePartOrder, SparePartOrderDatesInput, CreateSparePartOrderInput, MarkOrderedInput } from "@/types"
 import * as sparePartOrdersService from "@/services/sparePartOrders"
 
 export function useSparePartOrders(repairId: string) {
@@ -59,5 +59,14 @@ export function useSparePartOrders(repairId: string) {
     await load()
   }, [load])
 
-  return { orders, loading, reload: load, create, markOrdered, markReceived, markUsed, cancel, updateNotes }
+  /**
+   * Fechas del circuito de compra cargadas a mano:
+   * le pedí al dueño · lo pidió en la casa · me lo trajo.
+   */
+  const updateDates = useCallback(async (id: string, input: SparePartOrderDatesInput) => {
+    await sparePartOrdersService.updateOrderDates(id, input)
+    await load()
+  }, [load])
+
+  return { orders, loading, reload: load, create, markOrdered, markReceived, markUsed, cancel, updateNotes, updateDates }
 }

@@ -7,6 +7,7 @@ import { useSparePartOrders } from "@/hooks/useSparePartOrders"
 import { SparePartOrderDialog } from "./SparePartOrderDialog"
 import { SparePartOrderReceiveUseDialog } from "./SparePartOrderReceiveUseDialog"
 import { SparePartOrderOrderedDialog } from "./SparePartOrderOrderedDialog"
+import { SparePartOrderDatesEditor } from "./SparePartOrderDatesEditor"
 import { SparePartOrderBadge } from "./SparePartOrderBadge"
 import { toast } from "sonner"
 import type { MachineRepair, CreateSparePartOrderInput, SparePartOrder } from "@/types"
@@ -21,7 +22,7 @@ export function SparePartOrderPanel({ repair }: Props) {
   // Para reparaciones de 3C, repair.externalId es el número de orden (ej: "X 0001-00011170").
   // Para reparaciones manuales, externalId es undefined y se usa repair.id.
   const orderNumber = repair.externalId ?? repair.id
-  const { orders, loading, create, markOrdered, markReceived, markUsed, cancel } = useSparePartOrders(orderNumber)
+  const { orders, loading, create, markOrdered, markReceived, markUsed, cancel, updateDates } = useSparePartOrders(orderNumber)
   const [createOpen, setCreateOpen] = useState(false)
   const [action, setAction] = useState<{ type: "receive" | "use"; order: SparePartOrder } | null>(null)
   const [orderedTarget, setOrderedTarget] = useState<SparePartOrder | null>(null)
@@ -106,6 +107,7 @@ export function SparePartOrderPanel({ repair }: Props) {
                 <th className="text-left py-2 px-3 font-medium text-muted-foreground">Código</th>
                 <th className="text-right py-2 px-3 font-medium text-muted-foreground">Cantidad</th>
                 <th className="text-left py-2 px-3 font-medium text-muted-foreground">Estado</th>
+                <th className="text-left py-2 px-3 font-medium text-muted-foreground">Fechas</th>
                 <th className="text-right py-2 px-3 font-medium text-muted-foreground">Acciones</th>
               </tr>
             </thead>
@@ -123,6 +125,9 @@ export function SparePartOrderPanel({ repair }: Props) {
                   <td className="py-2 px-3 font-mono text-xs">{o.code}</td>
                   <td className="py-2 px-3 text-right">{o.quantityRequested}</td>
                   <td className="py-2 px-3"><SparePartOrderBadge status={o.status} /></td>
+                  <td className="py-2 px-3">
+                    <SparePartOrderDatesEditor order={o} onSave={updateDates} />
+                  </td>
                   <td className="py-2 px-3">
                     <div className="flex items-center justify-end gap-1 flex-wrap">
                       {(o.status === "SOLICITADO" || o.status === "PEDIDO") && (

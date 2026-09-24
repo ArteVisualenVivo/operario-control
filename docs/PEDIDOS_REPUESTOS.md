@@ -158,6 +158,41 @@ Cada transición guarda `before`/`after` del documento.
 - Si el repuesto es **ad-hoc** (sin `sparePartId`, cargado manualmente), el
   pedido existe pero **no** toca stock (no hay dónde aplicar entrada/salida).
 
+## 15. Fechas del circuito de compra (2026-09-24)
+
+Se agregaron **3 fechas elegibles a mano** por repuesto, para seguir el circuito
+real de compra semanal (antes sólo existían las de recepción/utilización):
+
+```text
+spare_part_orders/{id}
+  requestedAt       (3C)  fecha real del estado "A la Espera Repuestos" — la calcula el importador
+  ownerRequestedAt  NUEVO  día en que el operario le pidió el repuesto al dueño
+  orderedAt                día en que el dueño pidió el repuesto en la casa de repuestos
+  receivedAt               día en que el dueño trajo los repuestos
+```
+
+- Se cargan desde **4 lugares**, siempre con el mismo componente
+  (`src/components/repairs/SparePartOrderDatesEditor.tsx`):
+  la pantalla **Pedidos Rep.**, la **hoja de compra impresa** (`/spare-part-orders/print`),
+  el panel **Repuestos** de la reparación y el **detalle** del pedido.
+- Se guardan con `updateOrderDates(id, input)` (`src/services/sparePartOrders.ts`),
+  que escribe **sólo las claves presentes** (`null` borra la fecha), registra el
+  cambio en auditoría y **no** toca cantidades ni stock: eso sigue siendo de
+  `markReceived()` / `markUsed()`.
+- **Regla:** cargar `orderedAt` en un pedido `SOLICITADO`/`PEDIDO` lo pasa a
+  `ENCARGADO` (mismo criterio que `markOrdered`), así el resumen, los filtros y
+  el anexo "Encargados esta semana" reflejan la realidad.
+- La hoja de compra muestra las 3 columnas (`Le pedí al dueño`,
+  `Lo pidió en la casa`, `Me lo trajo`) y ya **no** imprime `Pedido` (fecha de 3C)
+  ni `Entrega`: eran el mismo dato que `receivedAt`. Esas fechas de 3C siguen
+  guardadas y visibles en la pantalla de Pedidos ("F. pedido").
+- También se agregaron los botones **Recibir** / **Utilizar** en la pantalla
+  general de Pedidos Rep. (reutilizan `SparePartOrderReceiveUseDialog`), para
+  cargar cantidad + fecha sin entrar a la orden de trabajo.
+- Los 3 campos nuevos se mapean en `docToOrder`, `rawToOrder` y `orderToPlain`
+  (Firestore, snapshot de Redis y caché en disco): sin eso el dato se perdía al
+  republicar el snapshot del agente.
+
 ## 6. Integración con Reparaciones / Órdenes
 
 - Desde `repairs/[id]` se muestra el panel **"Repuestos"** con:

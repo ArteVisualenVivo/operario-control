@@ -3,11 +3,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { getAllOrders, splitMachineIdentification } from "@/services/sparePartOrders"
+import { getAllOrders, splitMachineIdentification, updateOrderDates } from "@/services/sparePartOrders"
 import { buildSparePartOrderGroups, type SparePartOrderGroup } from "@/lib/sparePartOrderGroups"
 import { updateOrderSupplier } from "@/services/sparePartOrderSupplier"
 import { getRepairs } from "@/services/repairs"
-import type { SparePartOrder, MachineRepair } from "@/types"
+import type { SparePartOrder, SparePartOrderDatesInput, MachineRepair } from "@/types"
+import { SparePartOrderDatesEditor } from "@/components/repairs/SparePartOrderDatesEditor"
 
 /**
  * Extrae el número real del N° de Orden.
@@ -132,7 +133,6 @@ export default function PurchaseListPage() {
     })()
   }, [])
 
-  const fmtDate = (d: Date | null | undefined) => (d ? d.toLocaleDateString("es-AR") : "—")
   const today = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })
     const hasContent = orders.length > 0 || encargados.length > 0
 
@@ -236,6 +236,39 @@ export default function PurchaseListPage() {
     }
   }
 
+  /**
+   * Guarda UNA de las 3 fechas del circuito de compra (le pedí al dueño / lo
+   * pidió en la casa / me lo trajo) desde la propia hoja de compra.
+   *
+   * La hoja se actualiza al instante. Si se carga la fecha del pedido a la casa
+   * en un repuesto pendiente, el servicio lo marca ENCARGADO: acá el repuesto
+   * pasa al anexo "Encargados esta semana", igual que al recargar la página.
+   */
+  const handleSaveDates = useCallback(async (orderId: string, input: SparePartOrderDatesInput) => {
+    await updateOrderDates(orderId, input)
+    // Se aplica SÓLO lo que vino en `input` sobre el pedido en memoria. Las
+    // fechas de `orderedAt`/`receivedAt` son opcionales (no admiten null), así
+    // que un borrado las deja en `undefined`; `ownerRequestedAt` sí admite null.
+    const patch = (o: SparePartOrder): SparePartOrder => {
+      if (o.id !== orderId) return o
+      const next: SparePartOrder = { ...o }
+      if ("ownerRequestedAt" in input) next.ownerRequestedAt = input.ownerRequestedAt ?? null
+      if ("orderedAt" in input) next.orderedAt = input.orderedAt ?? undefined
+      if ("receivedAt" in input) next.receivedAt = input.receivedAt ?? undefined
+      return next
+    }
+    const wasPending = orders.some((o) => o.id === orderId)
+    const movesToOrdered = wasPending && Boolean(input.orderedAt)
+    setOrders((prev) => (movesToOrdered ? prev.filter((o) => o.id !== orderId) : prev.map(patch)))
+    setEncargados((prev) => {
+      if (!movesToOrdered) return prev.map(patch)
+      if (prev.some((o) => o.id === orderId)) return prev.map(patch)
+      const moved = orders.find((o) => o.id === orderId)
+      if (!moved) return prev
+      return [...prev, { ...moved, orderedAt: input.orderedAt ?? undefined, status: "ENCARGADO" as const }]
+    })
+  }, [orders])
+
   const displayCode = (code: string | null | undefined) =>
     code && code.trim() !== "" && code.trim().toUpperCase() !== "S/C" ? code : "—"
   // Modelo a mostrar: el guardado; si falta, se deriva con el mismo divisor del
@@ -243,7 +276,7 @@ export default function PurchaseListPage() {
   const displayModel = (o: SparePartOrder) =>
     o.machineModel ?? splitMachineIdentification(o.machineName).model
 
-  const printCols = ["", "N° Orden", "Máquina", "Modelo", "Repuesto", "Código repuesto", "Pedido", "Entrega", "Casa de repuesto"]
+  const printCols = ["", "N° Orden", "Máquina", "Modelo", "Repuesto", "Código repuesto", "Le pedí al dueño", "Lo pidió en la casa", "Me lo trajo", "Casa de repuesto"]
   const thStyle = { border: "1px solid #999", padding: "4px 6px", textAlign: "left" as const, background: "#f3f3f3" }
   const tdStyle = { border: "1px solid #999", padding: "4px 6px", verticalAlign: "top" as const }
   // Celda de "Casa de repuesto": sin padding, para que el input la llene.
@@ -323,8 +356,15 @@ export default function PurchaseListPage() {
                           )}
                           <td style={tdStyle}>{part.description || "—"}</td>
                           <td style={{ ...tdStyle, fontFamily: "monospace" }}>{code}</td>
-                                                  <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{fmtDate(o.requestedAt)}</td>
-                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{fmtDate(o.receivedAt)}</td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
+                            <SparePartOrderDatesEditor order={o} only="ownerRequestedAt" hideLabel bordered={false} variant="sheet" onSave={handleSaveDates} />
+                          </td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
+                            <SparePartOrderDatesEditor order={o} only="orderedAt" hideLabel bordered={false} variant="sheet" onSave={handleSaveDates} />
+                          </td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
+                            <SparePartOrderDatesEditor order={o} only="receivedAt" hideLabel bordered={false} variant="sheet" onSave={handleSaveDates} />
+                          </td>
 <td style={supplierCellStyle}>
                             <input
                               value={supplierDraft[o.id] ?? o.supplier ?? ""}
@@ -390,8 +430,15 @@ list="casas-repuesto"
                           )}
                           <td style={tdStyle}>{part.description || "—"}</td>
                           <td style={{ ...tdStyle, fontFamily: "monospace" }}>{code}</td>
-                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{fmtDate(o.requestedAt)}</td>
-                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{fmtDate(o.receivedAt)}</td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
+                            <SparePartOrderDatesEditor order={o} only="ownerRequestedAt" hideLabel bordered={false} variant="sheet" onSave={handleSaveDates} />
+                          </td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
+                            <SparePartOrderDatesEditor order={o} only="orderedAt" hideLabel bordered={false} variant="sheet" onSave={handleSaveDates} />
+                          </td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>
+                            <SparePartOrderDatesEditor order={o} only="receivedAt" hideLabel bordered={false} variant="sheet" onSave={handleSaveDates} />
+                          </td>
                           <td style={supplierCellStyle}>
                             <input
                               value={supplierDraft[o.id] ?? o.supplier ?? ""}
