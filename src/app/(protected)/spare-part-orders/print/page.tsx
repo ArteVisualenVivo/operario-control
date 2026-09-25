@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { getAllOrders, splitMachineIdentification } from "@/services/sparePartOrders"
+import { getAllOrders, splitMachineIdentification, isUsablePartCode } from "@/services/sparePartOrders"
 import { buildSparePartOrderGroups, type SparePartOrderGroup } from "@/lib/sparePartOrderGroups"
 import { updateOrderSupplier } from "@/services/sparePartOrderSupplier"
 import { getRepairs } from "@/services/repairs"
@@ -259,8 +259,12 @@ export default function PurchaseListPage() {
   // sólo se imprimen (ver `formatSheetDate`). La única celda editable de la hoja
   // es "Casa de repuesto" (ver `persistSupplier`).
 
+  // Código a imprimir: el guardado, tal cual (con los espacios de 3C). Se
+  // imprime "—" cuando NO hay un código real (vacío, "S/C", interno de mano de
+  // obra o un voltaje como "220V" que quedó de una importación vieja). El código
+  // se corrige a mano en "Pedidos Rep.".
   const displayCode = (code: string | null | undefined) =>
-    code && code.trim() !== "" && code.trim().toUpperCase() !== "S/C" ? code : "—"
+    isUsablePartCode(code) ? String(code).trim() : "—"
   // Modelo a mostrar: el guardado; si falta, se deriva con el mismo divisor del
   // importador (conserva el modelo completo, sin recortar ni duplicar).
   const displayModel = (o: SparePartOrder) =>

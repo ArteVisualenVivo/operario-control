@@ -12,6 +12,7 @@ import { SparePartOrderBadge } from "@/components/repairs/SparePartOrderBadge"
 import { SparePartOrderOrderedDialog } from "@/components/repairs/SparePartOrderOrderedDialog"
 import { SparePartOrderReceiveUseDialog } from "@/components/repairs/SparePartOrderReceiveUseDialog"
 import { SparePartOrderDatesEditor } from "@/components/repairs/SparePartOrderDatesEditor"
+import { SparePartOrderCodeInput } from "@/components/repairs/SparePartOrderCodeInput"
 import { formatDate } from "@/lib/ui"
 import { buildSparePartOrderGroups } from "@/lib/sparePartOrderGroups"
 import { toast } from "sonner"
@@ -43,7 +44,7 @@ function extractOrderNumber(orderNumber: string | null | undefined): string {
 
 export default function SparePartOrdersPage() {
   const router = useRouter()
-  const { orders, loading, reload, markAsOrdered, remove, markAsReceived, markAsUsed, updateDates } = useAllSparePartOrders()
+  const { orders, loading, reload, markAsOrdered, remove, markAsReceived, markAsUsed, updateDates, updateCode } = useAllSparePartOrders()
   const [filter, setFilter] = useState<Filter>("todos")
   const [search, setSearch] = useState("")
   const [orderSearch, setOrderSearch] = useState("")
@@ -323,7 +324,9 @@ export default function SparePartOrdersPage() {
                       <td className="py-2 px-3 align-top" rowSpan={g.parts.length}>{g.machineName}</td>
                     )}
                     <td className="py-2 px-3 align-top">{part.description}{part.partial && <span className="ml-1 text-xs text-violet-600 font-semibold">parcial</span>}</td>
-                    <td className="py-2 px-3 font-mono text-xs align-top">{part.code || "—"}</td>
+                    <td className="py-2 px-3 text-xs align-top">
+                      <SparePartOrderCodeInput order={o} onSave={updateCode} />
+                    </td>
                     <td className="py-2 px-3 text-right align-top">{o.quantityRequested}</td>
                     <td className="py-2 px-3 text-right align-top">{o.quantityReceived}</td>
                     <td className="py-2 px-3 text-right align-top">{o.quantityUsed}</td>

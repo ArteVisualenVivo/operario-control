@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { SparePartOrderBadge } from "@/components/repairs/SparePartOrderBadge"
 import { SparePartOrderDatesEditor } from "@/components/repairs/SparePartOrderDatesEditor"
-import { getOrderById, updateOrderDates } from "@/services/sparePartOrders"
+import { SparePartOrderCodeInput } from "@/components/repairs/SparePartOrderCodeInput"
+import { getOrderById, updateOrderDates, updateOrderCode } from "@/services/sparePartOrders"
 import { formatDate } from "@/lib/ui"
 import type { SparePartOrder, SparePartOrderDatesInput } from "@/types"
 
@@ -27,6 +28,15 @@ export default function SparePartOrderDetailPage() {
    */
   const handleSaveDates = async (orderId: string, input: SparePartOrderDatesInput) => {
     const written = await updateOrderDates(orderId, input)
+    setOrder((prev) => (prev && prev.id === orderId ? { ...prev, ...written } : prev))
+  }
+
+  /**
+   * Código corregido a mano (3C a veces trae el voltaje "220V" o no trae nada).
+   * Se aplica lo escrito sobre el pedido en memoria: sin releer ni recargar.
+   */
+  const handleSaveCode = async (orderId: string, code: string) => {
+    const written = await updateOrderCode(orderId, code)
     setOrder((prev) => (prev && prev.id === orderId ? { ...prev, ...written } : prev))
   }
 
@@ -51,7 +61,7 @@ export default function SparePartOrderDetailPage() {
           <div className="flex items-start justify-between">
             <div>
               <CardTitle className="text-xl">{order.description}</CardTitle>
-              <p className="text-sm text-muted-foreground font-mono">{order.code}</p>
+              <p className="text-sm text-muted-foreground font-mono">{order.code || "—"}</p>
             </div>
             <SparePartOrderBadge status={order.status} />
           </div>
@@ -59,6 +69,10 @@ export default function SparePartOrderDetailPage() {
         <CardContent className="space-y-1">
           {row("Orden", order.orderNumber || "—")}
           {row("Máquina", order.machineName || "—")}
+          {row(
+            "Código del repuesto",
+            <SparePartOrderCodeInput order={order} onSave={handleSaveCode} />,
+          )}
           {row("Solicitado", order.quantityRequested)}
           {row("Recibido", order.quantityReceived)}
           {row("Utilizado", order.quantityUsed)}

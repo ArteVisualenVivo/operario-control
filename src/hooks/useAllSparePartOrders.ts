@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import type { SparePartOrder } from "@/types"
-import { getAllOrders, markOrdered, markReceived, markUsed, deleteOrders, updateOrderDates } from "@/services/sparePartOrders"
+import { getAllOrders, markOrdered, markReceived, markUsed, deleteOrders, updateOrderDates, updateOrderCode } from "@/services/sparePartOrders"
 import type { MarkOrderedInput, SparePartOrderDatesInput } from "@/types"
 
 export function useAllSparePartOrders() {
@@ -59,5 +59,15 @@ export function useAllSparePartOrders() {
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, ...written } : o)))
   }, [])
 
-  return { orders, loading, reload: load, markAsOrdered, remove, markAsReceived, markAsUsed, updateDates }
+  /**
+   * Código del repuesto corregido a mano (3C a veces trae el voltaje "220V" o
+   * nada). Igual que las fechas: se aplica SÓLO lo escrito sobre el pedido en
+   * memoria, sin releer la lista.
+   */
+  const updateCode = useCallback(async (id: string, code: string) => {
+    const written = await updateOrderCode(id, code)
+    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, ...written } : o)))
+  }, [])
+
+  return { orders, loading, reload: load, markAsOrdered, remove, markAsReceived, markAsUsed, updateDates, updateCode }
 }

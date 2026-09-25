@@ -977,6 +977,28 @@ export async function updateOrderDates(
 }
 
 /**
+ * Edita a MANO el CÓDIGO de un repuesto (pantalla "Pedidos Rep." y detalle del
+ * pedido), para corregir lo que 3C trae mal o vacío: por ejemplo el voltaje
+ * "220V" en lugar del código real, o "—" cuando no hay ninguno.
+ *
+ * - Se guarda normalizado (`normalizePartCode`): mayúsculas y espacios simples.
+ * - Vacío = "sin código" (la UI muestra "—"), nunca "S/C".
+ * - NO toca cantidades, stock, estado ni fechas.
+ * - Devuelve lo escrito para que la pantalla lo aplique en memoria sin releer
+ *   la lista entera (mismo criterio que `updateOrderDates`).
+ */
+export async function updateOrderCode(id: string, code: string): Promise<Partial<SparePartOrder>> {
+  const raw = String(code ?? "").trim()
+  const normalized = raw && raw.toUpperCase() !== "S/C" ? normalizePartCode(raw) : ""
+  const { ref, before } = await loadOrder(id)
+  const updates: Record<string, unknown> = { code: normalized, updatedAt: new Date() }
+  await updateDoc(ref, updates)
+  await createAuditLog("update", "spare_part_order", id, before, { ...before, ...updates })
+  await invalidatePrimarySparePartOrders()
+  return { code: normalized, updatedAt: updates.updatedAt as Date }
+}
+
+/**
  * Lo que se acaba de escribir, como parte de un `SparePartOrder` y con la misma
  * forma que `docToOrder`: una fecha borrada queda `null`/`undefined` (nunca
  * `null` donde el tipo espera `undefined`), para poder mezclarlo sobre el
@@ -1035,6 +1057,15 @@ export function isSpareWaitingStatus(status: unknown): boolean {
 }
 
 /**
+ * Códigos de 3C escritos con espacios ("1 619 P14 777"). Clave canónica para
+ * comparar: mayúsculas SIN espacios. Así "1 619 P14 777" == "1619P14777" y un
+ * cambio de formato no duplica el pedido.
+ */
+export function canonicalSparePartCode(value: unknown): string {
+  return String(value ?? "").toUpperCase().replace(/\s+/g, "").trim()
+}
+
+/**
  * Conceptos de MANO DE OBRA / códigos internos: NUNCA son repuestos.
  * Ej: "MO CES", "MO CESA", "mano de obra".
  */
@@ -1053,11 +1084,56 @@ export function isLaborText(text: unknown): boolean {
 /**
  * Códigos internos de mano de obra (solo dígitos, ej: "1012") NUNCA son
  * códigos de repuesto. Los códigos reales de 3C llevan letras y/o formato
- * ("1619P16276", "600 A01 L7D").
+ * ("1 619 P14 777", "600 A01 L7D").
  */
 export function isInternalCode(code: unknown): boolean {
   const c = String(code ?? "").replace(/\s+/g, "")
   return /^\d{1,6}$/.test(c)
+}
+
+/**
+ * El VOLTAJE no es un código de repuesto: "220V" / "220 V" / "110V" / "24V"
+ * aparecen en 3C pegados a la descripción ("INDUCIDO 220V") y antes se
+ * tomaban como si fueran el código del repuesto. Devuelven true → el valor
+ * se descarta como código (el repuesto queda con code null → "—").
+ *
+ * NOTA: no toca códigos reales que contienen dígitos + letras con otro
+ * formato ("1 619 P14 777", "1600A01L7D"): esos tienen 4+ dígitos mezclados
+ * con letras en otra posición.
+ */
+export function isVoltageCode(code: unknown): boolean {
+  const c = String(code ?? "").toUpperCase().replace(/[\s.]+/g, "")
+  return /^(110|115|127|220|230|240|380|400|440)V(OLT|OLTIOS|OLTS|OLTAGE)?$/.test(c)
+}
+
+/**
+ * Código de repuesto tal como se GUARDA y se muestra: mayúsculas y espacios
+ * simples ("1 619 P14 777"), igual que lo escribe 3C. Para COMPARAR o
+ * deduplicar se usa `sparePartCodeKey()` (ignora los espacios).
+ */
+export function normalizePartCode(code: unknown): string {
+  return String(code ?? "").toUpperCase().replace(/\s+/g, " ").trim()
+}
+
+/** ¿El valor sirve como CÓDIGO de repuesto? (vacío, "S/C", interno o voltaje → no). */
+export function isUsablePartCode(code: unknown): boolean {
+  const raw = String(code ?? "").trim()
+  if (!raw) return false
+  const upper = raw.toUpperCase().replace(/\s+/g, " ").trim()
+  if (upper === "S/C" || upper === "SC" || upper === "SIN CODIGO") return false
+  return !isInternalCode(upper) && !isVoltageCode(upper)
+}
+
+/**
+ * Clave de COMPARACIÓN de un código: mayúsculas y SIN espacios
+ * ("1 619 P14 777" == "1619P14777"), y VACÍA cuando el valor no es un código
+ * real (vacío, "S/C", interno de mano de obra o un voltaje como "220V").
+ *
+ * Con esta clave, un pedido importado viejo con "220V" de código se reconoce
+ * por su DESCRIPCIÓN en lugar de duplicarse.
+ */
+export function sparePartCodeKey(code: unknown): string {
+  return isUsablePartCode(code) ? canonicalSparePartCode(code) : ""
 }
 
 /**
@@ -1815,7 +1891,9 @@ function asSoloCodigo(line: string): string | null {
   if (tokens.length > 4) return null
   // Palabras reales ("Juego", "Escobillas", "Expansion") → es texto, no código
   if (tokens.some((tok) => /^[A-Za-z]{4,}$/.test(tok))) return null
-  return compact.toUpperCase()
+  // Se devuelve el código con los espacios que trae 3C ("1 619 P14 777"), que es
+  // su formato real; el largo se valida sobre la versión compacta.
+  return t.replace(/\s+/g, " ").toUpperCase()
 }
 
 /** ¿Este token es un código de repuesto de 3C (no una medida ni una palabra)? */
@@ -1893,14 +1971,19 @@ export function parseSparePartsFromMotivoDetailed(motivo: string): { code: strin
     const d = cleanPartDescription(description)
     if (!d) return
     if (isLaborText(d) || isAdminText(d) || isDiagnosis(d)) return
-    const c = code && !isInternalCode(code) ? code.toUpperCase().replace(/\s+/g, "") : null
+    // Códigos de 3C: se guardan como los escribe 3C ("1 619 P14 777"), con
+    // espacios simples. Un valor que NO es un código real (voltaje "220V",
+    // interno de mano de obra "1012", "S/C") → null (la UI muestra "—").
+    const c = isUsablePartCode(code) ? normalizePartCode(code) : null
     // Regla GENERAL: un repuesto que trae su PROPIO código de 3C es un repuesto
     // válido aunque su nombre no figure en la lista de palabras clave (ej.:
     // "BRIDA DE FIJACIÓN" + "2 605 703 014" en la línea siguiente). El filtro
     // por palabra clave aplica solo a descripciones SIN código, donde el
     // nombre es la única señal disponible.
     if (!c && !containsSparePart(d)) return
-    const key = `${c ?? ""}||${d.toUpperCase().replace(/\s+/g, " ")}`
+    // Clave de deduplicación: el código sin espacios, para que "1 619 P14 777"
+    // y "1619P14777" sean el MISMO repuesto y no se emita dos veces.
+    const key = `${c ? canonicalSparePartCode(c) : ""}||${d.toUpperCase().replace(/\s+/g, " ")}`
     if (seen.has(key)) return
     seen.add(key)
     out.push({ code: c, description: d })
@@ -1938,6 +2021,15 @@ export function parseSparePartsFromMotivoDetailed(motivo: string): { code: strin
     const inline = splitDescriptionAndCode(line)
     if (inline.code) {
       flushPendiente()
+      // En 3C el "código" de esa línea puede ser una ESPECIFICACIÓN
+      // ("Expansion Polar 220V"): no es un código real y el código verdadero
+      // viene en la línea SIGUIENTE. Se deja PENDIENTE para que esa línea se lo
+      // asigne. Antes se guardaba el "220V" como código y el código real se
+      // descartaba (por eso la hoja de compra salía sin códigos).
+      if (!isUsablePartCode(inline.code) && inline.description) {
+        pending = inline.description
+        continue
+      }
       push(inline.code, inline.description)
       continue
     }
@@ -2002,7 +2094,7 @@ export function parseSparePartsFromMotivoLegacy(motivo: string): { code: string 
   const seen = new Set<string>()
   return parts
     .filter((p) => !isLaborText(p.description))
-    .map((p) => ({ code: p.code && !isInternalCode(p.code) ? p.code : null, description: p.description }))
+    .map((p) => ({ code: isUsablePartCode(p.code) ? normalizePartCode(p.code) : null, description: p.description }))
     .filter((p) => {
       const key = `${p.code || ""}||${p.description.toUpperCase().replace(/\s+/g, " ")}`
       if (seen.has(key)) return false
@@ -2089,7 +2181,9 @@ export async function reconcileSpareOrdersFromWaitingStatus(): Promise<{
     for (const e of waiting) {
       const parts = parseSparePartsFromMotivo(e.motivo.trim())
       for (const p of parts) {
-        const c = p.code ? p.code.toUpperCase().replace(/\s+/g, " ") : ""
+        // Clave de código sin espacios y vacía cuando no es un código real
+        // (así "1 619 P14 777" valida al pedido guardado "1619P14777").
+        const c = sparePartCodeKey(p.code)
         const d = p.description.trim().toLowerCase()
         // Se validan AMBAS claves: por descripción (siempre) y por código
         // (cuando el parseo lo detectó). Así un pedido existente con código de
@@ -2116,7 +2210,7 @@ export async function reconcileSpareOrdersFromWaitingStatus(): Promise<{
     ) as (MaintenanceRecord & { motivoByStatus?: { status: string; motivo: string }[] }) | undefined
     const known = Array.isArray(rec?.motivoByStatus) && (rec?.motivoByStatus?.length ?? 0) > 0
     if (!known) continue
-    const codeN = o.code ? o.code.toUpperCase().replace(/\s+/g, " ") : ""
+    const codeN = sparePartCodeKey(o.code)
     const descN = String(o.description ?? "").trim().toLowerCase()
     // Clave con la que se reconoce el pedido (código si lo tiene, si no la
     // descripción) y clave por descripción. Se comparan AMBAS para no borrar un
@@ -2178,13 +2272,13 @@ export async function cleanupInvalidSpareOrders(): Promise<{
     // vacío, NUNCA "S/C") y su descripción debe ser una pieza concreta (no
     // falla/diagnóstico/MO/observación). Solo el código INTERNO de mano de obra
     // (ej: "1012") o una descripción que no es repuesto invalidan el pedido.
-    const internalLaborCode = code !== "" && code.toUpperCase() !== "S/C" && isInternalCode(code) // ej: "1012"
-    // Código PROPIO de repuesto de 3C (no interno de mano de obra): es prueba
-    // suficiente de que el pedido es un repuesto válido, aunque su nombre no
-    // figure en la lista de palabras clave. Mismo criterio que
-    // parseSparePartsFromMotivoDetailed(), para que el parser y la limpieza no
-    // se contradigan (uno lo crea y el otro lo borra).
-    const ownPartCode = code !== "" && code.toUpperCase() !== "S/C" && !isInternalCode(code)
+    const internalLaborCode = isInternalCode(code) // ej: "1012"
+    // Código PROPIO de repuesto de 3C (no interno de mano de obra, no un voltaje
+    // como "220V"): es prueba suficiente de que el pedido es un repuesto válido,
+    // aunque su nombre no figure en la lista de palabras clave. Mismo criterio
+    // que parseSparePartsFromMotivoDetailed(), para que el parser y la limpieza
+    // no se contradigan (uno lo crea y el otro lo borra).
+    const ownPartCode = isUsablePartCode(code)
     const badDesc =
       isLaborText(desc) ||
       isAdminText(desc) ||
@@ -2254,15 +2348,20 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
 
   const existing = await getAllOrdersMerged()
   const seen = new Map<string, SparePartOrder>()
+  // Pedidos guardados SIN un código real (vacío, o un valor que no es código
+  // como el voltaje "220V" de importaciones viejas): se indexan ADEMÁS por
+  // descripción, para reconocerlos y corregirles el código en esta corrida.
+  const byDescription = new Map<string, SparePartOrder>()
   for (const o of existing) {
-    // La clave debe normalizarse IGUAL que la consulta de abajo (código en
-    // MAYÚSCULAS sin espacios / descripción en minúsculas). Si no coincide, el
-    // mismo repuesto se importa dos veces y se duplican los pedidos.
-    const codeN = o.code ? o.code.toUpperCase().replace(/\s+/g, " ") : ""
-    const key = codeN
-      ? `${normOrderKey(o.orderNumber)}||${codeN}`
-      : `${normOrderKey(o.orderNumber)}||${String(o.description ?? "").trim().toLowerCase()}`
-    seen.set(key, o)
+    // La clave debe normalizarse IGUAL que la consulta de abajo: código en
+    // MAYÚSCULAS SIN espacios ("1 619 P14 777" == "1619P14777") y descripción
+    // en minúsculas. Si no coincide, el mismo repuesto se importa dos veces y
+    // se duplican los pedidos.
+    const codeN = sparePartCodeKey(o.code)
+    const descN = String(o.description ?? "").trim().toLowerCase()
+    const orderKey = normOrderKey(o.orderNumber)
+    seen.set(`${orderKey}||${codeN || descN}`, o)
+    if (!codeN) byDescription.set(`${orderKey}||${descN}`, o)
   }
 
   const createdOrders: { orderNumber: string; code: string | null; description: string }[] = []
@@ -2306,17 +2405,29 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
     }
 
     for (const part of spareParts) {
-      const codeNorm = part.code ? part.code.toUpperCase().replace(/\s+/g, " ") : ""
+      // Clave sin espacios + vacía si el valor no es un código real.
+      const codeNorm = sparePartCodeKey(part.code)
       const descNorm = part.description.trim().toLowerCase()
+      const orderKey = normOrderKey(rec.orderNumber)
 
-      const dedupKey = codeNorm
-        ? `${normOrderKey(rec.orderNumber)}||${codeNorm}`
-        : `${normOrderKey(rec.orderNumber)}||${descNorm}`
-
-      const existingOrder = seen.get(dedupKey)
+      const dedupKey = `${orderKey}||${codeNorm || descNorm}`
+      // Fallback: pedido guardado SIN código real para esa orden y descripción
+      // (importación vieja con el voltaje "220V" como código) → se reconoce y se
+      // le corrige el código, en lugar de crear un pedido duplicado al lado.
+      const existingOrder = seen.get(dedupKey) ?? byDescription.get(`${orderKey}||${descNorm}`)
       if (existingOrder) {
         // Actualizar existente si cambió algo relevante
         const updates: Record<string, unknown> = {}
+        // CÓDIGO: si el guardado NO es un código real (vacío o "220V") se copia
+        // el de 3C; si el guardado SÍ es un código real y difiere, no se pisa
+        // (puede haber sido corregido a mano en la pantalla).
+        const storedCode = String(existingOrder.code ?? "").trim()
+        const storedKey = sparePartCodeKey(existingOrder.code)
+        if (codeNorm && !storedKey) {
+          updates.code = normalizePartCode(part.code)
+        } else if (!codeNorm && storedCode && !storedKey) {
+          updates.code = ""
+        }
         // Reconstruir la fecha real de 3C si faltaba o quedó mal (p. ej. fecha de importación).
         const currentDate = existingOrder.requestedAt
         if (waitingDate && (!currentDate || currentDate.getTime() !== waitingDate.getTime())) {
