@@ -101,6 +101,18 @@ function formatSheetDate(d: Date | null | undefined): string {
   return `${day}/${month}/${dt.getFullYear()}`
 }
 
+/**
+ * Orden del anexo de la hoja de compra: los encargos MÁS VIEJOS primero (por la
+ * fecha en que se pidieron en la casa), así el anexo se lee como una lista de
+ * retiros pendientes: arriba lo que hace más tiempo que se encargó.
+ * Los pedidos sin esa fecha quedan al final.
+ */
+function byOldestOrderedAt(a: SparePartOrder, b: SparePartOrder): number {
+  const at = a.orderedAt instanceof Date ? a.orderedAt.getTime() : Number.POSITIVE_INFINITY
+  const bt = b.orderedAt instanceof Date ? b.orderedAt.getTime() : Number.POSITIVE_INFINITY
+  return at - bt
+}
+
 export default function PurchaseListPage() {
   const [orders, setOrders] = useState<SparePartOrder[]>([])
   const [encargados, setEncargados] = useState<SparePartOrder[]>([])
@@ -121,11 +133,12 @@ export default function PurchaseListPage() {
         setRepairsMap(map)
 
         const pendientes = ords.filter((o) => o.status === "SOLICITADO" || o.status === "PEDIDO")
-        // ANEXO: TODOS los encargados, sin filtrar por fecha. Antes sólo salían los
-        // que tenían `orderedAt` dentro de la semana actual, así que los encargos
-        // de semanas anteriores no aparecían en NINGUNA parte de la hoja (ya no son
-        // "pendientes" por estado) y no había forma de seguirlos.
-        const enc = ords.filter((o) => o.status === "ENCARGADO")
+        // ANEXO: TODOS los encargados, sin filtrar por fecha, y ordenados con los
+        // encargos más viejos arriba. Antes sólo salían los que tenían `orderedAt`
+        // dentro de la semana actual, así que los encargos de semanas anteriores no
+        // aparecían en NINGUNA parte de la hoja (ya no son "pendientes" por estado)
+        // y no había forma de seguirlos.
+        const enc = ords.filter((o) => o.status === "ENCARGADO").sort(byOldestOrderedAt)
         setOrders(pendientes)
         setEncargados(enc)
         // Sugerencias del desplegable: casas ya usadas en CUALQUIER pedido
