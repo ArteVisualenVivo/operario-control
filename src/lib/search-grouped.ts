@@ -5,15 +5,24 @@
  */
 import type { InventoryStock } from "@/types"
 import type { Machine } from "@/types"
+import type { SparePart, SparePartOrder } from "@/types"
 import type { MaintenanceRecord } from "@/services/maintenance"
 import type { ScaffoldRentalStats } from "@/lib/dashboardStats"
 import { SCAFFOLD_CODES, SCAFFOLD_STRUCTURE_CODES } from "@/lib/inventoryGroups"
+import { findCompatibleMachines } from "@/lib/partCompatibility"
+import type { CompatibilidadRepuesto } from "@/lib/partCompatibility"
+
+export type { CompatibilidadRepuesto }
 
 export interface GroupedSearchData {
     orders: MaintenanceRecord[]
     machines: Machine[]
     stockItems: InventoryStock[]
     scaffoldRentals?: ScaffoldRentalStats | null
+    /** Fichas de repuestos por máquina (machine_spare_parts). Opcional: sin esto no hay sección compatibilidad. */
+    spareParts?: SparePart[]
+    /** Historial de pedidos de repuestos 3C. Opcional. */
+    spareOrders?: SparePartOrder[]
 }
 
 export interface ResumenAndamios {
@@ -90,6 +99,8 @@ export interface MaquinaRow { codigo: string; nombre: string; familia: string; s
 export interface GroupedResults {
     query: string
     resumenAndamios: ResumenAndamios | null
+    /** Repuesto → máquinas que lo usan (fichas + pedidos). Null = sin coincidencias. */
+    compatibilidad: CompatibilidadRepuesto | null
     materiales: MaterialRow[]
         componentes: ComponenteRow[]
     alquileres: AlquilerGrupo[]
@@ -165,7 +176,7 @@ function esComponenteAndamio(item: InventoryStock): boolean {
 
 export function searchGrouped(query: string, data: GroupedSearchData): GroupedResults {
   const q = query.trim()
-  const empty: GroupedResults = { query, resumenAndamios: null, materiales: [], componentes: [], alquileres: [], reparaciones: [], maquinas: [], totalResultados: 0 }
+  const empty: GroupedResults = { query, resumenAndamios: null, compatibilidad: null, materiales: [], componentes: [], alquileres: [], reparaciones: [], maquinas: [], totalResultados: 0 }
   if (!q) return empty
   const tokens = compact(q).split(/\s+/).filter(Boolean)
   if (tokens.length === 0) return empty
@@ -243,6 +254,17 @@ export function searchGrouped(query: string, data: GroupedSearchData): GroupedRe
     }
   }
 
+  // --- Compatibilidad repuesto → máquinas (fichas + pedidos 3C) ---------------
+  // Solo se calcula si el Dashboard pasó las listas (opcionales). Si no hay
+  // coincidencias devuelve null y la sección no se muestra.
+  const compatibilidad = (data.spareParts || data.spareOrders)
+    ? findCompatibleMachines(q, {
+        parts: data.spareParts ?? [],
+        orders: data.spareOrders ?? [],
+        machines: data.machines,
+      })
+    : null
+
   // --- Resumen de andamios (solo si la búsqueda es de andamios o puntales) ---
   let resumenAndamios: ResumenAndamios | null = null
   if (scaffoldTerm || puntalTerm || componentes.length > 0) {
@@ -304,6 +326,6 @@ export function searchGrouped(query: string, data: GroupedSearchData): GroupedRe
     }
   }
 
-  const totalResultados = materiales.length + componentes.length + alquileres.length + reparaciones.length + maquinas.length
-  return { query, resumenAndamios, materiales, componentes, alquileres, reparaciones, maquinas, totalResultados }
+  const totalResultados = materiales.length + componentes.length + alquileres.length + reparaciones.length + maquinas.length + (compatibilidad?.maquinas.length ?? 0)
+  return { query, resumenAndamios, compatibilidad, materiales, componentes, alquileres, reparaciones, maquinas, totalResultados }
 }

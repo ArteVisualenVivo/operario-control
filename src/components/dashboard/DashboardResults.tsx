@@ -6,6 +6,7 @@ import type {
 import { ALQUILER_TOTAL_KEYS } from "@/lib/search-grouped"
 import { formatDate } from "@/lib/ui"
 import { useState } from "react"
+import Link from "next/link"
 
 interface Props {
   results: GroupedResults
@@ -74,7 +75,7 @@ function MaterialTable({ rows }: { rows: MaterialRow[] }) {
   )
 }
 export function DashboardResults({ results }: Props) {
-  const { query, resumenAndamios, materiales, componentes, alquileres, reparaciones, maquinas } = results
+  const { query, resumenAndamios, compatibilidad, materiales, componentes, alquileres, reparaciones, maquinas } = results
   const [openGrupo, setOpenGrupo] = useState<string | null>(null)
 
   if (results.totalResultados === 0 && !resumenAndamios) {
@@ -90,6 +91,35 @@ export function DashboardResults({ results }: Props) {
       <h2 className="text-lg font-semibold">
         RESULTADOS PARA: <span className="uppercase">{query}</span>
       </h2>
+
+      {compatibilidad && compatibilidad.maquinas.length > 0 && (
+        <Section
+          title={`Repuesto compatible — ${compatibilidad.maquinas.length} máquina(s) · ${compatibilidad.modo === "codigo" ? `código ${compatibilidad.clave}` : `por nombre "${compatibilidad.clave}"`}`}
+        >
+          <SimpleTable
+            headers={["Máquina", "Modelo", "Repuesto", "Código", "Stock disp.", "Pedidos", "Último pedido", "Origen"]}
+            rows={compatibilidad.maquinas.slice(0, 50).map((m) => [
+              m.machineId ? (
+                <Link key={`m-${m.machineId}`} href={`/machines/${m.machineId}/parts`} className="font-medium underline underline-offset-2">
+                  {m.machineName}
+                </Link>
+              ) : (
+                <span key={`m-${m.machineName}`} className="font-medium">{m.machineName}</span>
+              ),
+              m.machineModel || "—",
+              <span key={`p-${m.machineId}-${m.machineName}`} className="text-muted-foreground">{m.partNames[0] ?? "—"}</span>,
+              <span key={`c-${m.machineId}-${m.machineName}`} className="font-mono text-xs">{m.partCodes[0] ?? "—"}</span>,
+              <span key={`s-${m.machineId}-${m.machineName}`} className="text-green-700">{m.stockDisponible}</span>,
+              <span key={`n-${m.machineId}-${m.machineName}`} className="font-bold">{m.pedidosCount}</span>,
+              m.ultimoPedido,
+              <span key={`o-${m.machineId}-${m.machineName}`} className="text-xs text-muted-foreground">{m.origenes.join(" + ")}</span>,
+            ])}
+          />
+          {compatibilidad.maquinas.length > 50 && (
+            <p className="text-xs text-muted-foreground">Mostrando las primeras 50 de {compatibilidad.maquinas.length}. Refiná la búsqueda para acotar.</p>
+          )}
+        </Section>
+      )}
 
       {resumenAndamios && (
         <Section title="Resumen de andamios">

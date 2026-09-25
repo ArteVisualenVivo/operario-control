@@ -6,6 +6,8 @@ import { SearchInput } from "@/components/ui/SearchInput"
 import { DashboardResults } from "@/components/dashboard/DashboardResults"
 import { useMachines } from "@/hooks/useMachines"
 import { useInventoryStock } from "@/hooks/useInventoryStock"
+import { useSparePartsCache } from "@/hooks/useSparePartsCache"
+import { useAllSparePartOrders } from "@/hooks/useAllSparePartOrders"
 import { searchGrouped } from "@/lib/search-grouped"
 import type { MaintenanceRecord } from "@/services/maintenance"
 import type { ScaffoldRentalStats } from "@/lib/dashboardStats"
@@ -18,6 +20,10 @@ type Props = {
 export default function DashboardClient({ initialOrders, scaffoldRentals }: Props) {
   const { machines, loading: machinesLoading } = useMachines()
   const { items: stockItems, loading: stockLoading } = useInventoryStock()
+  // Fichas por máquina + historial de pedidos 3C: alimentan la sección
+  // "repuesto compatible" sin lecturas extra (hooks con cache propio).
+  const { parts: spareParts } = useSparePartsCache()
+  const { orders: spareOrders } = useAllSparePartOrders()
   const [search, setSearch] = useState("")
 
   const results = useMemo(() => {
@@ -26,8 +32,10 @@ export default function DashboardClient({ initialOrders, scaffoldRentals }: Prop
       machines,
       stockItems,
       scaffoldRentals,
+      spareParts,
+      spareOrders,
     })
-  }, [search, initialOrders, machines, stockItems, scaffoldRentals])
+  }, [search, initialOrders, machines, stockItems, scaffoldRentals, spareParts, spareOrders])
 
   return (
     <div className="space-y-6">
