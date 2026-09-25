@@ -21,13 +21,13 @@ export default function SparePartOrderDetailPage() {
   }, [id])
 
   /**
-   * Guarda UNA de las 3 fechas del circuito de compra y refresca la vista con
-   * lo que quedó realmente escrito (nunca con lo que se tipeó).
+   * Guarda UNA de las 3 fechas del circuito de compra. La vista se actualiza con
+   * lo que el servicio escribió (fechas + estado), sin releer la base: así no se
+   * recarga la pantalla ni se pierde el lugar donde se estaba editando.
    */
   const handleSaveDates = async (orderId: string, input: SparePartOrderDatesInput) => {
-    await updateOrderDates(orderId, input)
-    const fresh = await getOrderById(orderId)
-    if (fresh) setOrder(fresh)
+    const written = await updateOrderDates(orderId, input)
+    setOrder((prev) => (prev && prev.id === orderId ? { ...prev, ...written } : prev))
   }
 
   if (loading) return <p className="text-muted-foreground">Cargando...</p>

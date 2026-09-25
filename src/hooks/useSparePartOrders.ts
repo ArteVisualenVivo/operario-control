@@ -62,11 +62,15 @@ export function useSparePartOrders(repairId: string) {
   /**
    * Fechas del circuito de compra cargadas a mano:
    * le pedí al dueño · lo pidió en la casa · me lo trajo.
+   *
+   * SIN recargar la lista: se aplica sobre el pedido en memoria SÓLO lo que se
+   * guardó (fechas + estado que devuelve el servicio), así el panel no se
+   * recarga ni pierde la posición mientras se cargan las fechas.
    */
   const updateDates = useCallback(async (id: string, input: SparePartOrderDatesInput) => {
-    await sparePartOrdersService.updateOrderDates(id, input)
-    await load()
-  }, [load])
+    const written = await sparePartOrdersService.updateOrderDates(id, input)
+    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, ...written } : o)))
+  }, [])
 
   return { orders, loading, reload: load, create, markOrdered, markReceived, markUsed, cancel, updateNotes, updateDates }
 }

@@ -48,11 +48,16 @@ export function useAllSparePartOrders() {
   /**
    * Fechas del circuito de compra cargadas a mano:
    * le pedí al dueño · lo pidió en la casa · me lo trajo.
+   *
+   * SIN recargar la lista: se aplica sobre el pedido en memoria SÓLO lo que se
+   * guardó (fechas + estado que devuelve el servicio). Antes se releía todo
+   * (`load`) y eso mostraba "Cargando pedidos…": la tabla desaparecía, el scroll
+   * volvía arriba y había que buscar de nuevo la fila que se estaba editando.
    */
   const updateDates = useCallback(async (id: string, input: SparePartOrderDatesInput) => {
-    await updateOrderDates(id, input)
-    await load()
-  }, [load])
+    const written = await updateOrderDates(id, input)
+    setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, ...written } : o)))
+  }, [])
 
   return { orders, loading, reload: load, markAsOrdered, remove, markAsReceived, markAsUsed, updateDates }
 }

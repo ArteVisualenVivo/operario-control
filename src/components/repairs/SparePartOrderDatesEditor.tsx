@@ -52,8 +52,9 @@ const COMPLETE_DATE = /^\d{4}-\d{2}-\d{2}$/
 
 interface Props {
   order: SparePartOrder
-  /** Guarda UNA fecha (`SparePartOrderDatesInput` con sólo esa clave). */
-  onSave: (id: string, input: SparePartOrderDatesInput) => Promise<void>
+  /** Guarda UNA fecha (`SparePartOrderDatesInput` con sólo esa clave). Puede
+   *  devolver lo que quedó escrito (fechas + estado) para aplicarlo en memoria. */
+  onSave: (id: string, input: SparePartOrderDatesInput) => Promise<unknown>
   /** `stack` = una debajo de otra (tablas). `columns` = las 3 en línea. */
   layout?: "stack" | "columns"
   /** `compact` = etiquetas cortas y inputs chicos (tablas). `full` = etiquetas

@@ -923,13 +923,17 @@ export async function updateOrderNotes(id: string, notes: string): Promise<void>
  *   responsabilidad de `markReceived()`.
  * - Si se carga la fecha del pedido a la casa en un pedido SOLICITADO/PEDIDO,
  *   el pedido pasa a ENCARGADO (mismo criterio que `markOrdered`), para que el
- *   resumen, los filtros y la hoja impresa ("Encargados esta semana") reflejen
- *   lo que realmente pasó.
+ *   resumen, los filtros y la hoja impresa ("Encargados") reflejen lo que
+ *   realmente pasó. Y al revés: si se BORRA esa fecha, vuelve a SOLICITADO
+ *   (pendiente de encargar), así no queda un ENCARGADO sin ninguna fecha.
+ * - Devuelve SÓLO lo que quedó escrito (fechas + estado) con la forma que
+ *   muestra la pantalla, para que quien llama lo aplique en memoria sin releer
+ *   la lista entera.
  */
 export async function updateOrderDates(
   id: string,
   input: SparePartOrderDatesInput,
-): Promise<void> {
+): Promise<Partial<SparePartOrder>> {
   const { ref, before } = await loadOrder(id)
   const updates: Record<string, unknown> = {}
 
@@ -951,17 +955,49 @@ export async function updateOrderDates(
       "fecha en que trajeron los repuestos",
     )
   }
-  if (Object.keys(updates).length === 0) return
+  if (Object.keys(updates).length === 0) return {}
 
   const status = before.status as SparePartOrderStatus
   if (updates.orderedAt && (status === "SOLICITADO" || status === "PEDIDO")) {
     updates.status = "ENCARGADO"
+  }
+  // Se BORRÓ la fecha de encargo: el pedido ya no está encargado → vuelve a
+  // "Solicitado" (pendiente de encargar). Sólo aplica cuando el usuario borró
+  // ESA fecha, para no tocar el estado por borrar las otras dos.
+  if ("orderedAt" in input && !updates.orderedAt && status === "ENCARGADO") {
+    updates.status = "SOLICITADO"
   }
 
   updates.updatedAt = new Date()
   await updateDoc(ref, updates)
   await createAuditLog("update", "spare_part_order", id, before, { ...before, ...updates })
   await invalidatePrimarySparePartOrders()
+  // Lo escrito, listo para aplicar en memoria (la pantalla NO relee la lista).
+  return writtenDatesPatch(updates)
+}
+
+/**
+ * Lo que se acaba de escribir, como parte de un `SparePartOrder` y con la misma
+ * forma que `docToOrder`: una fecha borrada queda `null`/`undefined` (nunca
+ * `null` donde el tipo espera `undefined`), para poder mezclarlo sobre el
+ * pedido en memoria sin romper lo que ya se muestra.
+ */
+function writtenDatesPatch(updates: Record<string, unknown>): Partial<SparePartOrder> {
+  const patch: Partial<SparePartOrder> = {}
+  if ("ownerRequestedAt" in updates) {
+    patch.ownerRequestedAt = (updates.ownerRequestedAt as Date | null) ?? null
+  }
+  if ("orderedAt" in updates) {
+    patch.orderedAt = (updates.orderedAt as Date | null) ?? undefined
+  }
+  if ("receivedAt" in updates) {
+    patch.receivedAt = (updates.receivedAt as Date | null) ?? undefined
+  }
+  if (typeof updates.status === "string") {
+    patch.status = updates.status as SparePartOrderStatus
+  }
+  patch.updatedAt = updates.updatedAt instanceof Date ? updates.updatedAt : new Date()
+  return patch
 }
 
 /**
