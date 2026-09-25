@@ -1175,7 +1175,7 @@ function orderProgressRank(status: SparePartOrderStatus): number {
  *
  * Devuelve la lista de pedidos YA consolidada (para deduplicar sobre ella).
  */
-async function mergeDuplicateOrders(existing: SparePartOrder[]): Promise<SparePartOrder[]> {
+async function mergeDuplicateOrders(existing: SparePartOrder[]): Promise<{ orders: SparePartOrder[]; merged: number }> {
   const groups = new Map<string, SparePartOrder[]>()
   for (const o of existing) {
     if (!isAutoImportedOrder(o)) continue
@@ -1227,7 +1227,10 @@ async function mergeDuplicateOrders(existing: SparePartOrder[]): Promise<SparePa
     }
   }
 
-  return removed.size === 0 ? existing : existing.filter((o) => !removed.has(o.id))
+  return {
+    orders: removed.size === 0 ? existing : existing.filter((o) => !removed.has(o.id)),
+    merged: removed.size,
+  }
 }
 
 /**
@@ -2434,6 +2437,8 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
   skippedAdmin: number
   /** Pedidos existentes cuyo Modelo se llevó a la DENOMINACION real de 3C. */
   modelsUpdated: number
+  /** Filas DUPLICADAS del mismo repuesto que se consolidaron en esta corrida. */
+  duplicatesMerged: number
   createdOrders: { orderNumber: string; code: string | null; description: string }[]
 }> {
   // Los registros llegan del propio agente (misma fuente primaria Redis), sin
@@ -2444,7 +2449,8 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
   // (una fila con el código real de 3C y otra con un valor falso, p. ej. "220V"):
   // se consolidan ANTES de deduplicar, así cada repuesto queda con UNA sola fila
   // (la que tiene las fechas/estado del operario) y con su código real.
-  const existing = await mergeDuplicateOrders(await getAllOrdersMerged())
+  const consolidated = await mergeDuplicateOrders(await getAllOrdersMerged())
+  const existing = consolidated.orders
   const seen = new Map<string, SparePartOrder>()
   // Pedidos guardados SIN un código real (vacío, o un valor que no es código
   // como el voltaje "220V" de importaciones viejas): se indexan ADEMÁS por
@@ -2600,5 +2606,12 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
   // DENOMINACION real de 3C (cruce por nº de orden). No crea ni borra pedidos.
   const models = await refreshModelsFromDenominacion(maintenance)
 
-  return { created: createdOrders.length, updated, skippedAdmin, createdOrders, modelsUpdated: models.updated }
+  return {
+    created: createdOrders.length,
+    updated,
+    skippedAdmin,
+    createdOrders,
+    modelsUpdated: models.updated,
+    duplicatesMerged: consolidated.merged,
+  }
 }
