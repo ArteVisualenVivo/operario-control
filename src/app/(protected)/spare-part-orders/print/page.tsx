@@ -120,22 +120,12 @@ export default function PurchaseListPage() {
         for (const r of reps) map.set(r.id, r)
         setRepairsMap(map)
 
-        const now = new Date()
-        const start = new Date(now)
-        start.setDate(now.getDate() - (now.getDay() === 0 ? 6 : now.getDay() - 1))
-        start.setHours(0, 0, 0, 0)
-        const end = new Date(start)
-        end.setDate(start.getDate() + 6)
-        end.setHours(23, 59, 59, 999)
-
         const pendientes = ords.filter((o) => o.status === "SOLICITADO" || o.status === "PEDIDO")
-        const enc = ords.filter(
-          (o) =>
-            o.status === "ENCARGADO" &&
-            o.orderedAt instanceof Date &&
-            o.orderedAt >= start &&
-            o.orderedAt <= end,
-        )
+        // ANEXO: TODOS los encargados, sin filtrar por fecha. Antes sólo salían los
+        // que tenían `orderedAt` dentro de la semana actual, así que los encargos
+        // de semanas anteriores no aparecían en NINGUNA parte de la hoja (ya no son
+        // "pendientes" por estado) y no había forma de seguirlos.
+        const enc = ords.filter((o) => o.status === "ENCARGADO")
         setOrders(pendientes)
         setEncargados(enc)
         // Sugerencias del desplegable: casas ya usadas en CUALQUIER pedido
@@ -288,7 +278,7 @@ export default function PurchaseListPage() {
         <div>
           <h1 className="text-xl font-bold">Lista de compra de repuestos</h1>
           <p className="text-sm text-muted-foreground">
-            Pendientes ({orders.length}) · Encargados esta semana ({encargados.length})
+            Pendientes ({orders.length}) · Encargados ({encargados.length})
           </p>
         </div>
         <div className="flex gap-2">
@@ -382,7 +372,7 @@ list="casas-repuesto"
 
           {encargados.length > 0 && (
             <>
-              <h3 style={{ fontSize: 12, fontWeight: 700, marginTop: 24, marginBottom: 4 }}>2. ANEXO - ENCARGADOS ESTA SEMANA (seguimiento de retiros)</h3>
+              <h3 style={{ fontSize: 12, fontWeight: 700, marginTop: 24, marginBottom: 4 }}>2. ANEXO - ENCARGADOS (seguimiento de retiros)</h3>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                 <thead>
                   <tr>
@@ -454,7 +444,7 @@ list="casas-repuesto"
 
       {!loading && !hasContent && (
         <p className="text-sm text-muted-foreground print:hidden">
-          No hay pedidos pendientes de encargar esta semana ni encargados registrados.
+          No hay pedidos pendientes de encargar ni encargados registrados.
         </p>
       )}
 
