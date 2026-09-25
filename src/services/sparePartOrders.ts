@@ -1137,6 +1137,100 @@ export function sparePartCodeKey(code: unknown): string {
 }
 
 /**
+ * Descripción normalizada de un repuesto: es la IDENTIDAD del pedido junto al
+ * nº de orden (el código es un atributo que 3C puede traer mal o vacío).
+ */
+function normPartDescription(value: unknown): string {
+  return String(value ?? "").trim().replace(/\s+/g, " ").toUpperCase()
+}
+
+/** Rango de avance: cuanto más avanzado el estado, más historia tiene la fila. */
+function orderProgressRank(status: SparePartOrderStatus): number {
+  switch (status) {
+    case "UTILIZADO": return 5
+    case "RECIBIDO": return 4
+    case "ENCARGADO": return 3
+    case "PEDIDO": return 2
+    case "SOLICITADO": return 1
+    default: return 0
+  }
+}
+
+/**
+ * CONSOLIDA los pedidos DUPLICADOS del MISMO repuesto que hayan quedado de
+ * importaciones anteriores: por ejemplo una fila con el código real de 3C y otra
+ * con un valor falso ("220V") porque el parser viejo tomaba el voltaje como
+ * código y creaba una fila nueva al no coincidir.
+ *
+ * Reglas:
+ * - SOLO pedidos auto-importados (los cargados a mano NUNCA se tocan).
+ * - Se agrupa por nº de orden + descripción normalizada: en 3C el repuesto se
+ *   identifica por su nombre; el código llega como dato aparte.
+ * - Se CONSERVA la fila con más historia (estado más avanzado → cantidades
+ *   recibidas/usadas → fechas cargadas → la más vieja) y se le copia el código
+ *   REAL del grupo; las demás se eliminan.
+ * - Si el grupo tiene DOS O MÁS códigos reales distintos NO se toca: son
+ *   repuestos distintos que comparten el nombre (p. ej. dos "RODAMIENTO" de
+ *   medidas distintas) y borrar uno perdería un pedido válido.
+ *
+ * Devuelve la lista de pedidos YA consolidada (para deduplicar sobre ella).
+ */
+async function mergeDuplicateOrders(existing: SparePartOrder[]): Promise<SparePartOrder[]> {
+  const groups = new Map<string, SparePartOrder[]>()
+  for (const o of existing) {
+    if (!isAutoImportedOrder(o)) continue
+    const key = `${normOrderKey(o.orderNumber)}||${normPartDescription(o.description)}`
+    const list = groups.get(key)
+    if (list) list.push(o)
+    else groups.set(key, [o])
+  }
+
+  const removed = new Set<string>()
+  for (const list of groups.values()) {
+    if (list.length < 2) continue
+    const codeKeys = new Set(list.map((o) => sparePartCodeKey(o.code)).filter(Boolean))
+    // Dos códigos reales distintos = dos repuestos distintos: no se toca nada.
+    if (codeKeys.size > 1) continue
+    const realCodeKey = codeKeys.size === 1 ? [...codeKeys][0] : ""
+    const countDates = (o: SparePartOrder) =>
+      (o.ownerRequestedAt ? 1 : 0) + (o.orderedAt ? 1 : 0) + (o.receivedAt ? 1 : 0) + (o.usedAt ? 1 : 0)
+    const keep = [...list].sort((a, b) => {
+      const rank = orderProgressRank(b.status) - orderProgressRank(a.status)
+      if (rank !== 0) return rank
+      const qty = (b.quantityReceived + b.quantityUsed) - (a.quantityReceived + a.quantityUsed)
+      if (qty !== 0) return qty
+      const dates = countDates(b) - countDates(a)
+      if (dates !== 0) return dates
+      return (a.createdAt?.getTime() ?? 0) - (b.createdAt?.getTime() ?? 0)
+    })[0]
+
+    // El código real del grupo queda en la fila que se conserva.
+    if (realCodeKey && sparePartCodeKey(keep.code) !== realCodeKey) {
+      const donor = list.find((o) => sparePartCodeKey(o.code) === realCodeKey)
+      const code = normalizePartCode(donor?.code ?? realCodeKey)
+      try {
+        await updateOrderDoc(keep.id, { code, updatedAt: new Date() })
+        keep.code = code
+      } catch {
+        // No frenar la importación por una escritura puntual.
+      }
+    }
+
+    for (const o of list) {
+      if (o.id === keep.id) continue
+      try {
+        await deleteOrders([o.id])
+        removed.add(o.id)
+      } catch {
+        // No frenar la importación por un documento puntual.
+      }
+    }
+  }
+
+  return removed.size === 0 ? existing : existing.filter((o) => !removed.has(o.id))
+}
+
+/**
  * Separa máquina y modelo desde la descripción de 3C.
  * Ej: "Amoladora bosch 230 GWS- 25-23" → { machine: "Amoladora bosch 230", model: "GWS-25-23" }
  * "ROTOMARTILLO BOSCH" → { machine: "ROTOMARTILLO BOSCH", model: null }
@@ -2346,7 +2440,11 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
   // fetch relativo: esa ruta falla cuando el proceso corre en Node (agente).
   const maintenance = records
 
-  const existing = await getAllOrdersMerged()
+  // Duplicados del MISMO repuesto que hayan quedado de importaciones anteriores
+  // (una fila con el código real de 3C y otra con un valor falso, p. ej. "220V"):
+  // se consolidan ANTES de deduplicar, así cada repuesto queda con UNA sola fila
+  // (la que tiene las fechas/estado del operario) y con su código real.
+  const existing = await mergeDuplicateOrders(await getAllOrdersMerged())
   const seen = new Map<string, SparePartOrder>()
   // Pedidos guardados SIN un código real (vacío, o un valor que no es código
   // como el voltaje "220V" de importaciones viejas): se indexan ADEMÁS por
