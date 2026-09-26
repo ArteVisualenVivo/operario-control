@@ -161,8 +161,14 @@ export function parseScaffoldRentals(buffer: ArrayBuffer | Buffer): ScaffoldRent
 
             if (cantidad <= 0) continue
 
-            // Criterio: estructuras (código de estructura Y descripción de andamio),
-            // o ruedas/tablones por código 3C.
+            const normalizedCodigo = normalizeCode(codigoRaw)
+            // 1262 = renglón de texto libre (rango de fechas / accesorios),
+            // no un artículo alquilado. Se excluye del detalle.
+            if (!normalizedCodigo || normalizedCodigo === "1262") continue
+
+            // Clasificación SOLO para los contadores de andamios/ruedas/
+            // tablones/puntales. El detalle guarda TODO renglón válido
+            // (máquinas incluidas) para que "Alquilado por" resuelva por código.
             const matchCode = isScaffoldStructureCode(codigoRaw)
             const matchDesc = isScaffoldStructureDescription(descripcion)
             const isWheel =
@@ -173,9 +179,6 @@ export function parseScaffoldRentals(buffer: ArrayBuffer | Buffer): ScaffoldRent
             const isPuntal = isInCodeList(codigoRaw, PUNTAL_CODES)
 
             const isStructure = matchCode && matchDesc
-            if (!isStructure && !isWheel && !isPlank && !isPuntal) continue
-
-            const normalizedCodigo = normalizeCode(codigoRaw)
 
             // Las ruedas sueltas a veces se alquilan en packs ("(4 RUEDAS)",
             // "(8 unid.)"): la cantidad de la fila es packs, hay que multiplicar.

@@ -228,20 +228,28 @@ export function searchGrouped(query: string, data: GroupedSearchData): GroupedRe
 
   // --- Materiales / componentes / máquinas desde stockItems ---
   // (Se calcula antes del loop porque materiales/maquinas/componentes lo usan.)
-  const alquilerPorCodigo = new Map<string, string>()
+  const alquilerPorCodigo = new Map<string, string[]>()
   for (const d of data.scaffoldRentals?.detalle ?? []) {
     const key = normalizeFlat(d.codigo)
-    if (!key || alquilerPorCodigo.has(key)) continue
+    if (!key) continue
     const cliente = (d.cliente || d.clienteId || "—").trim()
-    alquilerPorCodigo.set(key, d.remito ? `${cliente} (${d.remito})` : cliente)
+    const label = d.remito ? `${cliente} (${d.remito})` : cliente
+    const list = alquilerPorCodigo.get(key) ?? []
+    // Un mismo código puede estar en varios remitos (ej. 28501, 28601):
+    // se listan todos los clientes/remitos separados por "; ".
+    if (!list.includes(label)) list.push(label)
+    alquilerPorCodigo.set(key, list)
   }
-  const alquiladoPorCodigo = (codigo: string | undefined): string =>
-    (codigo && alquilerPorCodigo.get(normalizeFlat(codigo))) || ""
+  const alquiladoPorCodigo = (codigo: string | undefined): string => {
+    if (!codigo) return ""
+    const list = alquilerPorCodigo.get(normalizeFlat(codigo))
+    return list?.join("; ") ?? ""
+  }
 
   // --- Quién la tiene: máquinas alquiladas en el sistema (ficha de la máquina) ---
-  // Los remitos 3C que se guardan solo traen artículos de andamios (estructuras,
-  // ruedas, tablones, puntales), así que para los artículos de familia MÁQUINAS
-  // se usa la ficha de la máquina (machines.rental). Solo se usa cuando el nombre
+  // El detalle 3C puede no traer una máquina concreta (o traer varias unidades
+  // del mismo código en distintos remitos); para los artículos de familia
+  // MÁQUINAS se usa además la ficha de la máquina (machines.rental). Solo se usa cuando el nombre
   // coincide EXACTO (normalizado) y no hay ambigüedad (una sola máquina alquilada
   // con ese nombre): así nunca se atribuye un cliente al azar.
   const alquiladasPorNombre = new Map<string, string[]>()
