@@ -11,6 +11,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
 import { toast } from "sonner"
+import { matchesLoose, queryTokens } from "@/lib/fuzzySearch"
 
 // Búsqueda tolerante: ignora acentos y separadores, así el código 3C "00-10101"
 // se encuentra escribiendo "0010101" y el nombre "PAÑO" escribiendo "pano".
@@ -47,7 +48,10 @@ export default function InventoryPage() {
         item.name.toLowerCase().includes(q) ||
         (item.codigo ?? "").toLowerCase().includes(q) ||
         (qn !== "" &&
-          (normalizeQuery(item.name).includes(qn) || normalizeQuery(item.codigo ?? "").includes(qn)))
+          (normalizeQuery(item.name).includes(qn) || normalizeQuery(item.codigo ?? "").includes(qn))) ||
+      // Búsqueda tolerante a variantes: "martillo 15k" → "... 15KG",
+      // "motosierr" → "MOTOSIERRA", "0010101" → "00-10101".
+      matchesLoose(`${item.name} ${item.codigo ?? ""} ${item.category ?? ""}`, queryTokens(search))
       const matchesCategory = categoryFilter === "all" || item.category === categoryFilter
       return matchesSearch && matchesCategory
     })

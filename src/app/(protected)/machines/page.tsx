@@ -6,6 +6,7 @@ import { SearchInput } from "@/components/ui/SearchInput"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
+import { matchesLoose, queryTokens } from "@/lib/fuzzySearch"
 
 // Familias de 3C que corresponden a MÁQUINAS.
 // Ajustar esta lista si 3C agrega o renombra familias.
@@ -46,13 +47,16 @@ export default function MachinesPage() {
   }, [items])
 
   const filtered = useMemo(() => {
-    const q = search.toLowerCase()
+    const q = search.trim()
     if (!q) return machines
-    return machines.filter((m) =>
-      m.name.toLowerCase().includes(q) ||
-      (m.codigo ?? "").toLowerCase().includes(q) ||
-      (m.category ?? "").toLowerCase().includes(q)
-    )
+    const ql = q.toLowerCase()
+    const toks = queryTokens(q)
+    return machines.filter((m) => {
+      const hay = `${m.name} ${m.codigo ?? ""} ${m.category ?? ""}`
+      // 1) coincidencia literal de siempre, 2) tolerante ("martillo 15k" →
+      // "MARTILLO DEMOLEDOR ... 15KG").
+      return hay.toLowerCase().includes(ql) || matchesLoose(hay, toks)
+    })
   }, [machines, search])
 
   const totalUnidades = filtered.reduce((sum, m) => sum + m.stockTotal, 0)

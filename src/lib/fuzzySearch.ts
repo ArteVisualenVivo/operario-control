@@ -14,9 +14,14 @@ export function normalizeBase(value: unknown): string {
     .replace(/[\u0300-\u036f]/g, "")
 }
 
-/** Separadores → un espacio ("MARTILLO-15K" → "martillo 15k"). */
+/**
+ * Separadores → un espacio ("MARTILLO-15K" → "martillo 15k").
+ * Antes de separar, une los decimales escritos con coma o punto ("3,05" → "305",
+ * "3.05" → "305") para que "puntal 3,05" no se parta en los tokens "3" y "05".
+ */
 export function normalizeSpaced(value: unknown): string {
   return normalizeBase(value)
+    .replace(/(\d)[.,](\d)/g, "$1$2")
     .replace(/[^a-z0-9ñ]+/g, " ")
     .replace(/\s+/g, " ")
     .trim()
@@ -52,9 +57,16 @@ function wordMatches(qTok: string, word: string): boolean {
   for (const q of singularVariants(qTok)) {
     for (const w of singularVariants(word)) {
       if (w === q) return true
-      // Prefijo: "motosierr" → "motosierra", "carbon" → "carbones".
+      // Prefijo hacia adelante: el usuario escribió el principio de la palabra
+      // ("motosierr" → "motosierra", "carbon" → "carbones").
       if (q.length >= 4 && w.startsWith(q)) return true
-      if (w.length >= 4 && q.startsWith(w)) return true
+      // Abreviatura del artículo, SOLO si la palabra del artículo es larga
+      // ("hidrolavadora" → "HIDROLAV"). Con 6+ caracteres se evita el falso
+      // positivo de palabras cortas que son prefijo de otra cosa
+      // ("puntal" ≠ "punta", "motosierra" ≠ "moto", "andamio" ≠ "andar").
+      if (w.length >= 6 && q.startsWith(w)) return true
+      // Palabra compuesta: "guinche" → "ELECTROGUINCHE", "sierra" → "MOTOSIERRA".
+      if (q.length >= 5 && w.endsWith(q)) return true
     }
   }
   return false
@@ -62,10 +74,13 @@ function wordMatches(qTok: string, word: string): boolean {
 
 /**
  * ¿El haystack contiene TODOS los tokens (AND)? Cada token vale si:
- *  1. aparece literal en el texto normalizado, o
- *  2. aparece (con unidad canonizada) en el texto sin espacios
- *     ("15k" ↔ "15 kg" ↔ "15kg" ↔ "15-k"), o
- *  3. es prefijo / singular de alguna palabra del texto.
+ *  1. aparece (con unidad canonizada) en el texto sin espacios
+ *     ("15k" ↔ "15 kg" ↔ "15kg" ↔ "15-k", "0010101" ↔ "00-10101"), o
+ *  2. es igual, singular/plural, prefijo o abreviatura de alguna palabra del
+ *     texto (ver wordMatches).
+ *
+ * Ojo: NO se compara el token como subcadena cruda con espacios, porque eso
+ * hacía que "punta" entrara dentro de "puntal" y trajera resultados falsos.
  */
 export function matchesLoose(haystack: string, tokens: string[]): boolean {
   if (tokens.length === 0) return true
@@ -76,9 +91,11 @@ export function matchesLoose(haystack: string, tokens: string[]): boolean {
   return tokens.every((raw) => {
     const t = raw.toLowerCase()
     if (!t) return true
-    if (spaced.includes(t)) return true
     const tFlat = canonUnitFlat(t.replace(/\s+/g, ""))
-    if (tFlat.length >= 2 && flat.includes(tFlat)) return true
+    // La comparación "sin espacios" solo vale para códigos/cifras con dígitos
+    // ("15k" ↔ "15 kg", "0010101" ↔ "00-10101"). Con texto alfabético genera
+    // falsos positivos al cruzar palabras ("punta largo" → "puntalargo").
+    if (/\d/.test(tFlat) && tFlat.length >= 3 && flat.includes(tFlat)) return true
     return words.some((w) => wordMatches(t, w))
   })
 }
