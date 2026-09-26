@@ -172,6 +172,12 @@ const PUNTAL_TERMS = new Set([
 const MAQUINA_TERMS = new Set(["maquina", "maquinas", "maquinasalquiladas", "alquiladas"])
 // Términos que activan el grupo de alquileres completo
 const ALQUILER_TERMS = new Set(["alquiler", "alquileres", "alquilado", "alquilados", "remito", "remitos", "alquil"])
+// Términos GENÉRICOS de andamios: listan todo el universo de andamios
+// (componentes por código + sus familias). Un término puntual ("tablon",
+// "rueda") NO entra acá: filtra por nombre y devuelve sólo lo pedido.
+const ANDAMIO_GENERIC_TERMS = new Set(["andamio", "andamios", "and", "estructura", "estructuras", "scaffold"])
+// Familias de 3C que pertenecen al universo andamio.
+const ANDAMIO_FAMILIAS = new Set(["puntales", "riendas", "andamio_accesorios", "tablones", "estructuras"].map(normalize))
 
 const STRUCTURE_SET = new Set(SCAFFOLD_STRUCTURE_CODES.map(normalize))
 const RIENDA_CORTA = new Set(["R01", "R03"].map(normalize))
@@ -215,6 +221,7 @@ export function searchGrouped(query: string, data: GroupedSearchData): GroupedRe
   if (tokens.length === 0) return empty
 
   const scaffoldTerm = tokens.some((tk) => ANDAMIO_TERMS.has(tk))
+  const andamioGenericoTerm = tokens.some((tk) => ANDAMIO_GENERIC_TERMS.has(tk))
   const puntalTerm = tokens.some((tk) => PUNTAL_TERMS.has(tk))
   const maquinaTerm = tokens.some((tk) => MAQUINA_TERMS.has(tk))
   const alquilerTerm = tokens.some((tk) => ALQUILER_TERMS.has(tk))
@@ -264,8 +271,16 @@ export function searchGrouped(query: string, data: GroupedSearchData): GroupedRe
     const compactFields = compact(fields.join(" "))
     const hitExacto = matchesTokens(compactFields, tokens);
     const hitSuelto = item.codigo === qFlat || hayLoose(fields.join(' '));
-    if ((!hitExacto && !hitSuelto) && !scaffoldTerm && !maquinaTerm) continue
     const familia = item.category || ""
+    if (!hitExacto && !hitSuelto) {
+      // Un término genérico ("andamio", "maquinaria") lista su universo completo
+      // (componentes por código 3C + sus familias). Antes se listaba TODO el
+      // depósito: buscar "tablon" o "rueda" devolvía las 3.000 filas completas.
+      const porGrupo =
+        (andamioGenericoTerm && (esComponenteAndamio(item) || ANDAMIO_FAMILIAS.has(normalize(familia)))) ||
+        (maquinaTerm && maquinaSet.has(normalize(familia)))
+      if (!porGrupo) continue
+    }
     if (esComponenteAndamio(item)) {
       const codigo = item.codigo ?? ""
       if (componenteVistos.has(codigo)) continue

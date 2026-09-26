@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { LOCAL_MODE } from "@/lib/runtimeMode"
+import { normalizeFlat } from "@/lib/fuzzySearch"
 import { LOCAL_STOCK_SEED } from "@/lib/local-seeds"
 import { createAuditLog } from "./audit"
 import { createInventoryMovement } from "./inventoryMovements"
@@ -115,8 +116,17 @@ async function loadPrimaryStock(): Promise<InventoryStock[] | null> {
     fetchPrimaryModule("articulos"),
   ])
   if (!stock && !articulos) return null
+  // El módulo "articulos" trae el catálogo completo y, cuando 3C no informa el
+  // código, el agente guarda el NOMBRE como código: esos registros duplican al
+  // mismo artículo del módulo "stock" (que sí trae código 3C real, stock y
+  // remito). Se descartan los duplicados por nombre para no listar dos veces el
+  // material (antes la misma pieza aparecía con código y sin código).
+  const nombresEnStock = new Set((stock ?? []).map((item) => normalizeFlat(item.name)))
   const byId = new Map<string, InventoryStock>()
-  for (const item of articulos ?? []) byId.set(item.id, item)
+  for (const item of articulos ?? []) {
+    if (nombresEnStock.has(normalizeFlat(item.name))) continue
+    byId.set(item.id, item)
+  }
   for (const item of stock ?? []) byId.set(item.id, item)
   const merged = [...byId.values()]
   return merged.length > 0 ? merged : null
