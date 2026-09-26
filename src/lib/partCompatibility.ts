@@ -12,6 +12,7 @@
  * no son códigos reales).
  */
 import type { Machine, SparePart, SparePartOrder } from "@/types"
+import { matchesLoose, queryTokens } from "@/lib/fuzzySearch"
 
 export type CompatOrigen = "ficha" | "pedido" | "plano"
 
@@ -44,14 +45,6 @@ export interface CompatibilityData {
 }
 
 // ─── Normalización (misma regla que sparePartOrders.ts, versión pura) ───────
-
-function normalizeText(value: unknown): string {
-  return String(value ?? "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-}
 
 /** Código tal como se MUESTRA: mayúsculas y espacios simples. */
 function normalizePartCode(code: unknown): string {
@@ -196,17 +189,12 @@ export function findCompatibleMachines(
     }
   }
 
-  // ── 2) Fallback por NOMBRE/descripción ──────────────────────────────────
+  // ── 2) Fallback por NOMBRE/descripción (tolerante a variantes) ─────────────
   if (!matchedByCode) {
-    const qNorm = normalizeText(q)
-    const tokens = qNorm.split(/\s+/).filter(Boolean)
-    if (tokens.length === 0) return null
-    const haystackMatch = (haystack: unknown): boolean => {
-      const h = normalizeText(haystack)
-      if (!h) return false
-      if (h.includes(qNorm)) return true
-      return tokens.every((t) => h.includes(t))
-    }
+    const looseTokens = queryTokens(q)
+    if (looseTokens.length === 0) return null
+    const haystackMatch = (haystack: unknown): boolean =>
+      matchesLoose(String(haystack ?? ""), looseTokens)
     for (const p of parts) {
       if (!haystackMatch(`${p.partName ?? ""} ${p.partCode ?? ""}`)) continue
       const acc = ensureAcc(p.machineId ?? "", p.machineName ?? "", p.machineModel ?? "")

@@ -57,26 +57,67 @@ function TotalLine({ label, value }: { label: string; value: number | string }) 
 
 function MaterialTable({ rows }: { rows: MaterialRow[] }) {
   const total = rows.reduce((s, r) => s + r.stock, 0)
+  const conAlquiler = rows.some((r) => r.alquiladoPor)
   return (
     <>
       <SimpleTable
-        headers={["Código", "Nombre", "Familia", "Marca", "Stock", "Disponible"]}
-        rows={rows.map((r) => [
-          <span key="c" className="font-mono text-xs">{r.codigo || "—"}</span>,
-          <span key="n" className="font-medium">{r.nombre}</span>,
-          r.familia || "—",
-          r.marca || "—",
-          <span key="s" className={r.stock < 0 ? "font-bold text-red-600" : "font-bold"}>{r.stock}</span>,
-          <span key="d" className="text-green-700">{r.disponible}</span>,
-        ])}
+        headers={conAlquiler
+          ? ["Código", "Nombre", "Familia", "Marca", "Stock", "Disponible", "Alquilado por"]
+          : ["Código", "Nombre", "Familia", "Marca", "Stock", "Disponible"]}
+        rows={rows.map((r) => {
+          const cells: React.ReactNode[] = [
+            <span key="c" className="font-mono text-xs">{r.codigo || "—"}</span>,
+            <span key="n" className="font-medium">{r.nombre}</span>,
+            r.familia || "—",
+            r.marca || "—",
+            <span key="s" className={r.stock < 0 ? "font-bold text-red-600" : "font-bold"}>{r.stock}</span>,
+            <span key="d" className="text-green-700">{r.disponible}</span>,
+          ]
+          if (conAlquiler) {
+            cells.push(
+              r.alquiladoPor
+                ? <span key="a" className="font-medium text-amber-700">{r.alquiladoPor}</span>
+                : <span key="a" className="text-muted-foreground">—</span>,
+            )
+          }
+          return cells
+        })}
       />
       <p className="text-sm text-muted-foreground">TOTAL STOCK: <strong>{total}</strong></p>
     </>
   )
 }
+
+function ComponenteTable({ rows }: { rows: ComponenteRow[] }) {
+  const conAlquiler = rows.some((r) => r.alquiladoPor)
+  return (
+    <SimpleTable
+      headers={conAlquiler
+        ? ["Grupo", "Código", "Nombre", "Cantidad", "Alquilado por"]
+        : ["Grupo", "Código", "Nombre", "Cantidad"]}
+      rows={rows.map((r) => {
+        const cells: React.ReactNode[] = [
+          r.grupo,
+          <span key="c" className="font-mono text-xs">{r.codigo || "—"}</span>,
+          <span key="n" className="font-medium">{r.nombre}</span>,
+          <span key="cant" className="font-bold">{r.cantidad}</span>,
+        ]
+        if (conAlquiler) {
+          cells.push(
+            r.alquiladoPor
+              ? <span key="a" className="font-medium text-amber-700">{r.alquiladoPor}</span>
+              : <span key="a" className="text-muted-foreground">—</span>,
+          )
+        }
+        return cells
+      })}
+    />
+  )
+}
 export function DashboardResults({ results }: Props) {
   const { query, resumenAndamios, compatibilidad, materiales, componentes, alquileres, reparaciones, maquinas } = results
   const [openGrupo, setOpenGrupo] = useState<string | null>(null)
+  const conAlquilerMaquinas = maquinas.some((m) => m.alquiladoPor)
 
   if (results.totalResultados === 0 && !resumenAndamios) {
     return (
@@ -182,15 +223,7 @@ export function DashboardResults({ results }: Props) {
 
       {componentes.length > 0 && (
         <Section title={`Andamios — componentes (${componentes.length})`}>
-          <SimpleTable
-            headers={["Componente", "Código", "Nombre", "Cantidad disponible"]}
-            rows={componentes.map((c: ComponenteRow) => [
-              c.grupo,
-              <span key="c" className="font-mono text-xs">{c.codigo}</span>,
-              c.nombre,
-              <span key="q" className={`font-bold ${c.cantidad < 0 ? "text-red-600" : ""}`}>{c.cantidad}</span>,
-            ])}
-          />
+          <ComponenteTable rows={componentes} />
           <div className="max-w-sm space-y-1">
             {[...new Set(componentes.map((c) => c.grupo))].map((g) => (
               <TotalLine key={g} label={`Total ${g}`} value={componentes.filter((c) => c.grupo === g).reduce((s, c) => s + c.cantidad, 0)} />
@@ -199,7 +232,7 @@ export function DashboardResults({ results }: Props) {
         </Section>
       )}
 
-            {alquileres.length > 0 && (
+      {alquileres.length > 0 && (
         <Section title={`Alquileres (3C) — ${alquileres.reduce((s, g) => s + g.detalle.length, 0)} renglón(es) · ${alquileres.length} cliente(s)`}>
           <div className="space-y-4">
             {alquileres.map((g: AlquilerGrupo) => (
@@ -253,14 +286,26 @@ export function DashboardResults({ results }: Props) {
       {maquinas.length > 0 && (
         <Section title={`Máquinas — ${maquinas.length} tipos`}>
           <SimpleTable
-            headers={["Código", "Máquina", "Familia", "Stock", "Disponible"]}
-            rows={maquinas.map((m: MaquinaRow) => [
-              <span key="c" className="font-mono text-xs">{m.codigo || "—"}</span>,
-              <span key="n" className="font-medium">{m.nombre}</span>,
-              m.familia,
-              <span key="s" className={`font-bold ${m.stock < 0 ? "text-red-600" : ""}`}>{m.stock}</span>,
-              <span key="d" className="text-green-700">{m.disponible}</span>,
-            ])}
+            headers={conAlquilerMaquinas
+              ? ["Código", "Máquina", "Familia", "Stock", "Disponible", "Alquilado por"]
+              : ["Código", "Máquina", "Familia", "Stock", "Disponible"]}
+            rows={maquinas.map((m: MaquinaRow) => {
+              const cells: React.ReactNode[] = [
+                <span key="c" className="font-mono text-xs">{m.codigo || "—"}</span>,
+                <span key="n" className="font-medium">{m.nombre}</span>,
+                m.familia,
+                <span key="s" className={`font-bold ${m.stock < 0 ? "text-red-600" : ""}`}>{m.stock}</span>,
+                <span key="d" className="text-green-700">{m.disponible}</span>,
+              ]
+              if (conAlquilerMaquinas) {
+                cells.push(
+                  m.alquiladoPor
+                    ? <span key="a" className="font-medium text-amber-700">{m.alquiladoPor}</span>
+                    : <span key="a" className="text-muted-foreground">—</span>,
+                )
+              }
+              return cells
+            })}
           />
         </Section>
       )}

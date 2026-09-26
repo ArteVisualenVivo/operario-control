@@ -11,6 +11,7 @@ import type { ScaffoldRentalStats } from "@/lib/dashboardStats"
 import { SCAFFOLD_CODES, SCAFFOLD_STRUCTURE_CODES } from "@/lib/inventoryGroups"
 import { findCompatibleMachines } from "@/lib/partCompatibility"
 import type { CompatibilidadRepuesto } from "@/lib/partCompatibility"
+import { matchesLoose, normalizeFlat, queryTokens } from "@/lib/fuzzySearch"
 
 export type { CompatibilidadRepuesto }
 
@@ -49,8 +50,24 @@ export interface ResumenAndamios {
     pasillerosAlq: number
     pasillerosDisp: number
 }
-export interface MaterialRow { codigo: string; nombre: string; familia: string; marca: string; stock: number; disponible: number }
-export interface ComponenteRow { grupo: string; codigo: string; nombre: string; cantidad: number }
+export interface MaterialRow {
+  codigo: string
+  nombre: string
+  familia: string
+  marca: string
+  stock: number
+  disponible: number
+  /** "cliente (remito …)" cuando el código está en un remito 3C pendiente, "" si no. */
+  alquiladoPor: string
+}
+export interface ComponenteRow {
+  grupo: string
+  codigo: string
+  nombre: string
+  cantidad: number
+  /** Cliente + remito cuando el componente está en un remito 3C pendiente, "" si no. */
+  alquiladoPor: string
+}
 export interface AlquilerRow { cliente: string; remito: string; cantidad: number; fecha: string; devolucion: string }
 export interface AlquilerDetalleRow { codigo: string; descripcion: string; cantidad: number; remito: string; fecha: string; devolucion: string }
 export interface AlquilerGrupo {
@@ -94,7 +111,18 @@ function clasificarAlquilerRenglon(codigo: string, descripcion: string): string 
 }
 
 export interface ReparacionRow { orden: string; cliente: string; maquina: string; estado: string; fecha: string; descripcion: string }
-export interface MaquinaRow { codigo: string; nombre: string; familia: string; stock: number; disponible: number }
+export interface MaquinaRow {
+  codigo: string
+  nombre: string
+  familia: string
+  stock: number
+  disponible: number
+  /**
+   * Quién la tiene: cliente + obra (ficha de la máquina alquilada) o
+   * cliente + remito (remito 3C pendiente). "" si no está alquilada.
+   */
+  alquiladoPor: string
+}
 
 export interface GroupedResults {
     query: string
@@ -178,6 +206,11 @@ export function searchGrouped(query: string, data: GroupedSearchData): GroupedRe
   const q = query.trim()
   const empty: GroupedResults = { query, resumenAndamios: null, compatibilidad: null, materiales: [], componentes: [], alquileres: [], reparaciones: [], maquinas: [], totalResultados: 0 }
   if (!q) return empty
+  // Búsqueda tolerante a variantes: "martillo 15k" ↔ "MARTILLO 15 KG" /
+  // "Martillo 15kg" / "MARTILLO-15K"; "motosierr" ↔ "motosierra".
+  const looseTokens = queryTokens(q)
+  const qFlat = normalizeFlat(q)
+  const hayLoose = (text: string): boolean => matchesLoose(text, looseTokens)
   const tokens = compact(q).split(/\s+/).filter(Boolean)
   if (tokens.length === 0) return empty
 
@@ -187,6 +220,40 @@ export function searchGrouped(query: string, data: GroupedSearchData): GroupedRe
   const alquilerTerm = tokens.some((tk) => ALQUILER_TERMS.has(tk))
 
   // --- Materiales / componentes / máquinas desde stockItems ---
+  // (Se calcula antes del loop porque materiales/maquinas/componentes lo usan.)
+  const alquilerPorCodigo = new Map<string, string>()
+  for (const d of data.scaffoldRentals?.detalle ?? []) {
+    const key = normalizeFlat(d.codigo)
+    if (!key || alquilerPorCodigo.has(key)) continue
+    const cliente = (d.cliente || d.clienteId || "—").trim()
+    alquilerPorCodigo.set(key, d.remito ? `${cliente} (${d.remito})` : cliente)
+  }
+  const alquiladoPorCodigo = (codigo: string | undefined): string =>
+    (codigo && alquilerPorCodigo.get(normalizeFlat(codigo))) || ""
+
+  // --- Quién la tiene: máquinas alquiladas en el sistema (ficha de la máquina) ---
+  // Los remitos 3C que se guardan solo traen artículos de andamios (estructuras,
+  // ruedas, tablones, puntales), así que para los artículos de familia MÁQUINAS
+  // se usa la ficha de la máquina (machines.rental). Solo se usa cuando el nombre
+  // coincide EXACTO (normalizado) y no hay ambigüedad (una sola máquina alquilada
+  // con ese nombre): así nunca se atribuye un cliente al azar.
+  const alquiladasPorNombre = new Map<string, string[]>()
+  for (const m of data.machines) {
+    if (m.status !== "rented" || !m.rental?.clientName) continue
+    const key = normalizeFlat(m.name)
+    if (!key) continue
+    const cliente = m.rental.clientName.trim()
+    const obra = (m.rental.projectName || "").trim()
+    const label = obra ? `${cliente} (${obra})` : cliente
+    const list = alquiladasPorNombre.get(key) ?? []
+    list.push(label)
+    alquiladasPorNombre.set(key, list)
+  }
+  const alquiladoPorMaquina = (nombre: string | undefined): string => {
+    const list = alquiladasPorNombre.get(normalizeFlat(nombre))
+    return list && list.length === 1 ? list[0] : ""
+  }
+
   const materiales: MaterialRow[] = []
   const componentes: ComponenteRow[] = []
   const maquinas: MaquinaRow[] = []
@@ -195,17 +262,19 @@ export function searchGrouped(query: string, data: GroupedSearchData): GroupedRe
   for (const item of data.stockItems) {
     const fields = [item.name, item.codigo, item.category, item.subtype, item.size, item.unit]
     const compactFields = compact(fields.join(" "))
-    if (!matchesTokens(compactFields, tokens) && !scaffoldTerm && !maquinaTerm) continue
+    const hitExacto = matchesTokens(compactFields, tokens);
+    const hitSuelto = item.codigo === qFlat || hayLoose(fields.join(' '));
+    if ((!hitExacto && !hitSuelto) && !scaffoldTerm && !maquinaTerm) continue
     const familia = item.category || ""
     if (esComponenteAndamio(item)) {
       const codigo = item.codigo ?? ""
       if (componenteVistos.has(codigo)) continue
       componenteVistos.add(codigo)
-      componentes.push({ grupo: grupoDeCodigo(codigo), codigo, nombre: item.name, cantidad: item.stockAvailable })
+      componentes.push({ grupo: grupoDeCodigo(codigo), codigo, nombre: item.name, cantidad: item.stockAvailable, alquiladoPor: alquiladoPorCodigo(item.codigo) })
     } else if (maquinaSet.has(normalize(familia))) {
-      maquinas.push({ codigo: item.codigo ?? "", nombre: item.name, familia, stock: item.stockTotal, disponible: item.stockAvailable })
+      maquinas.push({ codigo: item.codigo ?? "", nombre: item.name, familia, stock: item.stockTotal, disponible: item.stockAvailable, alquiladoPor: alquiladoPorCodigo(item.codigo) || alquiladoPorMaquina(item.name) })
     } else {
-      materiales.push({ codigo: item.codigo ?? "", nombre: item.name, familia, marca: "", stock: item.stockTotal, disponible: item.stockAvailable })
+      materiales.push({ codigo: item.codigo ?? "", nombre: item.name, familia, marca: "", stock: item.stockTotal, disponible: item.stockAvailable, alquiladoPor: alquiladoPorCodigo(item.codigo) })
     }
   }
 
@@ -215,7 +284,8 @@ export function searchGrouped(query: string, data: GroupedSearchData): GroupedRe
   const gruposCli = new Map<string, AlquilerGrupo>()
   for (const d of detalle) {
     const fields = [d.cliente, d.clienteId, d.remito, d.codigo, d.descripcion, d.fecha, d.devolucion]
-    if (alquilerTerm || matchesTokens(compact(fields.join(" ")), tokens)) {
+    // Exacto como antes + tolerante a variantes de escritura.
+    if (alquilerTerm || matchesTokens(compact(fields.join(" ")), tokens) || hayLoose(fields.join(" "))) {
       const cliente = d.cliente || d.clienteId || "Sin cliente"
       if (!gruposCli.has(cliente)) {
         gruposCli.set(cliente, { cliente, remitos: [], totales: {}, detalle: [] })
@@ -238,7 +308,8 @@ export function searchGrouped(query: string, data: GroupedSearchData): GroupedRe
       o.statusDescription, o.statusUser,
       o.workItems?.join(" "), o.sourceFiles?.join(" "),
     ]
-    if (matchesTokens(compact(fields.join(" ")), tokens)) {
+    // Exacto como antes + tolerante a variantes de escritura.
+    if (matchesTokens(compact(fields.join(" ")), tokens) || hayLoose(fields.join(" "))) {
       reparaciones.push({
         orden: o.orderNumber,
         cliente: o.clientName,
