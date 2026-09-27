@@ -1098,6 +1098,18 @@ async function runModule(
                 result.scaffoldCuerposAlquilados = stats.cuerposAlquilados
                 result.scaffoldDetalleCount = stats.detalle.length
 
+                // BLINDAJE ANTI-VACIADO: Si por anomalía el parse arroja 0 renglones pero existían datos previos,
+                // no pisamos Redis con datos vacíos para no romper la UI y las máquinas en alquiler.
+                if (stats.detalle.length === 0) {
+                    const prevEnvelope = await readModuleData("alquileres", redis)
+                    if (prevEnvelope && prevEnvelope.recordCount > 0) {
+                        console.warn(`[AGENT] BLINDAJE ALQUILERES: El export parseó 0 renglones pero existían ${prevEnvelope.recordCount} previos. Se preserva el snapshot anterior.`)
+                        result.warnings.push(`Export de alquileres con 0 renglones; se preservó el snapshot previo (${prevEnvelope.recordCount} registros).`)
+                        // No persistimos vacío
+                        throw new Error("El export de alquileres arrojó 0 renglones; se aborta la sobreescritura para proteger los datos existentes.")
+                    }
+                }
+
                 // —— FUENTE PRIMARIA (Redis): guardar el detalle completo SIEMPRE ——
                 await saveModuleData(redis, {
                     module: "alquileres",
@@ -1138,6 +1150,7 @@ async function runModule(
                 const pMsg = parseErr instanceof Error ? parseErr.message : String(parseErr)
                 console.error("[AGENT] Error interpretando el export de alquileres:", pMsg)
                 result.warnings.push("No se pudo interpretar el export de alquileres (formato inesperado): " + pMsg)
+                result.success = false
             }
         } else if (module === "reparaciones") {
             const syncId = `maintenance-${runStart}`

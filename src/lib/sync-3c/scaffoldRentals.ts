@@ -106,6 +106,37 @@ function toText(value: unknown): string {
 export function parseScaffoldRentals(buffer: ArrayBuffer | Buffer): ScaffoldRentalStats {
     const workbook = XLSX.read(buffer, { type: "buffer" })
 
+    // Validar firma del reporte: debe tener cabecera reconocible de alquileres pendientes
+    // (columnas como ARTICU_ID_CP, CLIENTE_NOMBRE_CP y CANTIDAD_CP).
+    // Si viene un archivo de otro módulo (ej. reparaciones, stock), rechazamos inmediatamente.
+    let validReportFound = false
+    for (const sheetName of workbook.SheetNames) {
+        const worksheet = workbook.Sheets[sheetName]
+        if (!worksheet) continue
+        const rows: unknown[][] = XLSX.utils.sheet_to_json(worksheet, {
+            header: 1,
+            raw: true,
+            defval: null,
+        })
+        const hasHeader = rows.some((row) => {
+            if (!Array.isArray(row)) return false
+            const h = row.map((c) => String(c ?? "").toUpperCase().trim())
+            return (
+                h.some((c) => c === "ARTICU_ID_CP" || c.includes("ARTICU_ID")) &&
+                h.some((c) => c === "CLIENTE_NOMBRE_CP" || c.includes("CLIENTE_NOMBRE")) &&
+                h.some((c) => c === "CANTIDAD_CP" || c.includes("CANTIDAD"))
+            )
+        })
+        if (hasHeader) {
+            validReportFound = true
+            break
+        }
+    }
+
+    if (!validReportFound) {
+        throw new Error("El archivo exportado no corresponde al reporte de Alquileres Pendientes (columnas esperadas no encontradas).")
+    }
+
     const detalle: ScaffoldRentalDetail[] = []
     let cuerposAlquilados = 0
 
