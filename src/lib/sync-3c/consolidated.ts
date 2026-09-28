@@ -428,6 +428,48 @@ function collectMotivosByStatus(
   return out
 }
 
+/** Identidad de un estado: todo menos `sourceFile` (el archivo que lo repite). */
+function stateIdentity(state: ConsolidatedState): string {
+  return [
+    state.status,
+    state.statusDate ?? "",
+    state.statusDescription ?? "",
+    state.statusUser ?? "",
+    state.motivoEstadoRep ?? "",
+  ].join("\u0001")
+}
+
+/**
+ * Colapsa los estados REPETIDOS EN FORMA CONSECUTIVA de la línea de tiempo.
+ *
+ * Cada Excel de 3C que se exporta trae las mismas filas de la orden, así que al
+ * consolidar por archivo quedan copias pegadas de cada estado. Medido sobre la
+ * corrida real (1.137 órdenes): 27.414 estados guardados contra 7.253 distintos
+ * (3,8x de puro ruido, ~6,5 MB de snapshot). Ese volumen viaja entero al
+ * navegador en cada pantalla y hace que la lectura de la fuente primaria sea
+ * lenta/frágil; cuando falla, la regla de cierre de Pedidos Rep. se queda SIN
+ * datos y muestra órdenes ya reparadas en 3C.
+ *
+ * Se conserva la PRIMERA aparición de cada tramo, así quedan idénticos:
+ *  - la secuencia de CAMBIOS de estado (y por lo tanto el último estado, que es
+ *    el que define si la orden está cerrada, y `reopenedAfterTerminal`),
+ *  - el primer estado "A la Espera Repuestos" (fuente del `requestedAt` de los
+ *    pedidos importados desde 3C),
+ *  - las fechas de reparación/entrega y el estado actual.
+ * Sólo se descartan repeticiones de un estado EXACTAMENTE igual al anterior.
+ */
+function collapseRepeatedStates(states: ConsolidatedState[]): ConsolidatedState[] {
+  const out: ConsolidatedState[] = []
+  let previousKey: string | null = null
+  for (const state of states) {
+    const key = stateIdentity(state)
+    if (key === previousKey) continue
+    previousKey = key
+    out.push(state)
+  }
+  return out
+}
+
 export function consolidatedToMaintenanceRecords(
   consolidated: Map<string, OrderConsolidated>,
   existing?: MaintenanceRecord[],
@@ -466,7 +508,7 @@ export function consolidatedToMaintenanceRecords(
       observations: rec.observations || prev?.observations,
       createdAt: prev?.createdAt ?? (rec.entryDate ? new Date(rec.entryDate) : new Date()),
       updatedAt: new Date(),
-      states: rec.states,
+      states: collapseRepeatedStates(rec.states),
       workItems: rec.workItems,
       sourceFiles: rec.sourceFiles,
       // Preservar motivo + estado de 3C del parse del Excel de Detalle
