@@ -25,22 +25,28 @@ type Filter = "todos" | SparePartOrderStatus | "pendientes" | "encargados" | "re
 // Timestamp capturado a nivel de módulo (no durante el render) para los cálculos de "atrasos".
 const MODULE_LOAD_TS = Date.now()
 
-// --- búsqueda por N° de Orden: permite buscar por los últimos dígitos ---
-// Ej: con orderSearch="11271" encontramos "X 0001-00011271".
-// Se compara: el orderNumber tal cual (comportamiento actual) + el número
-// real extraído (los dígitos después del último guion). No altera datos ni display.
+// --- buscador GLOBAL: un solo texto matchea repuesto/código + orden/máquina + cliente ---
+// Orden: texto completo o últimos dígitos (ej. "11271" → "X 0001-00011271").
+// Cliente: viene del cruce con 3C (maintenanceByOrder), no del pedido.
 function extractOrderNumber(orderNumber: string | null | undefined): string {
   if (!orderNumber) return ""
   const matches = orderNumber.match(/\d+/g)
   return matches && matches.length > 0 ? matches[matches.length - 1] : ""
 }
 
+function normQuery(value: string | null | undefined): string {
+  return (value ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+}
+
 export default function SparePartOrdersPage() {
   const router = useRouter()
   const { orders, loading, reload, markAsOrdered, remove, markAsReceived, markAsUsed, updateDates, updateCode } = useAllSparePartOrders()
   const [filter, setFilter] = useState<Filter>("todos")
-  const [search, setSearch] = useState("")
-  const [orderSearch, setOrderSearch] = useState("")
+  const [query, setQuery] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [orderedTarget, setOrderedTarget] = useState<SparePartOrder | null>(null)
@@ -209,22 +215,33 @@ export default function SparePartOrdersPage() {
   }
 
   const visible = useMemo(() => {
-    const q = search.toLowerCase()
-    const oq = orderSearch.toLowerCase()
+    const q = normQuery(query)
     const from = dateFrom ? new Date(dateFrom + "T00:00:00") : null
     const to = dateTo ? new Date(dateTo + "T23:59:59") : null
     return orders
       .filter(matchesFilter)
       .filter((o) => showClosed || !closureById.get(o.id)?.closed)
       .filter((o) => {
-        const matchesQ = !q || o.description.toLowerCase().includes(q) || o.code.toLowerCase().includes(q)
-        const matchesOq = !oq || o.orderNumber.toLowerCase().includes(oq) || o.machineName.toLowerCase().includes(oq) || extractOrderNumber(o.orderNumber).toLowerCase().includes(oq)
+        if (q) {
+          const rec = maintenanceByOrder.get(normOrderKey(o.orderNumber))
+          const hay = [
+            o.description,
+            o.code,
+            o.orderNumber,
+            extractOrderNumber(o.orderNumber),
+            o.machineName,
+            o.machineModel ?? "",
+            rec?.clientName ?? "",
+            rec?.clientCode ?? "",
+          ].map(normQuery)
+          if (!hay.some((h) => h.includes(q))) return false
+        }
         const matchesDates =
           (!from || (o.requestedAt && new Date(o.requestedAt) >= from)) &&
           (!to || (o.requestedAt && new Date(o.requestedAt) <= to))
-        return matchesQ && matchesOq && matchesDates
+        return matchesDates
       })
-  }, [orders, search, orderSearch, dateFrom, dateTo, matchesFilter, closureById, showClosed])
+  }, [orders, query, dateFrom, dateTo, matchesFilter, closureById, showClosed, maintenanceByOrder])
 
   const counts = useMemo(() => {
     const pendientes = orders.filter((o) => o.status === "SOLICITADO" || o.status === "PEDIDO").length
@@ -314,10 +331,9 @@ export default function SparePartOrdersPage() {
         </label>
       </div>
 
-      {/* Búsquedas */}
+      {/* Buscador global + fechas */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <SearchInput value={search} onChange={setSearch} placeholder="Buscar por repuesto o código" className="max-w-xs" />
-        <Input value={orderSearch} onChange={(e) => setOrderSearch(e.target.value)} placeholder="Orden o máquina" className="max-w-xs" />
+        <SearchInput value={query} onChange={setQuery} debounce={300} placeholder="Buscar por repuesto, código, orden, máquina o cliente" className="max-w-md" />
         <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-auto" />
         <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-auto" />
       </div>
@@ -373,7 +389,16 @@ export default function SparePartOrdersPage() {
                       <td className="py-2 px-3 font-medium align-top" rowSpan={g.parts.length}>{g.orderNumber || "—"}</td>
                     )}
                     {idx === 0 && (
-                      <td className="py-2 px-3 align-top" rowSpan={g.parts.length}>{g.machineName}</td>
+                      <td className="py-2 px-3 align-top" rowSpan={g.parts.length}>
+                        {g.machineName}
+                        {(() => {
+                          const rec = maintenanceByOrder.get(normOrderKey(g.orderNumber))
+                          const client = rec?.clientName?.trim()
+                          return client ? (
+                            <span className="block text-xs text-muted-foreground mt-0.5">{client}</span>
+                          ) : null
+                        })()}
+                      </td>
                     )}
                     <td className="py-2 px-3 align-top">{part.description}{part.partial && <span className="ml-1 text-xs text-violet-600 font-semibold">parcial</span>}</td>
                     <td className="py-2 px-3 text-xs align-top">
