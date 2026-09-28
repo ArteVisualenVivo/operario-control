@@ -121,6 +121,7 @@ export default function PurchaseListPage() {
   const [repairsMap, setRepairsMap] = useState<Map<string, MachineRepair>>(new Map())
   const [loading, setLoading] = useState(true)
   const [closedHiddenCount, setClosedHiddenCount] = useState(0)
+  const [clientsByOrder, setClientsByOrder] = useState<Map<string, string>>(new Map())
   /** Casas de repuesto ya usadas, para el desplegable de sugerencias. */
   const [knownStores, setKnownStores] = useState<string[]>([])
 
@@ -143,6 +144,14 @@ export default function PurchaseListPage() {
         const byOrder = buildMaintenanceByOrder(maintenance)
         const vigentes = ords.filter((o) => !getOrderClosure(o, byOrder.get(normOrderKey(o.orderNumber)) ?? null).closed)
         setClosedHiddenCount(ords.length - vigentes.length)
+        // Cliente por orden para mostrar debajo del N° de Orden (cruce 3C en memoria).
+        const clients = new Map<string, string>()
+        for (const o of ords) {
+          const rec = byOrder.get(normOrderKey(o.orderNumber))
+          const name = rec?.clientName?.trim()
+          if (name) clients.set(normOrderKey(o.orderNumber), name)
+        }
+        setClientsByOrder(clients)
         const map = new Map<string, MachineRepair>()
         for (const r of reps) map.set(r.id, r)
         setRepairsMap(map)
@@ -356,7 +365,12 @@ export default function PurchaseListPage() {
                       <tr key={o.id}>
                         <td style={{ border: "1px solid #999", padding: "4px 6px", width: 24 }}></td>
                                                   {idx === 0 && (
-                            <td rowSpan={g.parts.length} style={tdStyle}>{g.orderNumber || "—"}</td>
+                            <td rowSpan={g.parts.length} style={tdStyle}>
+                              {g.orderNumber || "—"}
+                              {clientsByOrder.get(normOrderKey(g.orderNumber)) && (
+                                <div style={{ fontSize: 9, color: "#666" }}>{clientsByOrder.get(normOrderKey(g.orderNumber))}</div>
+                              )}
+                            </td>
                           )}
                           {idx === 0 && (
                             <td rowSpan={g.parts.length} style={tdStyle}>{g.machineName}</td>
@@ -424,7 +438,12 @@ list="casas-repuesto"
                                               <tr key={o.id}>
                           <td style={{ border: "1px solid #999", padding: "4px 6px", width: 24 }}></td>
                           {idx === 0 && (
-                            <td rowSpan={g.parts.length} style={tdStyle}>{g.orderNumber || "—"}</td>
+                            <td rowSpan={g.parts.length} style={tdStyle}>
+                              {g.orderNumber || "—"}
+                              {clientsByOrder.get(normOrderKey(g.orderNumber)) && (
+                                <div style={{ fontSize: 9, color: "#666" }}>{clientsByOrder.get(normOrderKey(g.orderNumber))}</div>
+                              )}
+                            </td>
                           )}
                           {idx === 0 && (
                             <td rowSpan={g.parts.length} style={tdStyle}>{g.machineName}</td>

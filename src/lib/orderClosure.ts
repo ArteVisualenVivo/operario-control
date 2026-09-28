@@ -98,7 +98,9 @@ interface StateLike {
  * Recorre los estados con fecha >= requestedAt en orden cronologico:
  * terminal -> closed=true; reapertura posterior -> closed=false.
  * Empates del mismo dia se resuelven por orden de aparicion.
- * Sin estados de 3C no se oculta nada (fail-open).
+ * Sin estados de 3C, el ULTIMO estado conocido (status consolidado) manda:
+ * los excels de estados ("Reparaciones del ...") actualizan status/statusDate
+ * aunque la orden todavia no tenga states[] (caso 11154: "Reparada" 28/09).
  */
 export function getOrderClosure(
   order: Pick<SparePartOrder, "orderNumber" | "requestedAt">,
