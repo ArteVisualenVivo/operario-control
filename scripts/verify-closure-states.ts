@@ -1,21 +1,30 @@
-// verify-closure-states.ts — Verificación del colapso de estados repetidos.
+// verify-closure-states.ts — Verificación del consolidado de 3C (fechas y ruido).
 //
 // Uso: npx tsx scripts/verify-closure-states.ts
 //
-// ¿Por qué existe? El consolidado de 3C guardaba una copia de cada fila de
-// estado por CADA Excel que la repetía (6,5 MB / 27.414 estados para 1.137
-// órdenes). Ese peso viajaba entero al navegador en cada pantalla y la lectura
-// de la fuente primaria tardaba ~8,5 s: cuando fallaba, la regla de cierre de
-// Pedidos Rep. se quedaba sin datos y mostraba órdenes ya reparadas en 3C.
+// ¿Por qué existe?
+//  1) El consolidado guardaba una copia de cada fila de estado por CADA Excel
+//     que la repetía: 27.414 estados para 1.137 órdenes cuando los distintos son
+//     7.253 (3,8x de ruido) y 6,5 MB que el navegador bajaba entero (~8,5 s) en
+//     cada pantalla. Si esa lectura falla, la regla de cierre de Pedidos Rep. se
+//     queda sin datos y muestra órdenes ya reparadas en 3C.
+//     → collapseRepeatedStates() (src/lib/sync-3c/consolidated.ts).
+//  2) 3C repite la fecha de ALTA de la orden en todas las filas del informe de
+//     estados, así que "Reparada" quedaba fechado el día de ingreso y la regla
+//     de cierre (que descarta estados anteriores a la solicitud del repuesto)
+//     ignoraba el cierre.
+//     → cada estado se fecha con cuándo se bajó el Excel (mtime).
 //
-// El agente ahora colapsa los estados repetidos CONSECUTIVOS
-// (collapseRepeatedStates en src/lib/sync-3c/consolidated.ts). Este script
-// comprueba, sobre el snapshot REAL de Redis, que el cambio no altera:
-//   1) el cierre de cada pedido (getOrderClosure), y
-//   2) la fecha del primer estado "A la Espera Repuestos" (requestedAt de los
-//      pedidos importados desde 3C).
-// Sólo lee Redis: no escribe nada.
-import { readFileSync } from 'node:fs'
+// Este script comprueba, sobre el snapshot REAL de Redis:
+//  A) que colapsar los estados repetidos consecutivos NO cambia el cierre de
+//     ningún pedido ni la fecha del primer "A la Espera Repuestos";
+//  B) que al reconstruir el consolidado con los Excel reales del directorio de
+//     exports el cierre sigue siendo el mismo y las fechas dejan de ser todas
+//     iguales al día de ingreso.
+// Sólo LEE Redis y los Excel: no escribe nada.
+import { readFileSync, readdirSync, statSync } from 'node:fs'
+import path from 'node:path'
+import { buildConsolidatedOrders, consolidatedToMaintenanceRecords } from '../src/lib/sync-3c/consolidated'
 import { buildMaintenanceByOrder, getOrderClosure, normOrderKey } from '../src/lib/orderClosure'
 import type { MaintenanceRecord } from '../src/services/maintenance'
 
@@ -51,8 +60,13 @@ async function readModule(module: string) {
   return JSON.parse(chunks.join('')) as Record<string, unknown>[]
 }
 
+/**
+ * Misma identidad que stateIdentity() de src/lib/sync-3c/consolidated.ts:
+ * estado + descripción + usuario + motivo. NO incluye la fecha (es cuándo lo
+ * vimos) ni el archivo (es el mismo estado repetido en otro Excel).
+ */
 function identity(state: Record<string, unknown>): string {
-  return [state.status, state.statusDate, state.statusDescription, state.statusUser, state.motivoEstadoRep].join('\u0001')
+  return [state.status, state.statusDescription, state.statusUser, state.motivoEstadoRep].join('\u0001')
 }
 
 function collapse<T extends Record<string, unknown>>(records: T[]): T[] {
@@ -134,6 +148,43 @@ async function main() {
     )
     console.log('11154 cierre tras el cambio:', JSON.stringify(info))
   }
+
+  // —— B) Reconstruccion con los Excel reales (fechas = mtime del export) ——
+  const exportsDir = path.resolve(process.cwd(), 'automation-watcher', '3c_exports')
+  let files: string[] = []
+  try {
+    files = readdirSync(exportsDir).filter((f) => /\.xlsx?$/i.test(f))
+  } catch {
+    files = []
+  }
+  if (files.length === 0) {
+    console.log('B) sin Excel en automation-watcher/3c_exports: no se puede reconstruir')
+    return
+  }
+  const consolidated = await buildConsolidatedOrders(exportsDir)
+  const rebuild = consolidatedToMaintenanceRecords(consolidated, maintenance as unknown as MaintenanceRecord[])
+  const byRebuild = buildMaintenanceByOrder(rebuild)
+  const fechasDeLaCorrida = files.map((f) => statSync(path.join(exportsDir, f)).mtime.getTime())
+  const diasExport = new Set(fechasDeLaCorrida.map((t) => new Date(t).toISOString().slice(0, 10)))
+
+  let cerradosRebuild = 0
+  const cambios: string[] = []
+  for (const p of pedidos) {
+    const orderNumber = String(p.orderNumber ?? '')
+    const requestedAt = p.requestedAt ? new Date(p.requestedAt as string) : null
+    const key = normOrderKey(orderNumber)
+    const a = getOrderClosure({ orderNumber, requestedAt }, (before.get(key) ?? null) as MaintenanceRecord | null)
+    const b = getOrderClosure({ orderNumber, requestedAt }, (byRebuild.get(key) ?? null) as MaintenanceRecord | null)
+    if (b.closed) cerradosRebuild++
+    if (a.closed !== b.closed) cambios.push(`${orderNumber}: ${a.closed ? 'cerrada' : 'abierta'} -> ${b.closed ? 'cerrada' : 'abierta'}`)
+  }
+  const fechasPorRegistro = rebuild.filter((r) => new Set(((r.states as { statusDate?: string }[]) ?? []).map((s) => String(s.statusDate).slice(0, 10))).size > 1).length
+  console.log(`B) Excel usados=${files.length} (dias de export: ${[...diasExport].sort().join(', ')}) ordenes consolidadas=${consolidated.size}`)
+  console.log(`B) registros con fechas reales (mas de un dia en su linea de tiempo)=${fechasPorRegistro} de ${rebuild.length}`)
+  console.log(`B) pedidos comparados=${pedidos.length} cerrados_antes=${cerrados} cerrados_reconstruido=${cerradosRebuild}`)
+  console.log(cambios.length === 0
+    ? 'B) OK: el cierre de los pedidos NO cambia con la reconstruccion'
+    : `B) CAMBIOS DE CIERRE (revisar):\n${cambios.join('\n')}`)
 }
 
 void main()

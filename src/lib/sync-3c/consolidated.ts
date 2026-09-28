@@ -5,6 +5,24 @@ import type { MaintenanceRecord } from "@/services/maintenance"
 // Ningún Excel de 3C contiene todo: los informes aportan partes distintas y
 // se unen cruzando por número de orden, sin perder información.
 // ============================================================================
+//
+// NOTA DE FECHAS (importante):
+// 3C NO informa la fecha en que una orden CAMBIA de estado. El informe de
+// estados ("Reparaciones del ...") tiene una sola columna de fecha (FECHA) y en
+// ella repite la fecha de ALTA de la orden en todas sus filas: medido sobre la
+// base real, 1.136 de 1.137 órdenes tenían una única fecha en toda su línea de
+// tiempo, y era la del día de ingreso. Si esa fecha se copiara al estado,
+// "Reparada" quedaría fechado el día de ingreso (a veces meses antes) y la regla
+// de cierre de Pedidos Rep. —que descarta los estados anteriores a la solicitud
+// del repuesto— ignoraría el cierre y mostraría como abierto un pedido de una
+// orden ya reparada.
+//
+// Por eso cada estado se fecha con `observedAt`: el momento en que bajamos ESE
+// Excel (mtime del archivo exportado; 3C lo escribe y el watcher lo copia con
+// FileCopy, que preserva esa fecha). Es la única señal real de "cuándo" que
+// existe, con precisión igual a la frecuencia de sincronización. La fecha de
+// alta de la orden se conserva aparte, en `entryDate`.
+// ============================================================================
 
 export interface ConsolidatedState {
   status: string
@@ -197,8 +215,12 @@ function mergeFacts(target: OrderConsolidated, src: Partial<OrderConsolidated>):
  * Columnas REALES: [1]FECHA [2]NUMERO [5]ESTADO_REPARA_TXT [7]PERSONAS_TEX
  * [8]OBSERVACIONES [11]ORDEN_COMPRA [13]ENTREGA [14]USUARIO.
  * Sin lista cerrada de estados: se acepta cualquier ESTADO_REPARA_TXT real.
+ *
+ * `observedAt` = momento en que bajamos ESE Excel de 3C (mtime del archivo).
+ * Ver la nota de fechas de la cabecera del módulo: la columna FECHA del informe
+ * NO es la fecha del cambio de estado.
  */
-export function extractStatusesExcel(rows: unknown[][], fileName: string): FactMap {
+export function extractStatusesExcel(rows: unknown[][], fileName: string, observedAt?: Date): FactMap {
   const map: FactMap = new Map()
   const headerIdx = rows.findIndex((r, i) => i < 10 && Array.isArray(r) && r.map(normHeader).includes("numero") && r.map(normHeader).includes("fecha"))
   if (headerIdx < 0) return map
@@ -239,15 +261,21 @@ export function extractStatusesExcel(rows: unknown[][], fileName: string): FactM
     const statusTxt = clean(row[cEstadoTxt]) || clean(row[cEstado])
     if (!statusTxt) continue
     const rec = touch(map, order)
+    // FECHA del informe = fecha de ALTA de la orden (3C repite ese mismo valor
+    // en TODAS las filas del informe: verificado, 1.136 de 1.137 órdenes tienen
+    // una sola fecha en toda su línea de tiempo). NO es la fecha del cambio de
+    // estado: para el estado se usa cuándo bajamos el Excel (observedAt).
     const fechaOrden = toDate(row[cFecha])
     const entrega = toDate(row[cEntrega])
+    const fechaEstado = observedAt ?? fechaOrden
     // Identificación de la máquina: se prefiere la MÁS COMPLETA entre
     // ORDEN_COMPRA (+celda vecina si 3C la partió) y la columna REPARO, que a
     // veces trae la identificación entera cuando ORDEN_COMPRA quedó truncada.
     const machineFromCells = joinWrappedIdentification(row, cMaquina) || undefined
     const machineFromReparo = cReparo >= 0 ? clean(row[cReparo]).replace(/^reparaci[oó]n:\s*/i, "").trim() || undefined : undefined
     const machineName = pickLongerIdentification(machineFromCells, machineFromReparo)
-    // Cada fila del informe es un CAMBIO de estado con su propia fecha:
+    // Cada fila del informe trae el estado de la orden al momento de exportar.
+    // Se conserva el orden real de llegada (ver states[] y observeStatusDate):
     //  - fila "Reparada"        → FECHA = fecha de reparación (excluye "No Reparada")
     //  - fila "Entreg./Factur." o "Retirada" → FECHA = fecha de entrega real
     //    (si la columna ENTREGA está poblada se prefiere esa)
@@ -270,7 +298,9 @@ export function extractStatusesExcel(rows: unknown[][], fileName: string): FactM
       repairDate: isRepaired ? iso(fechaOrden) : undefined,
       states: [{
         status: statusTxt,
-        statusDate: iso(fechaOrden),
+        // Fecha del CAMBIO: cuándo bajamos este Excel (3C no informa la fecha
+        // del movimiento de estado). Ver la NOTA DE FECHAS de la cabecera.
+        statusDate: iso(fechaEstado),
         statusDescription: clean(row[cObs]) || undefined,
         statusUser: clean(row[cUsuario]) || undefined,
         sourceFile: fileName,
@@ -358,6 +388,17 @@ export async function buildConsolidatedOrders(exportsDir: string): Promise<Map<s
   for (const f of fs.readdirSync(exportsDir)) {
     if (!/\.(xls|xlsx)$/i.test(f) || f.startsWith("~$")) continue
     const full = path.join(exportsDir, f)
+    // Fecha del CAMBIO de estado = cuándo bajamos ESTE Excel. 3C no informa la
+    // fecha del movimiento (repite la fecha de alta de la orden), y el watcher
+    // copia el archivo con FileCopy, que preserva la fecha de escritura del
+    // original: el mtime es el momento real de la exportación (ver NOTA DE
+    // FECHAS). Sin stat disponible se usa el momento del escaneo.
+    let observedAt: Date
+    try {
+      observedAt = fs.statSync(full).mtime
+    } catch {
+      observedAt = new Date()
+    }
     let rows: unknown[][]
     try {
       const wb = XLSX.readFile(full)
@@ -369,7 +410,7 @@ export async function buildConsolidatedOrders(exportsDir: string): Promise<Map<s
     }
     const kind = classifyRepairExport(rows)
     const facts = kind === "statuses"
-      ? extractStatusesExcel(rows, f)
+      ? extractStatusesExcel(rows, f, observedAt)
       : kind === "items"
         ? extractItemsExcel(rows, f)
         : null
@@ -428,11 +469,14 @@ function collectMotivosByStatus(
   return out
 }
 
-/** Identidad de un estado: todo menos `sourceFile` (el archivo que lo repite). */
+/**
+ * Identidad de un estado OBSERVADO: estado + descripción + usuario + motivo de
+ * repuestos. NO incluye la fecha: `statusDate` es cuándo lo vimos (ver NOTA DE
+ * FECHAS), no parte del estado.
+ */
 function stateIdentity(state: ConsolidatedState): string {
   return [
     state.status,
-    state.statusDate ?? "",
     state.statusDescription ?? "",
     state.statusUser ?? "",
     state.motivoEstadoRep ?? "",
@@ -442,21 +486,26 @@ function stateIdentity(state: ConsolidatedState): string {
 /**
  * Colapsa los estados REPETIDOS EN FORMA CONSECUTIVA de la línea de tiempo.
  *
- * Cada Excel de 3C que se exporta trae las mismas filas de la orden, así que al
+ * Cada Excel de 3C que se baja repite las filas de la orden, así que al
  * consolidar por archivo quedan copias pegadas de cada estado. Medido sobre la
  * corrida real (1.137 órdenes): 27.414 estados guardados contra 7.253 distintos
- * (3,8x de puro ruido, ~6,5 MB de snapshot). Ese volumen viaja entero al
- * navegador en cada pantalla y hace que la lectura de la fuente primaria sea
- * lenta/frágil; cuando falla, la regla de cierre de Pedidos Rep. se queda SIN
- * datos y muestra órdenes ya reparadas en 3C.
+ * (3,8x de puro ruido). Ese volumen viaja entero al navegador en cada pantalla y
+ * hace que la lectura de la fuente primaria sea lenta/frágil; cuando falla, la
+ * regla de cierre de Pedidos Rep. se queda SIN datos y muestra órdenes ya
+ * reparadas en 3C.
  *
- * Se conserva la PRIMERA aparición de cada tramo, así quedan idénticos:
+ * Volver a ver el MISMO estado en un Excel posterior no es un cambio de estado:
+ * es la misma situación, informada otra vez. Por eso se conserva la PRIMERA
+ * aparición de cada tramo y así quedan idénticos:
  *  - la secuencia de CAMBIOS de estado (y por lo tanto el último estado, que es
  *    el que define si la orden está cerrada, y `reopenedAfterTerminal`),
+ *  - la fecha de cada cambio (la primera vez que lo vimos, que es la más
+ *    cercana al cambio real),
  *  - el primer estado "A la Espera Repuestos" (fuente del `requestedAt` de los
  *    pedidos importados desde 3C),
- *  - las fechas de reparación/entrega y el estado actual.
- * Sólo se descartan repeticiones de un estado EXACTAMENTE igual al anterior.
+ *  - los motivos de repuestos por estado (`motivoEstadoRep` está en la
+ *    identidad: si cambia, es una entrada nueva).
+ * Sólo se descartan repeticiones consecutivas de un estado EXACTAMENTE igual.
  */
 function collapseRepeatedStates(states: ConsolidatedState[]): ConsolidatedState[] {
   const out: ConsolidatedState[] = []
