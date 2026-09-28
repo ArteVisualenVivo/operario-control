@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useMachines } from "@/hooks/useMachines"
 import { useInventoryStock } from "@/hooks/useInventoryStock"
@@ -40,12 +40,23 @@ function normalizeText(value: string): string {
 }
 
 export default function AndamiosPage() {
-  const { machines, loading, remove } = useMachines()
   const { items: stockItems, loading: stockLoading } = useInventoryStock()
   const router = useRouter()
-  const [search, setSearch] = useState("")
-  const [statusFilter, setStatusFilter] = useState<MachineStatus | "all">("all")
+  const appliedQueryParam = useRef(false)
 
+  // Si se llega derivado desde el Dashboard (?q=...), precargar ese texto
+  // en el buscador de alquileres por cliente (solo una vez por montaje).
+  // Se lee window.location en el cliente para no requerir <Suspense>
+  // alrededor de useSearchParams en esta página.
+  useEffect(() => {
+    if (appliedQueryParam.current) return
+    appliedQueryParam.current = true
+    try {
+      const q = new URLSearchParams(window.location.search).get("q")
+      if (q) setClienteSearch(q)
+    } catch { /* sin query: no precargar */ }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   // ---- Control de stock: alquilados (remitos 3C) vs depósito (manual) ----
   const [deposito, setDeposito] = useState<Partial<Record<ScaffoldRowKey, number>>>({})
   const [alquiladosResumen, setAlquiladosResumen] = useState<Partial<Record<ScaffoldRowKey, number>>>({})
@@ -59,6 +70,9 @@ export default function AndamiosPage() {
   const [puntalAlquilados, setPuntalAlquilados] = useState<PuntalAlquilados | null>(null)
 
   // ---- Buscador de alquileres por cliente (remitos 3C) ----
+  // En Andamios solo se muestran andamios y accesorios: los renglones que
+  // no son del rubro (máquinas como pisones, hormigoneras, etc.) se excluyen
+  // del buscador. Esos se ven en el Dashboard / Máquinas / Alquileres.
   const [clienteSearch, setClienteSearch] = useState("")
   const [scaffoldDetalle, setScaffoldDetalle] = useState<ScaffoldRentalStats["detalle"]>([])
 
@@ -183,60 +197,9 @@ export default function AndamiosPage() {
   }
   // ---- fin control de stock ----
 
-  const scaffoldMachines = useMemo(
-    () => machines.filter((m) => m.category === "scaffold"),
-    [machines],
-  )
-
-  const scaffoldItems = useMemo(() => {
-    const rows = stockItems.filter((item) => {
-      const scaffoldNames = SCAFFOLD_CATALOG.map((entry) => entry.name)
-      return scaffoldNames.includes(item.name)
-    })
-    return rows.sort((a, b) => {
-      const aLabel = `${a.name} ${a.size ?? ""}`
-      const bLabel = `${b.name} ${b.size ?? ""}`
-      return aLabel.localeCompare(bLabel)
-    })
-  }, [stockItems])
-
-  const filteredMachines = useMemo(() => {
-    const q = normalizeText(search)
-    return scaffoldMachines.filter((m) => {
-      const matchesSearch =
-        !q ||
-        m.name.toLowerCase().includes(q) ||
-        m.model.toLowerCase().includes(q) ||
-        (m.rental?.clientName ?? "").toLowerCase().includes(q) ||
-        (m.rental?.projectName ?? "").toLowerCase().includes(q)
-      const matchesStatus = statusFilter === "all" || m.status === statusFilter
-      return matchesSearch && matchesStatus
-    })
-  }, [scaffoldMachines, search, statusFilter])
-
-  const filteredItems = useMemo(() => {
-    const q = normalizeText(search)
-    return scaffoldItems.filter((item) => {
-      const text = [
-        item.name,
-        item.size ?? "",
-        item.category,
-        item.subtype ?? "",
-        item.codigo ?? "",
-      ].join(" ").toLowerCase()
-      return !q || text.includes(q)
-    })
-  }, [scaffoldItems, search])
-
-  const handleDelete = async (id: string) => {
-    if (!window.confirm("Eliminar esta maquina? Esta accion no se puede deshacer.")) return
-    try {
-      await remove(id)
-      toast.success("Maquina eliminada")
-    } catch {
-      toast.error("Error al eliminar maquina")
-    }
-  }
+  // Catálogo visible: solo andamios y accesorios (sin máquinas).
+  // El buscador de esta página opera sobre remitos 3C (clienteSearch);
+  // no se filtra por fichas manuales de máquinas.
 
   const rowBy = (key: ScaffoldRowKey) => controlRows.rows.find((r) => r.key === key)!
   const juegosAlquilados = Math.floor(
@@ -335,7 +298,7 @@ export default function AndamiosPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clienteSearch, scaffoldDetalle])
 
-  if (loading) return <p className="text-muted-foreground">Cargando...</p>
+  if (stockLoading) return <p className="text-muted-foreground">Cargando...</p>
 
   return (
     <div className="space-y-6">
