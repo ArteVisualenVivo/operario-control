@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
 import { getAllOrders, splitMachineIdentification, isUsablePartCode } from "@/services/sparePartOrders"
+import { buildMaintenanceByOrder, getOrderClosure, normOrderKey } from "@/lib/orderClosure"
+import type { MaintenanceRecord } from "@/services/maintenance"
 import { buildSparePartOrderGroups, type SparePartOrderGroup } from "@/lib/sparePartOrderGroups"
 import { updateOrderSupplier } from "@/services/sparePartOrderSupplier"
 import { getRepairs } from "@/services/repairs"
@@ -118,6 +120,7 @@ export default function PurchaseListPage() {
   const [encargados, setEncargados] = useState<SparePartOrder[]>([])
   const [repairsMap, setRepairsMap] = useState<Map<string, MachineRepair>>(new Map())
   const [loading, setLoading] = useState(true)
+  const [closedHiddenCount, setClosedHiddenCount] = useState(0)
   /** Casas de repuesto ya usadas, para el desplegable de sugerencias. */
   const [knownStores, setKnownStores] = useState<string[]>([])
 
@@ -128,17 +131,29 @@ export default function PurchaseListPage() {
           getAllOrders(),
           getRepairs().catch(() => [] as MachineRepair[]),
         ])
+        // La hoja de compra NUNCA muestra ordenes cerradas en 3C (misma regla
+        // fecha + estado que la pantalla principal).
+        let maintenance: MaintenanceRecord[] = []
+        try {
+          const { loadMaintenanceRecords } = await import("@/lib/local-sync")
+          maintenance = await loadMaintenanceRecords()
+        } catch {
+          maintenance = []
+        }
+        const byOrder = buildMaintenanceByOrder(maintenance)
+        const vigentes = ords.filter((o) => !getOrderClosure(o, byOrder.get(normOrderKey(o.orderNumber)) ?? null).closed)
+        setClosedHiddenCount(ords.length - vigentes.length)
         const map = new Map<string, MachineRepair>()
         for (const r of reps) map.set(r.id, r)
         setRepairsMap(map)
 
-        const pendientes = ords.filter((o) => o.status === "SOLICITADO" || o.status === "PEDIDO")
+        const pendientes = vigentes.filter((o) => o.status === "SOLICITADO" || o.status === "PEDIDO")
         // ANEXO: TODOS los encargados, sin filtrar por fecha, y ordenados con los
         // encargos más viejos arriba. Antes sólo salían los que tenían `orderedAt`
         // dentro de la semana actual, así que los encargos de semanas anteriores no
         // aparecían en NINGUNA parte de la hoja (ya no son "pendientes" por estado)
         // y no había forma de seguirlos.
-        const enc = ords.filter((o) => o.status === "ENCARGADO").sort(byOldestOrderedAt)
+        const enc = vigentes.filter((o) => o.status === "ENCARGADO").sort(byOldestOrderedAt)
         setOrders(pendientes)
         setEncargados(enc)
         // Sugerencias del desplegable: casas ya usadas en CUALQUIER pedido
@@ -296,6 +311,7 @@ export default function PurchaseListPage() {
           <h1 className="text-xl font-bold">Lista de compra de repuestos</h1>
           <p className="text-sm text-muted-foreground">
             Pendientes ({orders.length}) · Encargados ({encargados.length})
+            {closedHiddenCount > 0 && ` · ${closedHiddenCount} de órdenes cerradas ocultos`}
           </p>
         </div>
         <div className="flex gap-2">

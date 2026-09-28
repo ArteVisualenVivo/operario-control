@@ -15,6 +15,8 @@ import { SparePartOrderDatesEditor } from "@/components/repairs/SparePartOrderDa
 import { SparePartOrderCodeInput } from "@/components/repairs/SparePartOrderCodeInput"
 import { formatDate } from "@/lib/ui"
 import { buildSparePartOrderGroups } from "@/lib/sparePartOrderGroups"
+import { buildMaintenanceByOrder, getOrderClosure, normOrderKey } from "@/lib/orderClosure"
+import type { MaintenanceRecord } from "@/services/maintenance"
 import { toast } from "sonner"
 import type { SparePartOrderStatus, SparePartOrder } from "@/types"
 
@@ -22,15 +24,6 @@ type Filter = "todos" | SparePartOrderStatus | "pendientes" | "encargados" | "re
 
 // Timestamp capturado a nivel de módulo (no durante el render) para los cálculos de "atrasos".
 const MODULE_LOAD_TS = Date.now()
-
-const STATUS_LABELS: Record<SparePartOrderStatus, string> = {
-  SOLICITADO: "Solicitados",
-  PEDIDO: "Pedidos",
-  ENCARGADO: "Encargados",
-  RECIBIDO: "Recibidos",
-  UTILIZADO: "Utilizados",
-  CANCELADO: "Cancelados",
-}
 
 // --- búsqueda por N° de Orden: permite buscar por los últimos dígitos ---
 // Ej: con orderSearch="11271" encontramos "X 0001-00011271".
@@ -57,6 +50,11 @@ export default function SparePartOrdersPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
   const [importing, setImporting] = useState(false)
+  // Ocultar por defecto los pedidos cuya orden en 3C ya se cerro (Reparada /
+  // Entregada / Retirada / No Reparada), mirando fecha + estado. El toggle
+  // los vuelve a mostrar sin borrar historial.
+  const [showClosed, setShowClosed] = useState(false)
+  const [maintenance, setMaintenance] = useState<MaintenanceRecord[]>([])
 
   const toggleSelect = (id: string) => {
     setSelected((prev) => {
@@ -145,6 +143,43 @@ export default function SparePartOrdersPage() {
     return Math.floor((MODULE_LOAD_TS - new Date(d).getTime()) / (1000 * 60 * 60 * 24))
   }
 
+  // Linea de tiempo de 3C por orden (misma fuente primaria que el resto de la
+  // web: Redis snapshot -> Firestore). Sin datos no se oculta nada.
+  useEffect(() => {
+    let cancelled = false
+    import("@/lib/local-sync").then(async ({ loadMaintenanceRecords }) => {
+      try {
+        const records = await loadMaintenanceRecords()
+        if (!cancelled) setMaintenance(records)
+      } catch {
+        if (!cancelled) setMaintenance([])
+      }
+    })
+    return () => { cancelled = true }
+  }, [])
+
+  const maintenanceByOrder = useMemo(() => buildMaintenanceByOrder(maintenance), [maintenance])
+
+  const closureById = useMemo(() => {
+    const map = new Map<string, { closed: boolean; label: string | null }>()
+    for (const o of orders) {
+      const rec = maintenanceByOrder.get(normOrderKey(o.orderNumber))
+      const info = getOrderClosure(o, rec ?? null)
+      map.set(o.id, {
+        closed: info.closed,
+        label: info.closed && info.terminalStatus
+          ? `${info.terminalStatus}${info.terminalDate ? ` ${info.terminalDate.toLocaleDateString("es-AR")}` : ""}`
+          : null,
+      })
+    }
+    return map
+  }, [orders, maintenanceByOrder])
+
+  const closedHiddenCount = useMemo(
+    () => orders.filter((o) => closureById.get(o.id)?.closed).length,
+    [orders, closureById],
+  )
+
   const matchesFilter = (o: (typeof orders)[number]): boolean => {
     switch (filter) {
       case "todos":
@@ -180,6 +215,7 @@ export default function SparePartOrdersPage() {
     const to = dateTo ? new Date(dateTo + "T23:59:59") : null
     return orders
       .filter(matchesFilter)
+      .filter((o) => showClosed || !closureById.get(o.id)?.closed)
       .filter((o) => {
         const matchesQ = !q || o.description.toLowerCase().includes(q) || o.code.toLowerCase().includes(q)
         const matchesOq = !oq || o.orderNumber.toLowerCase().includes(oq) || o.machineName.toLowerCase().includes(oq) || extractOrderNumber(o.orderNumber).toLowerCase().includes(oq)
@@ -188,7 +224,7 @@ export default function SparePartOrdersPage() {
           (!to || (o.requestedAt && new Date(o.requestedAt) <= to))
         return matchesQ && matchesOq && matchesDates
       })
-  }, [orders, search, orderSearch, dateFrom, dateTo, matchesFilter])
+  }, [orders, search, orderSearch, dateFrom, dateTo, matchesFilter, closureById, showClosed])
 
   const counts = useMemo(() => {
     const pendientes = orders.filter((o) => o.status === "SOLICITADO" || o.status === "PEDIDO").length
@@ -253,13 +289,29 @@ export default function SparePartOrdersPage() {
         </Card>
       </div>
 
+      {closedHiddenCount > 0 && !showClosed && (
+        <p className="text-xs text-muted-foreground">
+          {closedHiddenCount} pedido(s) de órdenes ya cerradas en 3C (reparada / entregada / retirada / no reparada) oculto(s). Activá “Ver finalizadas” para verlos.
+        </p>
+      )}
+
       {/* Filtros por estado */}
-      <div className="flex gap-1 flex-wrap">
-        {(["todos", "pendientes", "encargados", "recibidos-sin-usar", "parciales", "SOLICITADO", "PEDIDO", "ENCARGADO", "RECIBIDO", "UTILIZADO", "CANCELADO"] as Filter[]).map((f) => (
-          <Button key={f} size="sm" variant={filter === f ? "default" : "outline"} onClick={() => setFilter(f)}>
-            {f === "todos" ? "Todos" : f === "pendientes" ? "Pendientes" : f === "recibidos-sin-usar" ? "Recibidos sin usar" : f === "parciales" ? "Parciales" : STATUS_LABELS[f as SparePartOrderStatus]}
-          </Button>
-        ))}
+      <div className="flex gap-1 flex-wrap items-center">
+        <Button size="sm" variant={filter === "todos" ? "default" : "outline"} onClick={() => setFilter("todos")}>Todos</Button>
+        <Button size="sm" variant={filter === "pendientes" ? "default" : "outline"} onClick={() => setFilter("pendientes")}>Pendientes</Button>
+        <Button size="sm" variant={filter === "encargados" ? "default" : "outline"} onClick={() => setFilter("encargados")}>Encargados</Button>
+        <Button size="sm" variant={filter === "recibidos-sin-usar" ? "default" : "outline"} onClick={() => setFilter("recibidos-sin-usar")}>Recibidos sin usar</Button>
+        <Button size="sm" variant={filter === "parciales" ? "default" : "outline"} onClick={() => setFilter("parciales")}>Parciales</Button>
+        <Button size="sm" variant={filter === "SOLICITADO" ? "default" : "outline"} onClick={() => setFilter("SOLICITADO")}>Solicitados</Button>
+        <Button size="sm" variant={filter === "PEDIDO" ? "default" : "outline"} onClick={() => setFilter("PEDIDO")}>Pedidos</Button>
+        <Button size="sm" variant={filter === "ENCARGADO" ? "default" : "outline"} onClick={() => setFilter("ENCARGADO")}>Encargados</Button>
+        <Button size="sm" variant={filter === "RECIBIDO" ? "default" : "outline"} onClick={() => setFilter("RECIBIDO")}>Recibidos</Button>
+        <Button size="sm" variant={filter === "UTILIZADO" ? "default" : "outline"} onClick={() => setFilter("UTILIZADO")}>Utilizados</Button>
+        <Button size="sm" variant={filter === "CANCELADO" ? "default" : "outline"} onClick={() => setFilter("CANCELADO")}>Cancelados</Button>
+        <label className="ml-2 inline-flex items-center gap-1.5 text-sm text-muted-foreground cursor-pointer">
+          <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} />
+          Ver finalizadas
+        </label>
       </div>
 
       {/* Búsquedas */}
@@ -332,6 +384,11 @@ export default function SparePartOrdersPage() {
                     <td className="py-2 px-3 text-right align-top">{o.quantityUsed}</td>
                     <td className="py-2 px-3 align-top">
                       <SparePartOrderBadge status={o.status} />
+                      {closureById.get(o.id)?.closed && closureById.get(o.id)?.label && (
+                        <span className="block text-xs text-muted-foreground mt-1">
+                          3C: {closureById.get(o.id)?.label}
+                        </span>
+                      )}
                       {o.status === "ENCARGADO" && (o.orderedAt || o.expectedAt) && (
                         <span className="block text-xs text-muted-foreground mt-1">
                           enc: {formatDate(o.orderedAt!)}{o.expectedAt ? ` · retiro: ${formatDate(o.expectedAt)}` : ""}
