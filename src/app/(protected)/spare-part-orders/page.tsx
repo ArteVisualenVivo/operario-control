@@ -459,14 +459,20 @@ export default function SparePartOrdersPage() {
                     </td>
                     <td className="py-2 px-3 text-xs align-top">{formatDate(o.requestedAt)}</td>
                     <td className="py-2 px-3 align-top">
-                      {/* Calendario para cargar a mano UNA sola fecha: el día en que
-                          el DUEÑO encargó/pidió el repuesto en la casa de repuestos
-                          (`orderedAt`, columna "P. repuestero"). Las otras fechas
-                          del circuito las ponen los botones: "Encargar" (día en que
-                          se lo encargué al dueño → `ownerRequestedAt`) y "Recibir"
-                          (día en que me lo trajo → `receivedAt`), y se muestran
-                          arriba, bajo el estado. */}
-                      <SparePartOrderDatesEditor order={o} onSave={updateDates} only="orderedAt" />
+                      {/* Fechas del circuito cargadas a mano (para CORREGIR lo que
+                          salió mal al apretar un botón):
+                            "P. dueño"      = día en que le pedí/encargué el repuesto
+                                              al dueño → la MISMA fecha que pone el
+                                              botón "Encargar" (se imprime como
+                                              "Le pedí al dueño").
+                            "P. repuestero" = día en que el DUEÑO lo pidió en la
+                                              casa de repuestos (se imprime como
+                                              "Lo pidió en la casa").
+                            "Traído"        = día en que me lo trajo → la MISMA
+                                              fecha que pone el botón "Recibir"
+                                              (se imprime como "Me lo trajo").
+                          Los botones las cargan solas; acá se corrigen. */}
+                      <SparePartOrderDatesEditor order={o} onSave={updateDates} />
                     </td>
                     <td className="py-2 px-3 text-right align-top">
                       <div className="flex items-center justify-end gap-1 flex-wrap">

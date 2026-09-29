@@ -196,9 +196,14 @@ spare_part_orders/{id}
   campo (`orderedAt`), así que no podían ser fechas distintas; ahora el botón
   guarda en `ownerRequestedAt` y el calendario en `orderedAt`.
 - Las tres fechas se ven en la pantalla de Pedidos Rep. (renglón bajo el Estado:
-  `enc` / `repuestero` / `traído` / `retiro`) y en la hoja impresa. El calendario
-  manual de la columna "Fechas" es SÓLO el de "P. repuestero"; las otras dos se
-  cargan apretando el botón (el diálogo de cada botón pide su fecha).
+  `enc` / `repuestero` / `traído` / `retiro`) y en la hoja impresa.
+- La columna "Fechas" de Pedidos Rep. tiene los **3 calendarios, para CORREGIR a
+  mano** lo que haya salido mal al apretar un botón (no hay duplicación: cada uno
+  corresponde al mismo hecho que su botón): `P. dueño` = `ownerRequestedAt` (la
+  fecha del botón **Encargar**), `P. repuestero` = `orderedAt` (el día en que el
+  dueño lo pidió en la casa) y `Traído` = `receivedAt` (la fecha del botón
+  **Recibir**). También se pueden corregir desde el detalle del pedido
+  ("Ver") y desde el panel Repuestos de la reparación.
 - También se agregaron los botones **Recibir** / **Utilizar** en la pantalla
   general de Pedidos Rep. (reutilizan `SparePartOrderReceiveUseDialog`), para
   cargar cantidad + fecha sin entrar a la orden de trabajo.
