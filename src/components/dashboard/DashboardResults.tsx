@@ -5,6 +5,10 @@ import type {
 } from "@/lib/search-grouped"
 import { ALQUILER_TOTAL_KEYS } from "@/lib/search-grouped"
 import Link from "next/link"
+import { useMemo, useState } from "react"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { estadosDeReparaciones, filtrarReparacionesPorEstado } from "@/lib/search-grouped"
+
 
 interface Props {
   results: GroupedResults
@@ -105,6 +109,95 @@ function ComponenteTable({ rows }: { rows: ComponenteRow[] }) {
     />
   )
 }
+/** Valor del desplegable cuando NO hay filtro por estado. */
+const TODOS_LOS_ESTADOS = "__todos__"
+
+/**
+ * Sección "Reparaciones / Mantenimiento" del Dashboard con filtro por ESTADO.
+ *
+ * Pedido (28/09/2026): cuando la búsqueda devuelve órdenes, en el item ESTADO
+ * tiene que haber un desplegable para filtrar por las opciones que ese item
+ * tiene ("A la Espera Repuestos", "en Taller", "Entrega/Factur.", ...).
+ *
+ * Reglas de esta sección:
+ *  - El desplegable lista SOLO los estados presentes en el resultado de la
+ *    búsqueda actual (no una lista fija), con su cantidad y tomados tal cual de
+ *    3C: `estadosDeReparaciones()` (src/lib/search-grouped.ts).
+ *  - Filtra únicamente la TABLA de Reparaciones: Materiales, Máquinas, Andamios
+ *    y Alquileres no se tocan.
+ *  - Es local e instantáneo (los registros ya están cargados en el Dashboard):
+ *    no consulta Redis, Firestore ni el sync.
+ *  - El filtro se reinicia solo con cada búsqueda nueva: `DashboardResults`
+ *    monta este componente con `key={query}`, así nunca queda un estado viejo
+ *    aplicado a un resultado distinto.
+ */
+function ReparacionesSection({ rows }: { rows: ReparacionRow[] }) {
+  const [estado, setEstado] = useState<string>(TODOS_LOS_ESTADOS)
+  const opciones = useMemo(() => estadosDeReparaciones(rows), [rows])
+  const visibles = useMemo(
+    () => filtrarReparacionesPorEstado(rows, estado === TODOS_LOS_ESTADOS ? null : estado),
+    [rows, estado],
+  )
+
+  return (
+    <Section
+      title={`Reparaciones / Mantenimiento — ${visibles.length} ${visibles.length === 1 ? "orden" : "órdenes"}`}
+    >
+      <div className="overflow-x-auto rounded-md border">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b bg-muted/40">
+              <th className="p-2 text-left font-medium">Orden</th>
+              <th className="p-2 text-left font-medium">Cliente</th>
+              <th className="p-2 text-left font-medium">Máquina</th>
+              <th className="p-2 text-left font-medium">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span>Estado</span>
+                  <Select
+                    value={estado}
+                    onValueChange={(v) => setEstado(typeof v === "string" ? v : TODOS_LOS_ESTADOS)}
+                  >
+                    <SelectTrigger size="sm" className="max-w-[240px] text-xs" aria-label="Filtrar por estado de la orden">
+                      <SelectValue placeholder="Filtrar estado" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value={TODOS_LOS_ESTADOS}>{`Todos los estados (${rows.length})`}</SelectItem>
+                      {opciones.map((o) => (
+                        <SelectItem key={o.estado} value={o.estado}>
+                          {`${o.estado} (${o.cantidad})`}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </th>
+              <th className="p-2 text-left font-medium">Fecha</th>
+              <th className="p-2 text-left font-medium">Descripción</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visibles.map((r, i) => (
+              <tr key={`${r.orden}-${i}`} className="border-b last:border-0">
+                <td className="p-2 align-top"><span className="font-mono text-xs">{r.orden}</span></td>
+                <td className="p-2 align-top">{r.cliente}</td>
+                <td className="p-2 align-top">{r.maquina || "—"}</td>
+                <td className="p-2 align-top">
+                  <span className={r.estado ? "font-medium" : "text-muted-foreground"}>{r.estado || "—"}</span>
+                </td>
+                <td className="p-2 align-top">{r.fecha}</td>
+                <td className="p-2 align-top"><span className="text-muted-foreground">{r.descripcion}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {visibles.length === 0 && (
+        <p className="text-sm text-muted-foreground">No hay órdenes con ese estado en este resultado.</p>
+      )}
+    </Section>
+  )
+}
+
 export function DashboardResults({ results }: Props) {
   const { query, resumenAndamios, compatibilidad, materiales, componentes, alquileres, reparaciones, maquinas } = results
 
@@ -287,19 +380,7 @@ export function DashboardResults({ results }: Props) {
       )}
 
       {reparaciones.length > 0 && (
-        <Section title={`Reparaciones / Mantenimiento — ${reparaciones.length} órdenes`}>
-          <SimpleTable
-            headers={["Orden", "Cliente", "Máquina", "Estado", "Fecha", "Descripción"]}
-            rows={reparaciones.map((r: ReparacionRow) => [
-              <span key="o" className="font-mono text-xs">{r.orden}</span>,
-              r.cliente,
-              r.maquina || "—",
-              <span key="st" className={r.estado ? "font-medium" : "text-muted-foreground"}>{r.estado || "—"}</span>,
-              r.fecha,
-              <span key="d" className="text-muted-foreground">{r.descripcion}</span>,
-            ])}
-          />
-        </Section>
+        <ReparacionesSection key={query} rows={reparaciones} />
       )}
 
       {materiales.length > 0 && (

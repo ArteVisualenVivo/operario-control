@@ -137,6 +137,44 @@ export interface GroupedResults {
     totalResultados: number
 }
 
+/** Etiqueta del ESTADO de una orden en la tabla del Dashboard. */
+export const REPARACION_SIN_ESTADO = "(sin estado)"
+
+/**
+ * Clave de agrupación y filtro del estado de una orden: el texto de 3C tal cual
+ * (sin espacios sobrantes). Las órdenes sin estado informado se agrupan en
+ * `REPARACION_SIN_ESTADO` para que no desaparezcan del filtro sin aviso.
+ */
+export function estadoDeReparacion(row: ReparacionRow): string {
+  return (row.estado || "").trim() || REPARACION_SIN_ESTADO
+}
+
+/**
+ * Opciones del filtro de Estado: los estados PRESENTES en el resultado de la
+ * búsqueda (no una lista fija del sistema), con su cantidad. Ordenadas de mayor
+ * a menor cantidad y, a igual cantidad, alfabéticamente.
+ */
+export function estadosDeReparaciones(rows: ReparacionRow[]): { estado: string; cantidad: number }[] {
+  const conteo = new Map<string, number>()
+  for (const row of rows) {
+    const estado = estadoDeReparacion(row)
+    conteo.set(estado, (conteo.get(estado) ?? 0) + 1)
+  }
+  return [...conteo.entries()]
+    .map(([estado, cantidad]) => ({ estado, cantidad }))
+    .sort((a, b) => b.cantidad - a.cantidad || a.estado.localeCompare(b.estado))
+}
+
+/**
+ * Filtra las órdenes por estado. `null` = sin filtro (todas).
+ * Nunca agrega ni pierde filas: sin filtro devuelve exactamente las mismas.
+ */
+export function filtrarReparacionesPorEstado(rows: ReparacionRow[], estado: string | null): ReparacionRow[] {
+  if (!estado) return rows
+  return rows.filter((row) => estadoDeReparacion(row) === estado)
+}
+
+
 function normalize(value: string | undefined | null): string {
     if (!value) return ""
     return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()
