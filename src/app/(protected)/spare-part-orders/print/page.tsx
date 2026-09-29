@@ -122,6 +122,7 @@ export default function PurchaseListPage() {
   const [loading, setLoading] = useState(true)
   const [closedHiddenCount, setClosedHiddenCount] = useState(0)
   const [clientsByOrder, setClientsByOrder] = useState<Map<string, string>>(new Map())
+  const [entryDatesByOrder, setEntryDatesByOrder] = useState<Map<string, Date>>(new Map())
   /** Casas de repuesto ya usadas, para el desplegable de sugerencias. */
   const [knownStores, setKnownStores] = useState<string[]>([])
 
@@ -144,14 +145,20 @@ export default function PurchaseListPage() {
         const byOrder = buildMaintenanceByOrder(maintenance)
         const vigentes = ords.filter((o) => !getOrderClosure(o, byOrder.get(normOrderKey(o.orderNumber)) ?? null).closed)
         setClosedHiddenCount(ords.length - vigentes.length)
-        // Cliente por orden para mostrar debajo del N° de Orden (cruce 3C en memoria).
+        // Cliente y fecha de ingreso por orden (cruce 3C en memoria): la Fecha
+        // de alta de la orden en 3C, que se imprime debajo de cada orden.
         const clients = new Map<string, string>()
+        const entryDates = new Map<string, Date>()
         for (const o of ords) {
           const rec = byOrder.get(normOrderKey(o.orderNumber))
           const name = rec?.clientName?.trim()
           if (name) clients.set(normOrderKey(o.orderNumber), name)
+          if (rec?.entryDate && !Number.isNaN(rec.entryDate.getTime())) {
+            entryDates.set(normOrderKey(o.orderNumber), rec.entryDate)
+          }
         }
         setClientsByOrder(clients)
+        setEntryDatesByOrder(entryDates)
         const map = new Map<string, MachineRepair>()
         for (const r of reps) map.set(r.id, r)
         setRepairsMap(map)
@@ -361,6 +368,7 @@ export default function PurchaseListPage() {
                       const o = part.order
                       const model = displayModel(o)
                       const code = displayCode(o.code)
+                      const entryDate = entryDatesByOrder.get(normOrderKey(g.orderNumber))
                       return (
                       <tr key={o.id}>
                         <td style={{ border: "1px solid #999", padding: "4px 6px", width: 24 }}></td>
@@ -369,6 +377,9 @@ export default function PurchaseListPage() {
                               {g.orderNumber || "—"}
                               {clientsByOrder.get(normOrderKey(g.orderNumber)) && (
                                 <div style={{ fontSize: 9, color: "#666" }}>{clientsByOrder.get(normOrderKey(g.orderNumber))}</div>
+                              )}
+                              {entryDate && (
+                                <div style={{ fontSize: 9, color: "#666" }}>Ingreso: {formatSheetDate(entryDate)}</div>
                               )}
                             </td>
                           )}
@@ -434,6 +445,7 @@ list="casas-repuesto"
                       const o = part.order
                       const model = displayModel(o)
                       const code = displayCode(o.code)
+                      const entryDate = entryDatesByOrder.get(normOrderKey(g.orderNumber))
                       return (
                                               <tr key={o.id}>
                           <td style={{ border: "1px solid #999", padding: "4px 6px", width: 24 }}></td>
@@ -442,6 +454,9 @@ list="casas-repuesto"
                               {g.orderNumber || "—"}
                               {clientsByOrder.get(normOrderKey(g.orderNumber)) && (
                                 <div style={{ fontSize: 9, color: "#666" }}>{clientsByOrder.get(normOrderKey(g.orderNumber))}</div>
+                              )}
+                              {entryDate && (
+                                <div style={{ fontSize: 9, color: "#666" }}>Ingreso: {formatSheetDate(entryDate)}</div>
                               )}
                             </td>
                           )}
