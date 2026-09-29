@@ -383,7 +383,6 @@ export default function SparePartOrdersPage() {
                 <th className="text-right py-2 px-3 font-medium text-muted-foreground">Rec.</th>
                 <th className="text-right py-2 px-3 font-medium text-muted-foreground">Uso</th>
                 <th className="text-left py-2 px-3 font-medium text-muted-foreground">Estado</th>
-                <th className="text-left py-2 px-3 font-medium text-muted-foreground">F. pedido</th>
                 <th className="text-left py-2 px-3 font-medium text-muted-foreground">Fechas</th>
                 <th className="text-right py-2 px-3 font-medium text-muted-foreground">Acción</th>
               </tr>
@@ -457,7 +456,6 @@ export default function SparePartOrdersPage() {
                         ) : null
                       })()}
                     </td>
-                    <td className="py-2 px-3 text-xs align-top">{formatDate(o.requestedAt)}</td>
                     <td className="py-2 px-3 align-top">
                       {/* Fechas del circuito cargadas a mano (para CORREGIR lo que
                           salió mal al apretar un botón):

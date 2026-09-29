@@ -184,8 +184,12 @@ spare_part_orders/{id}
   el anexo "Encargados esta semana" reflejan la realidad.
 - La hoja de compra muestra **3** columnas de fecha, una por cada hecho del
   circuito, y ya **no** imprime `Pedido` (fecha de 3C) ni `Entrega`: eran el
-  mismo dato que `receivedAt`. Esas fechas de 3C siguen guardadas y visibles en
-  la pantalla de Pedidos ("F. pedido").
+  mismo dato que `receivedAt`. Esas fechas de 3C siguen guardadas (se ven en la
+  ficha del pedido, "Ver", como "Fecha de pedido (3C)"), pero la **lista** de
+  Pedidos Rep. ya **no** tiene la columna "F. pedido": no se usa para decidir
+  nada a mano. La fecha sí se sigue usando por dentro para el filtro
+  "Atrasados" (más de 7 días sin encargar) y para el rango de fechas del
+  buscador.
 - Los **3 hechos son distintos** y cada uno tiene su fuente:
   1. `Le pedí al dueño` = `ownerRequestedAt` → botón **Encargar** (día en que el
      operario le encargó el repuesto al dueño).
