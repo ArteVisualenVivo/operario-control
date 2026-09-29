@@ -4,7 +4,6 @@ import type {
   GroupedResults, MaterialRow, ComponenteRow, AlquilerGrupo, ReparacionRow, MaquinaRow,
 } from "@/lib/search-grouped"
 import { ALQUILER_TOTAL_KEYS } from "@/lib/search-grouped"
-import { useState } from "react"
 import Link from "next/link"
 
 interface Props {
@@ -108,7 +107,6 @@ function ComponenteTable({ rows }: { rows: ComponenteRow[] }) {
 }
 export function DashboardResults({ results }: Props) {
   const { query, resumenAndamios, compatibilidad, materiales, componentes, alquileres, reparaciones, maquinas } = results
-  const [openGrupo, setOpenGrupo] = useState<string | null>(null)
 
   if (results.totalResultados === 0 && !resumenAndamios) {
     return (
@@ -245,29 +243,20 @@ export function DashboardResults({ results }: Props) {
                     ))}
                 </div>
 
-                {/* Detalle de renglones (colapsable) */}
-                <button
-                  type="button"
-                  className="text-xs underline text-muted-foreground hover:text-foreground"
-                  onClick={() => setOpenGrupo(openGrupo === g.cliente ? null : g.cliente)}
-                >
-                  {openGrupo === g.cliente
-                    ? "Ocultar detalle"
-                    : `Ver ${g.detalle.length} renglón(es) ▼`}
-                </button>
-                {openGrupo === g.cliente && (
-                  <SimpleTable
-                    headers={["Código", "Descripción", "Cant.", "Remito", "Fecha", "Devolución"]}
-                    rows={g.detalle.map((d) => [
-                      <span key="c" className="font-mono text-xs">{d.codigo || "—"}</span>,
-                      d.descripcion,
-                      <span key="cant" className="font-bold">{d.cantidad}</span>,
-                      <span key="r" className="font-mono text-xs">{d.remito}</span>,
-                      d.fecha,
-                      d.devolucion,
-                    ])}
-                  />
-                )}
+                {/* Detalle de renglones: completo, sin colapsar.
+                    En el Dash el alquiler se muestra íntegro para diferenciarlo
+                    de la vista resumida por cliente de la página Andamios. */}
+                <SimpleTable
+                  headers={["Código", "Descripción", "Cant.", "Remito", "Fecha", "Devolución"]}
+                  rows={g.detalle.map((d) => [
+                    <span key="c" className="font-mono text-xs">{d.codigo || "—"}</span>,
+                    d.descripcion,
+                    <span key="cant" className="font-bold">{d.cantidad}</span>,
+                    <span key="r" className="font-mono text-xs">{d.remito}</span>,
+                    d.fecha,
+                    d.devolucion,
+                  ])}
+                />
               </div>
             ))}
           </div>
@@ -315,10 +304,7 @@ export function DashboardResults({ results }: Props) {
 
       {materiales.length > 0 && (
         <Section title={`Materiales / Stock — ${materiales.length}`}>
-          <MaterialTable rows={materiales.slice(0, 100)} />
-          {materiales.length > 100 && (
-            <p className="text-xs text-muted-foreground">Mostrando los primeros 100 de {materiales.length}. Refiná la búsqueda para acotar.</p>
-          )}
+          <MaterialTable rows={materiales} />
         </Section>
       )}
     </div>

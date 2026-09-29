@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import Sync3CButton from "@/components/sync/Sync3CButton"
 import { SearchInput } from "@/components/ui/SearchInput"
 import { DashboardResults } from "@/components/dashboard/DashboardResults"
@@ -9,6 +10,7 @@ import { useInventoryStock } from "@/hooks/useInventoryStock"
 import { useSparePartsCache } from "@/hooks/useSparePartsCache"
 import { useAllSparePartOrders } from "@/hooks/useAllSparePartOrders"
 import { searchGrouped } from "@/lib/search-grouped"
+import { isScaffoldSearch } from "@/lib/scaffoldRedirect"
 import type { MaintenanceRecord } from "@/services/maintenance"
 import type { ScaffoldRentalStats } from "@/lib/dashboardStats"
 
@@ -18,6 +20,7 @@ type Props = {
 }
 
 export default function DashboardClient({ initialOrders, scaffoldRentals }: Props) {
+  const router = useRouter()
   const { machines, loading: machinesLoading } = useMachines()
   const { items: stockItems, loading: stockLoading } = useInventoryStock()
   // Fichas por máquina + historial de pedidos 3C: alimentan la sección
@@ -25,6 +28,20 @@ export default function DashboardClient({ initialOrders, scaffoldRentals }: Prop
   const { parts: spareParts } = useSparePartsCache()
   const { orders: spareOrders } = useAllSparePartOrders()
   const [search, setSearch] = useState("")
+
+  // Separación de rubros: si la búsqueda es de andamios/puntales,
+  // derivar a la página Andamios (única fuente de ese rubro).
+  // Debounce de 600 ms para no navegar mientras se sigue escribiendo.
+  const redirectRef = useMemo(() => ({ last: "" }), [])
+  useEffect(() => {
+    const q = search.trim()
+    if (!q || q === redirectRef.last || !isScaffoldSearch(q)) return
+    const t = setTimeout(() => {
+      redirectRef.last = q
+      router.push(`/andamios?q=${encodeURIComponent(q)}`)
+    }, 600)
+    return () => clearTimeout(t)
+  }, [search, router, redirectRef])
 
   const results = useMemo(() => {
     return searchGrouped(search, {
