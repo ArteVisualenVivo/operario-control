@@ -6,6 +6,7 @@ import { useRepairs } from "@/hooks/useRepairs"
 import { Input } from "@/components/ui/input"
 import { SearchInput } from "@/components/ui/SearchInput"
 import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table"
@@ -51,6 +52,34 @@ function statusBadge(label: string, days: number | null): string {
   return "bg-green-200 text-green-800"
 }
 
+/** Valor del desplegable de ESTADO cuando NO hay filtro. */
+const TODOS_LOS_ESTADOS = "__todos__"
+
+/**
+ * Etiqueta de estado que se MUESTRA y se FILTRA en la lista.
+ *
+ * 1) Órdenes que vienen de 3C: el estado real que informa 3C tal cual
+ *    ("Reparada", "Entreg./Factur.", "Retirada", "en Taller", ...). Es el
+ *    mismo texto que ya muestra la pestaña "Estado 3C".
+ * 2) Reparaciones cargadas a mano (no tienen estado de 3C): el estado propio
+ *    de la app, con el sufijo "(cargado a mano)" para no confundirlo con 3C.
+ */
+function estadoLabel(repair: MachineRepair): string {
+  const from3c = (repair.status3c ?? "").trim()
+  if (from3c) return from3c
+  switch (String(repair.status ?? "").toUpperCase()) {
+    case "EN_TALLER":
+    case "PENDING":
+    case "REPAIRING":
+      return "En taller (cargado a mano)"
+    case "FINALIZADO":
+    case "DONE":
+      return "Finalizado (cargado a mano)"
+    default:
+      return "(sin estado)"
+  }
+}
+
 export default function RepairsPage() {
   const { repairs, loading, remove } = useRepairs()
   const router = useRouter()
@@ -61,7 +90,7 @@ export default function RepairsPage() {
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
-  const [statusFilter, setStatusFilter] = useState<string>("all")
+  // Filtro por ESTADO: valor del desplegable. Arranca sin filtro (todas).,  const [statusFilter, setStatusFilter] = useState<string>(TODOS_LOS_ESTADOS)
   // Filtro por orden recibido vía ?order= (botón "Ver reparaciones" en la
   // pestaña Estado 3C). Se inicializa desde el query y el usuario puede limpiarlo.
   const [orderFilter, setOrderFilter] = useState<string | null>(orderParam)
@@ -72,7 +101,11 @@ export default function RepairsPage() {
     setOrderFilter(orderParam)
   }, [orderParam])
 
-  const filtered = useMemo(() => {
+  /** Filas que pasan el buscador, el rango de fechas y el filtro por orden.
+   * El filtro de ESTADO se aplica DESPUES (ver `filtered`), para que las
+   * opciones del desplegable y su cantidad no cambien al elegir un estado.
+   */
+  const base = useMemo(() => {
     return repairs.filter((r) => {
       if (orderFilter && !linksToOrder(r, orderFilter)) return false
 
@@ -94,15 +127,30 @@ export default function RepairsPage() {
       const entry = new Date(r.entryDate)
       const matchesFrom = !dateFrom || entry >= new Date(dateFrom)
       const matchesTo = !dateTo || entry <= new Date(dateTo + "T23:59:59")
-      const normalizedStatus = r.status.toUpperCase()
-      const matchesStatus =
-        statusFilter === "all" ||
-        (statusFilter === "EN_TALLER" && ["EN_TALLER", "PENDING", "REPAIRING"].includes(normalizedStatus)) ||
-        (statusFilter === "FINALIZADO" && ["FINALIZADO", "DONE"].includes(normalizedStatus))
-
-      return matchesSearch && matchesFrom && matchesTo && matchesStatus
+      return matchesSearch && matchesFrom && matchesTo
     })
-  }, [repairs, search, dateFrom, dateTo, statusFilter, orderFilter])
+  }, [repairs, search, dateFrom, dateTo, orderFilter])
+
+  /** Opciones del desplegable de ESTADO: solo los estados PRESENTES en lo que
+   * se esta viendo, con su cantidad (igual que el filtro de estado del
+   * Dashboard: src/components/dashboard/DashboardResults.tsx).
+   */
+  const estadosDisponibles = useMemo(() => {
+    const conteo = new Map<string, number>()
+    for (const r of base) {
+      const estado = estadoLabel(r)
+      conteo.set(estado, (conteo.get(estado) ?? 0) + 1)
+    }
+    return [...conteo.entries()]
+      .map(([estado, cantidad]) => ({ estado, cantidad }))
+      .sort((a, b) => b.cantidad - a.cantidad || a.estado.localeCompare(b.estado))
+  }, [base])
+
+  /** Fila visible: sin filtro = la base completa. */
+  const filtered = useMemo(
+    () => (statusFilter === TODOS_LOS_ESTADOS ? base : base.filter((r) => estadoLabel(r) === statusFilter)),
+    [base, statusFilter],
+  )
 
   const handleDelete = async (id: string, machineName: string) => {
     if (!window.confirm(`Eliminar la reparación de ${machineName}?`)) return
@@ -137,17 +185,22 @@ export default function RepairsPage() {
           <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
         </div>
 
-        <div className="flex gap-2">
-          {["all", "EN_TALLER", "FINALIZADO"].map((s) => (
-            <Button
-              key={s}
-              variant={statusFilter === s ? "default" : "outline"}
-              onClick={() => setStatusFilter(s)}
-            >
-              {s}
-            </Button>
-          ))}
-        </div>
+        <Select
+          value={statusFilter}
+          onValueChange={(v) => setStatusFilter(typeof v === "string" ? v : TODOS_LOS_ESTADOS)}
+        >
+          <SelectTrigger size="sm" className="w-[260px]" aria-label="Filtrar por estado">
+            <SelectValue placeholder="Filtrar estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODOS_LOS_ESTADOS}>{`Todos los estados (${base.length})`}</SelectItem>
+            {estadosDisponibles.map((o) => (
+              <SelectItem key={o.estado} value={o.estado}>
+                {`${o.estado} (${o.cantidad})`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {orderFilter && (
@@ -192,7 +245,7 @@ export default function RepairsPage() {
               <TableCell>{r.machineModel}</TableCell>
               <TableCell>{formatDate(r.entryDate)}</TableCell>
               <TableCell>{r.exitDateReal ? formatDate(r.exitDate) : "—"}</TableCell>
-              <TableCell>{r.status}</TableCell>
+              <TableCell>{estadoLabel(r)}</TableCell>
               <TableCell>
                 {hasMaintenanceLink(r) ? (
                   <Button

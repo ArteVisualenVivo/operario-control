@@ -173,6 +173,7 @@ function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRec
     partsUsed: [],
     source: "3c",
     externalId: record.orderNumber,
+    status3c: record.status ?? undefined,
     status: hasExitDate ? "FINALIZADO" : "EN_TALLER",
     issue: record.machineName,
     estimatedReturn: record.returnDate ?? (originalReturn instanceof Date ? originalReturn : null),

@@ -45,6 +45,7 @@ export interface MachineRepair {
 
   source?: RepairSource
   externalId?: string
+  status3c?: string
 
   status: RepairStatus
   issue: string
