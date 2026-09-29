@@ -248,6 +248,12 @@ export default function PurchaseListPage() {
     o.machineModel ?? splitMachineIdentification(o.machineName).model
 
   const printCols = ["", "N° Orden", "Máquina", "Modelo", "Repuesto", "Código repuesto", "Le pedí al dueño", "Lo pidió en la casa", "Me lo trajo", "Casa de repuesto"]
+  // Columnas del ANEXO - ENCARGADOS: las mismas que la lista + la fecha
+  // ESTIMADA DE RETIRO (la que se carga al apretar "Encargar"). Va sólo en el
+  // ANEXO porque esa fecha existe únicamente en los pedidos ENCARGADOS: en la
+  // lista de pendientes sería siempre una columna vacía.
+  const anexoCols = [...printCols.slice(0, -1), "Retiro estimado", printCols[printCols.length - 1]]
+
   const thStyle = { border: "1px solid #999", padding: "4px 6px", textAlign: "left" as const, background: "#f3f3f3" }
   const tdStyle = { border: "1px solid #999", padding: "4px 6px", verticalAlign: "top" as const }
   // Celda de "Casa de repuesto": sin padding, para que el input la llene.
@@ -380,7 +386,7 @@ list="casas-repuesto"
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                 <thead>
                   <tr>
-                                        {printCols.map((h) => (
+                                        {anexoCols.map((h) => (
                       <th key={h} style={thStyle}>{h}</th>
                     ))}
                   </tr>
@@ -417,6 +423,7 @@ list="casas-repuesto"
                           <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.ownerRequestedAt)}</td>
                           <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.orderedAt)}</td>
                           <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.receivedAt)}</td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.expectedAt)}</td>
                           <td style={supplierCellStyle}>
                             <input
                               value={supplierDraft[o.id] ?? o.supplier ?? ""}
