@@ -53,6 +53,56 @@ export interface SparePartOrderGroup {
 }
 
 /**
+ * Número de orden "real": el ÚLTIMO grupo de dígitos del texto.
+ *
+ * El formato de 3C es "X 0001-NNNNNNNN": los dígitos que identifican la orden son
+ * los de después del guion, NO el prefijo "0001". Devuelve "0" si no hay dígitos.
+ */
+export function extractRealOrderNumber(orderNumber: string | null | undefined): number {
+  const matches = (orderNumber ?? "").match(/\d+/g)
+  if (matches && matches.length > 0) return parseInt(matches[matches.length - 1], 10)
+  return 0
+}
+
+/**
+ * Agrupa por N° DE ORDEN REAL y cuenta cada orden UNA sola vez.
+ *
+ * La misma orden puede venir escrita de dos formas en la fuente ("X 0001-00010867"
+ * y "0001-00010867"): sin esta fusión se mostraba como DOS órdenes y quedaba
+ * inflada la cantidad de máquinas (Pedidos Rep.) y las filas de la hoja de
+ * imprimir. Lo usan las dos pantallas para que cuenten igual.
+ *
+ * - La clave del grupo pasa a ser `#<número>` (identidad real de la orden).
+ * - Cada repuesto sigue siendo su propio registro: no se copia ni se inventa nada.
+ * - Sin número reconocible se respeta la clave original (no se fusiona).
+ */
+export function groupOrdersByRealNumber(orders: SparePartOrder[]): SparePartOrderGroup[] {
+  const groups = buildSparePartOrderGroups(orders)
+  const keyOf = (g: SparePartOrderGroup): string => {
+    const num = extractRealOrderNumber(g.orderNumber)
+    return num > 0 ? `#${num}` : g.key
+  }
+  // Claves en orden de primera aparición: el grupo queda en el lugar del primer
+  // registro de esa orden (mismo orden que la fuente).
+  const keys = groups.map(keyOf)
+  const uniqueKeys = [...new Set(keys)]
+
+  // Se reconstruye cada grupo desde cero (sin mutar objetos ya creados): cada
+  // repuesto sigue siendo su propio registro y `parts` conserva el orden.
+  return uniqueKeys.map((key) => {
+    const members = groups.filter((_, i) => keys[i] === key)
+    const parts = members.flatMap((g) => g.parts)
+    return {
+      ...members[0],
+      key,
+      parts,
+      ids: members.flatMap((g) => g.ids),
+      totalParts: parts.length,
+    }
+  })
+}
+
+/**
  * Agrupa los pedidos por número de orden conservando el orden de entrada.
  *
  * - Cada grupo es UNA sola entrada visual.

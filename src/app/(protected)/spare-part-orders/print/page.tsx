@@ -6,64 +6,10 @@ import { toast } from "sonner"
 import { getAllOrders, splitMachineIdentification, isUsablePartCode } from "@/services/sparePartOrders"
 import { buildMaintenanceByOrder, getOrderClosure, normOrderKey } from "@/lib/orderClosure"
 import type { MaintenanceRecord } from "@/services/maintenance"
-import { buildSparePartOrderGroups, type SparePartOrderGroup } from "@/lib/sparePartOrderGroups"
+import { groupOrdersByRealNumber } from "@/lib/sparePartOrderGroups"
 import { updateOrderSupplier } from "@/services/sparePartOrderSupplier"
 import { getRepairs } from "@/services/repairs"
 import type { SparePartOrder, MachineRepair } from "@/types"
-
-/**
- * Extrae el número real del N° de Orden.
- * Ej: "X 0001-00011154" -> 11154
- *
- * IMPORTANTE: se toma el ÚLTIMO grupo de dígitos, NO el primero.
- * El formato "X 0001-NNNNNNNN" arranca con "0001" (prefijo), que NO es el
- * número de orden; el número real está después del guion.
- */
-function extractNumericOrder(orderNumber: string | null | undefined): number {
-  const matches = (orderNumber ?? "").match(/\d+/g)
-  if (matches && matches.length > 0) {
-    return parseInt(matches[matches.length - 1], 10)
-  }
-  return 0
-}
-
-/**
- * Agrupamiento SOLO visual por N° de Orden (igual criterio que la pantalla
- * principal de Pedidos).
- *
- * - Se usa buildSparePartOrderGroups() para agrupar por el texto normalizado.
- * - Como refuerzo, se fusionan los grupos que comparten el mismo número real
- *   (por si el texto original difiere por espacios o caracteres invisibles).
- * - Cada repuesto conserva su propio registro: orderNumber/machineName/
- *   machineModel/description/code/requestedAt/receivedAt nunca se copian ni se
- *   inventan entre documentos.
- * - El N° de Orden y la máquina que se muestran son siempre el texto ORIGINAL
- *   del primer registro del grupo (no se reformatea el dato de la fuente).
- */
-function groupOrdersByNumber(list: SparePartOrder[]): SparePartOrderGroup[] {
-  const groups = buildSparePartOrderGroups(list)
-  const merged: SparePartOrderGroup[] = []
-  const positions = new Map<string, number>()
-
-  for (const group of groups) {
-    const num = extractNumericOrder(group.orderNumber)
-    // Sin número reconocible se respeta la clave original (no se fusiona).
-    const key = num > 0 ? `#${num}` : group.key
-    const position = positions.get(key)
-
-    if (position === undefined) {
-      positions.set(key, merged.length)
-      merged.push({ ...group, parts: [...group.parts], ids: [...group.ids] })
-    } else {
-      const target = merged[position]
-      target.parts.push(...group.parts)
-      target.ids.push(...group.ids)
-      target.totalParts = target.parts.length
-    }
-  }
-
-  return merged
-}
 
 /**
  * Lista de "casas de repuesto" ya usadas, para el desplegable de sugerencias.
@@ -189,8 +135,8 @@ export default function PurchaseListPage() {
 
   // Agrupamiento SOLO visual por N° de Orden (mismo criterio que la pantalla
   // principal de Pedidos). Cada repuesto conserva su propio documento.
-  const pendingGroups = useMemo(() => groupOrdersByNumber(orders), [orders])
-  const encargadosGroups = useMemo(() => groupOrdersByNumber(encargados), [encargados])
+  const pendingGroups = useMemo(() => groupOrdersByRealNumber(orders), [orders])
+  const encargadosGroups = useMemo(() => groupOrdersByRealNumber(encargados), [encargados])
 
   // ---------------------------------------------------------------------------
   // "Casa de repuesto" (dónde se compró o encargó). Se guarda en el campo

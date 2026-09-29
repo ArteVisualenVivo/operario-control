@@ -14,7 +14,7 @@ import { SparePartOrderReceiveUseDialog } from "@/components/repairs/SparePartOr
 import { SparePartOrderDatesEditor } from "@/components/repairs/SparePartOrderDatesEditor"
 import { SparePartOrderCodeInput } from "@/components/repairs/SparePartOrderCodeInput"
 import { formatDate } from "@/lib/ui"
-import { buildSparePartOrderGroups } from "@/lib/sparePartOrderGroups"
+import { groupOrdersByRealNumber, type SparePartOrderGroup } from "@/lib/sparePartOrderGroups"
 import { buildMaintenanceByOrder, getOrderClosure, normOrderKey } from "@/lib/orderClosure"
 import type { MaintenanceRecord } from "@/services/maintenance"
 import { toast } from "sonner"
@@ -53,7 +53,10 @@ export default function SparePartOrdersPage() {
   // Entrega/uso con cantidad directamente desde esta pantalla (mismo diálogo
   // que usa la ficha de la reparación).
   const [action, setAction] = useState<{ type: "receive" | "use"; order: SparePartOrder } | null>(null)
-  const [selected, setSelected] = useState<Set<string>>(new Set())
+  // Selección por N° DE ORDEN, no por repuesto: tildar una orden selecciona TODOS
+  // sus repuestos y cuenta como UNA sola (que es la cantidad de máquinas para las
+  // que hay que comprar). La clave es la del grupo (ver groupOrdersByRealNumber).
+  const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set())
   const [deleting, setDeleting] = useState(false)
   const [importing, setImporting] = useState(false)
   // Ocultar por defecto los pedidos cuya orden en 3C ya se cerro (Reparada /
@@ -61,29 +64,6 @@ export default function SparePartOrdersPage() {
   // los vuelve a mostrar sin borrar historial.
   const [showClosed, setShowClosed] = useState(false)
   const [maintenance, setMaintenance] = useState<MaintenanceRecord[]>([])
-
-  const toggleSelect = (id: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
-      return next
-    })
-  }
-
-  const handleDeleteSelected = async () => {
-    if (selected.size === 0) return
-    if (!window.confirm(`¿Eliminar ${selected.size} pedido(s)? Esta acción no se puede deshacer.`)) return
-    setDeleting(true)
-    try {
-      await remove(Array.from(selected))
-      setSelected(new Set())
-    } catch (err) {
-      window.alert(err instanceof Error ? err.message : "Error al eliminar")
-    } finally {
-      setDeleting(false)
-    }
-  }
 
   const handleDeleteOne = async (id: string) => {
     if (!window.confirm("¿Eliminar este pedido? Esta acción no se puede deshacer.")) return
@@ -254,9 +234,41 @@ export default function SparePartOrdersPage() {
     return { pendientes, encargados, recibidosSinUsar, parciales, atrasados, utilizados, cancelados, total: orders.length }
   }, [orders])
 
-  // Agrupamiento SOLO de presentación: una fila visual por número de orden.
+  // Agrupamiento SOLO de presentación: una fila visual por N° DE ORDEN real (los
+  // repuestos de una misma orden van juntos y cuentan como UNA sola orden, que es
+  // lo que se necesita para saber a cuántas máquinas hay que comprarles).
   // No altera los registros originales ni los datos que vienen de la fuente.
-  const groups = useMemo(() => buildSparePartOrderGroups(visible), [visible])
+  const groups = useMemo(() => groupOrdersByRealNumber(visible), [visible])
+
+  const toggleSelectOrder = (orderKey: string) => {
+    setSelectedOrders((prev) => {
+      const next = new Set(prev)
+      if (next.has(orderKey)) next.delete(orderKey)
+      else next.add(orderKey)
+      return next
+    })
+  }
+
+  /** ids de TODOS los repuestos de las órdenes tildadas (para eliminar). */
+  const selectedPartIds = (gs: SparePartOrderGroup[]): string[] =>
+    gs.filter((g) => selectedOrders.has(g.key)).flatMap((g) => g.ids)
+
+  const handleDeleteSelected = async () => {
+    if (selectedOrders.size === 0) return
+    // Se eliminan TODOS los repuestos de las órdenes tildadas (la orden completa).
+    const ids = selectedPartIds(groups)
+    if (ids.length === 0) return
+    if (!window.confirm(`¿Eliminar ${ids.length} pedido(s) de ${selectedOrders.size} orden(es)? Esta acción no se puede deshacer.`)) return
+    setDeleting(true)
+    try {
+      await remove(ids)
+      setSelectedOrders(new Set())
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : "Error al eliminar")
+    } finally {
+      setDeleting(false)
+    }
+  }
 
   if (loading) return <p className="text-muted-foreground">Cargando pedidos...</p>
 
@@ -338,19 +350,19 @@ export default function SparePartOrdersPage() {
         <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-auto" />
       </div>
 
-      {/* Barra de seleccion / eliminacion */}
+      {/* Barra de seleccion / eliminacion (por N° de Orden) */}
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm text-muted-foreground">
-          {selected.size > 0
-            ? `${selected.size} seleccionado(s)`
-            : `${visible.length} pedido(s) con el filtro actual`}
+          {selectedOrders.size > 0
+            ? `${selectedOrders.size} orden(es) seleccionada(s) · ${selectedPartIds(groups).length} repuesto(s)`
+            : `${groups.length} orden(es) · ${visible.length} repuesto(s) con el filtro actual`}
         </p>
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" onClick={() => setSelected(new Set())} disabled={selected.size === 0}>
+          <Button variant="outline" size="sm" onClick={() => setSelectedOrders(new Set())} disabled={selectedOrders.size === 0}>
             Limpiar
           </Button>
-          <Button variant="destructive" size="sm" onClick={handleDeleteSelected} disabled={selected.size === 0 || deleting}>
-            {deleting ? "Eliminando..." : `Eliminar seleccionados (${selected.size})`}
+          <Button variant="destructive" size="sm" onClick={handleDeleteSelected} disabled={selectedOrders.size === 0 || deleting}>
+            {deleting ? "Eliminando..." : `Eliminar órdenes seleccionadas (${selectedOrders.size})`}
           </Button>
         </div>
       </div>
@@ -362,7 +374,7 @@ export default function SparePartOrdersPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
-                <th className="w-10 py-2 px-3"><input type="checkbox" checked={visible.length > 0 && selected.size === visible.length} onChange={(e) => { if (e.target.checked) setSelected(new Set(visible.map((v) => v.id))); else setSelected(new Set()); }} /></th>
+                <th className="w-10 py-2 px-3"><input type="checkbox" checked={groups.length > 0 && selectedOrders.size === groups.length} onChange={(e) => { if (e.target.checked) setSelectedOrders(new Set(groups.map((g) => g.key))); else setSelectedOrders(new Set()); }} aria-label="Seleccionar todas las órdenes" /></th>
 <th className="text-left py-2 px-3 font-medium text-muted-foreground">Orden</th>
                 <th className="text-left py-2 px-3 font-medium text-muted-foreground">Máquina</th>
                 <th className="text-left py-2 px-3 font-medium text-muted-foreground">Repuesto</th>
@@ -384,7 +396,20 @@ export default function SparePartOrdersPage() {
                     const lastRow = idx === g.parts.length - 1
                     return (
                   <tr key={o.id} className={`hover:bg-muted/20 ${lastRow ? "border-b last:border-0" : ""}`}>
-<td className="py-2 px-3 align-top"><input type="checkbox" checked={selected.has(o.id)} onChange={() => toggleSelect(o.id)} /></td>
+                    {/* UN tilde por N° de Orden: al marcarlo quedan seleccionados
+                        TODOS los repuestos de esa orden y cuenta como 1 (la
+                        cantidad de órdenes = máquinas para las que se compra). */}
+                    {idx === 0 && (
+                      <td className="py-2 px-3 align-top" rowSpan={g.parts.length}>
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          checked={selectedOrders.has(g.key)}
+                          onChange={() => toggleSelectOrder(g.key)}
+                          aria-label={`Seleccionar la orden ${g.orderNumber}`}
+                        />
+                      </td>
+                    )}
                     {idx === 0 && (
                       <td className="py-2 px-3 font-medium align-top" rowSpan={g.parts.length}>{g.orderNumber || "—"}</td>
                     )}
