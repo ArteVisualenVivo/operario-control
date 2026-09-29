@@ -447,7 +447,15 @@ export default function SparePartOrdersPage() {
                     </td>
                     <td className="py-2 px-3 text-xs align-top">{formatDate(o.requestedAt)}</td>
                     <td className="py-2 px-3 align-top">
-                      <SparePartOrderDatesEditor order={o} onSave={updateDates} />
+                      {/* Fechas del circuito: SÓLO la fecha de encargo, cargada a
+                          mano. Se quitaron los calendarios "P. dueño" y "Traído"
+                          porque eran el mismo hecho que los botones: "pedirle el
+                          repuesto al dueño" es encargar (`orderedAt`, el mismo
+                          campo que escribe "Encargar") y "Traído" es el mismo
+                          campo que escribe "Recibir" (`receivedAt`). Acá sólo
+                          queda poder corregir a mano el día del encargo, que
+                          además es lo que mueve el estado SOLICITADO ↔ ENCARGADO. */}
+                      <SparePartOrderDatesEditor order={o} onSave={updateDates} only="orderedAt" />
                     </td>
                     <td className="py-2 px-3 text-right align-top">
                       <div className="flex items-center justify-end gap-1 flex-wrap">

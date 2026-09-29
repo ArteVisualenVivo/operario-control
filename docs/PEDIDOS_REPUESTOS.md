@@ -182,10 +182,18 @@ spare_part_orders/{id}
 - **Regla:** cargar `orderedAt` en un pedido `SOLICITADO`/`PEDIDO` lo pasa a
   `ENCARGADO` (mismo criterio que `markOrdered`), así el resumen, los filtros y
   el anexo "Encargados esta semana" reflejan la realidad.
-- La hoja de compra muestra las 3 columnas (`Le pedí al dueño`,
-  `Lo pidió en la casa`, `Me lo trajo`) y ya **no** imprime `Pedido` (fecha de 3C)
-  ni `Entrega`: eran el mismo dato que `receivedAt`. Esas fechas de 3C siguen
-  guardadas y visibles en la pantalla de Pedidos ("F. pedido").
+- La hoja de compra muestra **2** columnas de fecha del circuito (`Encargado` y
+  `Me lo trajo`) y ya **no** imprime `Pedido` (fecha de 3C) ni `Entrega`: eran el
+  mismo dato que `receivedAt`. Esas fechas de 3C siguen guardadas y visibles en
+  la pantalla de Pedidos ("F. pedido").
+- **Encargar = pedirle el repuesto al dueño** y **Recibir = traído**: son el mismo
+  hecho, así que no se piden dos veces. Por eso los calendarios de la columna
+  "Fechas" de la lista se redujeron a **uno** (el de `P. repuestero` =
+  `orderedAt`, el mismo campo que escribe el botón **Encargar**); se quitaron los
+  de `P. dueño` (`ownerRequestedAt`) y `Traído` (`receivedAt`, el mismo campo que
+  escribe **Recibir**). Al cargar las fechas desde el diálogo de cada botón se
+  imprimen solas. El campo `ownerRequestedAt` sigue guardado en la base y
+  visible en el **detalle** del pedido, pero ya no se carga a mano.
 - También se agregaron los botones **Recibir** / **Utilizar** en la pantalla
   general de Pedidos Rep. (reutilizan `SparePartOrderReceiveUseDialog`), para
   cargar cantidad + fecha sin entrar a la orden de trabajo.
