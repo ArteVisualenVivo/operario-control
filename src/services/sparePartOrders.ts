@@ -726,7 +726,12 @@ export async function markOrdered(
 
   const updates: Record<string, unknown> = {
     status: "ENCARGADO",
-    orderedAt: input.orderedAt,
+    // El botón "Encargar" registra el día en que el OPERARIO le encargó el repuesto
+    // al DUEÑO → `ownerRequestedAt`. NO usa `orderedAt`, que es un hecho distinto:
+    // el día en que el DUEÑO lo encargó/pidió en la casa de repuestos, que se
+    // carga a mano con el calendario "P. repuestero" (Pedidos Rep. → Fechas).
+    // Si los dos escribieran el mismo campo, no podrían ser fechas distintas.
+    ownerRequestedAt: input.orderedAt,
     expectedAt: input.expectedAt ?? null,
     updatedAt: new Date(),
   }

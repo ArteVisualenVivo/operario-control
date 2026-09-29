@@ -51,14 +51,17 @@ function formatSheetDate(d: Date | null | undefined): string {
 
 /**
  * Orden del anexo de la hoja de compra: los encargos MÁS VIEJOS primero (por la
- * fecha en que se pidieron en la casa), así el anexo se lee como una lista de
- * retiros pendientes: arriba lo que hace más tiempo que se encargó.
- * Los pedidos sin esa fecha quedan al final.
+ * fecha en que el operario se lo encargó al dueño; si todavía no está cargada, la
+ * del pedido en la casa), así el anexo se lee como una lista de retiros
+ * pendientes: arriba lo que hace más tiempo que se encargó.
+ * Los pedidos sin ninguna de esas fechas quedan al final.
  */
 function byOldestOrderedAt(a: SparePartOrder, b: SparePartOrder): number {
-  const at = a.orderedAt instanceof Date ? a.orderedAt.getTime() : Number.POSITIVE_INFINITY
-  const bt = b.orderedAt instanceof Date ? b.orderedAt.getTime() : Number.POSITIVE_INFINITY
-  return at - bt
+  const time = (o: SparePartOrder): number => {
+    const d = o.ownerRequestedAt instanceof Date ? o.ownerRequestedAt : o.orderedAt
+    return d instanceof Date ? d.getTime() : Number.POSITIVE_INFINITY
+  }
+  return time(a) - time(b)
 }
 
 export default function PurchaseListPage() {
@@ -247,13 +250,14 @@ export default function PurchaseListPage() {
   const displayModel = (o: SparePartOrder) =>
     o.machineModel ?? splitMachineIdentification(o.machineName).model
 
-  // Las fechas del circuito de compra son DOS, no tres: "pedirle el repuesto al
-  // dueño" y "encargarlo en la casa" son el mismo hecho y las escribe el mismo
-  // botón ("Encargar" → `orderedAt`). Por eso:
-  //   "Encargado"    → día en que se encargó (botón Encargar, o el calendario
-  //                    "P. repuestero" de Pedidos Rep.).
-  //   "Me lo trajo"  → día en que lo trajo (botón Recibir → `receivedAt`).
-  const printCols = ["", "N° Orden", "Máquina", "Modelo", "Repuesto", "Código repuesto", "Encargado", "Me lo trajo", "Casa de repuesto"]
+  // Cada columna de fecha de la hoja es UN hecho distinto del circuito de compra:
+  //   "Le pedí al dueño"    → día en que el OPERARIO le encargó el repuesto al
+  //                           dueño (botón "Encargar" → `ownerRequestedAt`).
+  //   "Lo pidió en la casa" → día en que el DUEÑO lo encargó/pidió en la casa de
+  //                           repuestos (calendario "P. repuestero" → `orderedAt`).
+  //   "Me lo trajo"         → día en que el dueño trajo los repuestos (botón
+  //                           "Recibir" → `receivedAt`).
+  const printCols = ["", "N° Orden", "Máquina", "Modelo", "Repuesto", "Código repuesto", "Le pedí al dueño", "Lo pidió en la casa", "Me lo trajo", "Casa de repuesto"]
   // Columnas del ANEXO - ENCARGADOS: las mismas que la lista + la fecha
   // ESTIMADA DE RETIRO (la que se carga al apretar "Encargar"). Va sólo en el
   // ANEXO porque esa fecha existe únicamente en los pedidos ENCARGADOS: en la
@@ -349,6 +353,7 @@ export default function PurchaseListPage() {
                           )}
                           <td style={tdStyle}>{part.description || "—"}</td>
                           <td style={{ ...tdStyle, fontFamily: "monospace" }}>{code}</td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.ownerRequestedAt)}</td>
                           <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.orderedAt)}</td>
                           <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.receivedAt)}</td>
                           <td style={supplierCellStyle}>
@@ -425,6 +430,7 @@ list="casas-repuesto"
                           )}
                           <td style={tdStyle}>{part.description || "—"}</td>
                           <td style={{ ...tdStyle, fontFamily: "monospace" }}>{code}</td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.ownerRequestedAt)}</td>
                           <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.orderedAt)}</td>
                           <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.receivedAt)}</td>
                           <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.expectedAt)}</td>

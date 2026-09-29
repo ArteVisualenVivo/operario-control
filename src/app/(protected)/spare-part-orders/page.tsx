@@ -439,22 +439,33 @@ export default function SparePartOrdersPage() {
                           3C: {closureById.get(o.id)?.label}
                         </span>
                       )}
-                      {o.status === "ENCARGADO" && (o.orderedAt || o.expectedAt) && (
-                        <span className="block text-xs text-muted-foreground mt-1">
-                          enc: {formatDate(o.orderedAt!)}{o.expectedAt ? ` · retiro: ${formatDate(o.expectedAt)}` : ""}
-                        </span>
-                      )}
+                      {/* Fechas del circuito, tal como quedaron al apretar los
+                          botones o al cargar el calendario: enc = día en que se lo
+                          encargué al dueño (botón "Encargar") · repuestero = día
+                          en que el dueño lo pidió en la casa (calendario "P.
+                          repuestero") · traído = día en que me lo trajo (botón
+                          "Recibir") · retiro = fecha estimada de retiro. */}
+                      {(() => {
+                        const fechas = [
+                          o.ownerRequestedAt ? `enc: ${formatDate(o.ownerRequestedAt)}` : null,
+                          o.orderedAt ? `repuestero: ${formatDate(o.orderedAt)}` : null,
+                          o.receivedAt ? `traído: ${formatDate(o.receivedAt)}` : null,
+                          o.expectedAt ? `retiro: ${formatDate(o.expectedAt)}` : null,
+                        ].filter((f): f is string => f !== null)
+                        return fechas.length > 0 ? (
+                          <span className="block text-xs text-muted-foreground mt-1">{fechas.join(" · ")}</span>
+                        ) : null
+                      })()}
                     </td>
                     <td className="py-2 px-3 text-xs align-top">{formatDate(o.requestedAt)}</td>
                     <td className="py-2 px-3 align-top">
-                      {/* Fechas del circuito: SÓLO la fecha de encargo, cargada a
-                          mano. Se quitaron los calendarios "P. dueño" y "Traído"
-                          porque eran el mismo hecho que los botones: "pedirle el
-                          repuesto al dueño" es encargar (`orderedAt`, el mismo
-                          campo que escribe "Encargar") y "Traído" es el mismo
-                          campo que escribe "Recibir" (`receivedAt`). Acá sólo
-                          queda poder corregir a mano el día del encargo, que
-                          además es lo que mueve el estado SOLICITADO ↔ ENCARGADO. */}
+                      {/* Calendario para cargar a mano UNA sola fecha: el día en que
+                          el DUEÑO encargó/pidió el repuesto en la casa de repuestos
+                          (`orderedAt`, columna "P. repuestero"). Las otras fechas
+                          del circuito las ponen los botones: "Encargar" (día en que
+                          se lo encargué al dueño → `ownerRequestedAt`) y "Recibir"
+                          (día en que me lo trajo → `receivedAt`), y se muestran
+                          arriba, bajo el estado. */}
                       <SparePartOrderDatesEditor order={o} onSave={updateDates} only="orderedAt" />
                     </td>
                     <td className="py-2 px-3 text-right align-top">
