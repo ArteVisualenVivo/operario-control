@@ -15,6 +15,7 @@ import { toast } from "sonner"
 import { hasMaintenanceLink } from "@/lib/machine-links"
 import RepairsTabs, { useRepairsTabNav } from "@/components/repairs/RepairsTabs"
 import type { MachineRepair } from "@/types"
+import type { MaintenanceRecord } from "@/services/maintenance"
 
 // Normaliza la clave de vinculación (externalId/machineId ↔ orderNumber):
 // mayúsculas, sin "X " inicial, espacios colapsados. Coincide con la
@@ -80,6 +81,52 @@ function estadoLabel(repair: MachineRepair): string {
   }
 }
 
+/**
+ * Facturación de 3C por orden: ¿tiene fila "Entreg./Factur." en su línea de
+ * tiempo (states) y con qué fecha? En 3C la factura es UN ESTADO MÁS de la
+ * orden ("Entreg./Factur."), no un campo aparte, así que "No facturada" =
+ * la orden no tiene esa fila en todo su historial.
+ *
+ * La fecha es `observedAt` (cuándo el sync vio ese estado = fecha real de
+ * facturación, a precisión de la frecuencia de sync). Ver NOTA DE FECHAS en
+ * src/lib/sync-3c/consolidated.ts.
+ */
+function facturaInfo(
+  orderNumber: string,
+  byOrder: Map<string, MaintenanceRecord>,
+): { facturada: boolean; facturaDate: Date | null } {
+  const key = normKey(orderNumber)
+  if (!key) return { facturada: false, facturaDate: null }
+  const rec = byOrder.get(key)
+  const states = rec?.states ?? []
+  let fecha: Date | null = null
+  for (const s of states) {
+    if (!/factur/i.test(String(s.status ?? ""))) continue
+    const raw = s.statusDate ? new Date(s.statusDate) : null
+    const d = raw && !Number.isNaN(raw.getTime()) ? raw : null
+    if (d && (!fecha || d.getTime() > fecha.getTime())) fecha = d
+  }
+  if (fecha) return { facturada: true, facturaDate: fecha }
+  // Sin línea de tiempo (orden manual): el estado actual es lo único que hay.
+  const current = (rec?.status ?? "").trim()
+  if (/factur/i.test(current)) {
+    const raw = rec?.statusDate ? new Date(rec.statusDate) : null
+    const d = raw && !Number.isNaN(raw.getTime()) ? raw : null
+    return { facturada: true, facturaDate: d }
+  }
+  return { facturada: false, facturaDate: null }
+}
+
+/**
+ * Fecha de facturación de 3C por orden (la fecha de la fila "Entreg./Factur.").
+ * Es `observedAt`: cuándo el sync vio ese estado = fecha real de facturación,
+ * a precisión de la frecuencia de sync. null si no está facturada.
+ */
+/** Valor del desplegable de FACTURACIÓN cuando NO hay filtro. */
+const TODAS_FACTURACION = "__todas__"
+
+type FacturaFilter = typeof TODAS_FACTURACION | "facturada" | "nofacturada"
+
 export default function RepairsPage() {
   const { repairs, loading, remove } = useRepairs()
   const router = useRouter()
@@ -91,6 +138,33 @@ export default function RepairsPage() {
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>(TODOS_LOS_ESTADOS)
+  // Filtro de facturación: "No facturada" = sin fila "Entreg./Factur." en la
+  // línea de tiempo de 3C. Por defecto muestra todo (no cambia lo actual).
+  const [facturaFilter, setFacturaFilter] = useState<FacturaFilter>(TODAS_FACTURACION)
+  // Línea de tiempo de 3C por orden (para el filtro de facturación y su fecha).
+  // Misma fuente que la pestaña "Estado 3C" (Redis/Firestore vía local-sync).
+  const [maintByOrder, setMaintByOrder] = useState<Map<string, MaintenanceRecord>>(new Map())
+
+  useEffect(() => {
+    let cancelled = false
+    import("@/lib/local-sync").then(async ({ loadMaintenanceRecords }) => {
+      try {
+        const records = await loadMaintenanceRecords()
+        if (cancelled) return
+        const map = new Map<string, MaintenanceRecord>()
+        for (const rec of records) {
+          const key = normKey(rec.orderNumber)
+          if (key && !map.has(key)) map.set(key, rec)
+        }
+        if (!cancelled) setMaintByOrder(map)
+      } catch {
+        // Sin línea de tiempo: el filtro de facturación usa solo el estado actual.
+      }
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [])
   // Filtro por orden recibido vía ?order= (botón "Ver reparaciones" en la
   // pestaña Estado 3C). Se inicializa desde el query y el usuario puede limpiarlo.
   const [orderFilter, setOrderFilter] = useState<string | null>(orderParam)
@@ -135,6 +209,7 @@ export default function RepairsPage() {
    * se esta viendo, con su cantidad (igual que el filtro de estado del
    * Dashboard: src/components/dashboard/DashboardResults.tsx).
    */
+
   const estadosDisponibles = useMemo(() => {
     const conteo = new Map<string, number>()
     for (const r of base) {
@@ -146,10 +221,17 @@ export default function RepairsPage() {
       .sort((a, b) => b.cantidad - a.cantidad || a.estado.localeCompare(b.estado))
   }, [base])
 
-  /** Fila visible: sin filtro = la base completa. */
+  /** Fila visible: sin filtros = la base completa. */
   const filtered = useMemo(
-    () => (statusFilter === TODOS_LOS_ESTADOS ? base : base.filter((r) => estadoLabel(r) === statusFilter)),
-    [base, statusFilter],
+    () =>
+      (statusFilter === TODOS_LOS_ESTADOS ? base : base.filter((r) => estadoLabel(r) === statusFilter)).filter(
+        (r) => {
+          if (facturaFilter === TODAS_FACTURACION) return true
+          const info = facturaInfo(orderNumberFor(r), maintByOrder)
+          return facturaFilter === "facturada" ? info.facturada : !info.facturada
+        },
+      ),
+    [base, statusFilter, facturaFilter, maintByOrder],
   )
 
   const handleDelete = async (id: string, machineName: string) => {
@@ -201,6 +283,20 @@ export default function RepairsPage() {
             ))}
           </SelectContent>
         </Select>
+
+        <Select
+          value={facturaFilter}
+          onValueChange={(v) => setFacturaFilter(v === "facturada" || v === "nofacturada" ? v : TODAS_FACTURACION)}
+        >
+          <SelectTrigger size="sm" className="w-[220px]" aria-label="Filtrar por facturación">
+            <SelectValue placeholder="Filtrar facturación" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODAS_FACTURACION}>{`Todas (${base.length})`}</SelectItem>
+            <SelectItem value="facturada">Facturada</SelectItem>
+            <SelectItem value="nofacturada">No facturada</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       {orderFilter && (
@@ -230,6 +326,7 @@ export default function RepairsPage() {
             <TableHead>Modelo</TableHead>
             <TableHead>Ingreso</TableHead>
             <TableHead>Egreso</TableHead>
+            <TableHead>Facturada</TableHead>
             <TableHead>Estado</TableHead>
             <TableHead>Mantenimiento</TableHead>
             <TableHead>Acción</TableHead>
@@ -245,6 +342,12 @@ export default function RepairsPage() {
               <TableCell>{r.machineModel}</TableCell>
               <TableCell>{formatDate(r.entryDate)}</TableCell>
               <TableCell>{r.exitDateReal ? formatDate(r.exitDate) : "—"}</TableCell>
+              <TableCell>
+                {(() => {
+                  const info = facturaInfo(orderNumberFor(r), maintByOrder)
+                  return info.facturada && info.facturaDate ? formatDate(info.facturaDate) : "—"
+                })()}
+              </TableCell>
               <TableCell>{estadoLabel(r)}</TableCell>
               <TableCell>
                 {hasMaintenanceLink(r) ? (
