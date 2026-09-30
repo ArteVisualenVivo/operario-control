@@ -459,6 +459,9 @@ export default function RepairsPage() {
         </p>
       </div>
 
+      <style>{`@media print { @page { size: landscape; } }`}</style>
+
+      <div className="overflow-x-auto print:overflow-visible">
       <Table>
         <TableHeader>
           <TableRow>
@@ -525,6 +528,7 @@ export default function RepairsPage() {
           ))}
         </TableBody>
       </Table>
+      </div>
     </div>
   )
 
