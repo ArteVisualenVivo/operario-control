@@ -134,6 +134,16 @@ export function getOrderClosure(
         const ta = a.date ? dayKey(a.date) : Number.POSITIVE_INFINITY
         const tb = b.date ? dayKey(b.date) : Number.POSITIVE_INFINITY
         if (ta !== tb) return ta - tb
+        // MISMO DÍA: decide la HORA de lectura (statusDate), no la posición en el
+        // array. `states[]` sigue el orden en que se procesaron los Excel del día,
+        // no el reloj: la orden 11174 tenía "Entreg./Factur. 19:37" ANTES en el
+        // array que el "A la Espera Repuestos 20:01" que 3C muestra como último
+        // estado. Sin esto, un cierre observado ANTES del repuesto nuevo escondía
+        // el pedido pedido por garantía/reingreso: el repuesto existía, tenía la
+        // fecha del día y NO aparecía en la web ni en la hoja de compra.
+        const ha = a.date ? a.date.getTime() : Number.POSITIVE_INFINITY
+        const hb = b.date ? b.date.getTime() : Number.POSITIVE_INFINITY
+        if (ha !== hb) return ha - hb
         return a.i - b.i
       })
     let closed = false

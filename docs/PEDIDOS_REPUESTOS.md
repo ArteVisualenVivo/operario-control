@@ -300,7 +300,22 @@ Ruta: `/spare-part-orders` (acceso desde la barra de navegación).
 - Resumen clicable: Total, **Pendientes**, **Recibidos sin usar**, **Parciales**,
   **Atrasados** (>7 días en SOLICITADO/PEDIDO), **Utilizados**.
 - Filtros por estado + búsqueda por repuesto/código + búsqueda por orden/máquina
-  + rango de fechas.
+  + rango de fechas (**Pedido desde / hasta**, botón **Hoy**).
+- **Ocultamiento por cierre de 3C (`src/lib/orderClosure.ts`)**: los pedidos de
+  órdenes cuya línea de tiempo de 3C terminó en un estado terminal
+  (Reparada / Entreg.-Factur. / Retirada / No Reparada) **después** de la fecha
+  del pedido se ocultan (lista y hoja de compra), para no imprimir de nuevo lo ya
+  resuelto. Se ven con el tilde **"Ver finalizadas"** y el renglón
+  "N pedido(s) de órdenes ya cerradas en 3C … oculto(s)".
+  **REGLA CLAVE (2026-09-30): un repuesto pedido DESPUÉS del cierre nunca se
+  oculta.** Si la orden vuelve por garantía/reingreso y se pide un repuesto nuevo,
+  ese pedido aparece con su fecha, aunque 3C la haya dado por entregada antes.
+  Dentro del mismo día el orden de los estados se decide por la **hora de lectura**
+  (`statusDate`), no por la posición en `states[]` (el array sigue el orden en que
+  se procesaron los Excel del día, no el reloj): la orden 11174 tenía
+  "Entreg./Factur. 19:37" antes en el array que el "A la Espera Repuestos 20:01"
+  que 3C muestra como último estado, y por eso su pedido de garantía del 30/09
+  quedaba oculto (el repuesto existía, con la fecha del día, pero no se veía).
 - Cada fila muestra cantidades (pedido/recibido/utilizado) y estado, con acceso
   al detalle.
 
