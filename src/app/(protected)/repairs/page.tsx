@@ -53,6 +53,17 @@ function statusBadge(label: string, days: number | null): string {
   return "bg-green-200 text-green-800"
 }
 
+/** Valor del desplegable de CLIENTE cuando NO se excluye nada. */
+const TODOS_LOS_CLIENTES = "__todos_clientes__"
+
+/**
+ * Normaliza el nombre de cliente para comparar (mayúsculas, espacios simples).
+ * "COCREAR (100)" y "  cocrear (100) " quedan iguales.
+ */
+function normClient(value?: string | null): string {
+  return (value ?? "").toUpperCase().replace(/\s+/g, " ").trim()
+}
+
 /** Valor del desplegable de ESTADO cuando NO hay filtro. */
 const TODOS_LOS_ESTADOS = "__todos__"
 
@@ -141,6 +152,10 @@ export default function RepairsPage() {
   // Filtro de facturación: "No facturada" = sin fila "Entreg./Factur." en la
   // línea de tiempo de 3C. Por defecto muestra todo (no cambia lo actual).
   const [facturaFilter, setFacturaFilter] = useState<FacturaFilter>(TODAS_FACTURACION)
+  // Cliente a EXCLUIR de la lista/impresión (ej: COCREAR (100), máquinas de la
+  // empresa). Por defecto no se excluye nada. Es exclusión, no filtro: todo lo
+  // demás sigue apareciendo igual.
+  const [excludeClient, setExcludeClient] = useState<string>(TODOS_LOS_CLIENTES)
   // Línea de tiempo de 3C por orden (para el filtro de facturación y su fecha).
   // Misma fuente que la pestaña "Estado 3C" (Redis/Firestore vía local-sync).
   const [maintByOrder, setMaintByOrder] = useState<Map<string, MaintenanceRecord>>(new Map())
@@ -224,15 +239,34 @@ export default function RepairsPage() {
   /** Fila visible: sin filtros = la base completa. */
   const filtered = useMemo(
     () =>
-      (statusFilter === TODOS_LOS_ESTADOS ? base : base.filter((r) => estadoLabel(r) === statusFilter)).filter(
-        (r) => {
+      (
+        statusFilter === TODOS_LOS_ESTADOS ? base : base.filter((r) => estadoLabel(r) === statusFilter)
+      )
+        .filter((r) => {
           if (facturaFilter === TODAS_FACTURACION) return true
           const info = facturaInfo(orderNumberFor(r), maintByOrder)
           return facturaFilter === "facturada" ? info.facturada : !info.facturada
-        },
-      ),
-    [base, statusFilter, facturaFilter, maintByOrder],
+        })
+        // Exclusión de cliente (ej: COCREAR): se aplica DESPUÉS, para que las
+        // opciones y conteos de los otros desplegables no cambien al excluir.
+        .filter((r) => excludeClient === TODOS_LOS_CLIENTES || normClient(r.clientName) !== excludeClient),
+    [base, statusFilter, facturaFilter, maintByOrder, excludeClient],
   )
+
+  /** Clientes PRESENTES en lo que se está viendo, con su cantidad. */
+  const clientesDisponibles = useMemo(() => {
+    const conteo = new Map<string, { label: string; cantidad: number }>()
+    for (const r of base) {
+      const key = normClient(r.clientName)
+      if (!key) continue
+      const prev = conteo.get(key)
+      if (prev) prev.cantidad += 1
+      else conteo.set(key, { label: (r.clientName ?? "").trim() || key, cantidad: 1 })
+    }
+    return [...conteo.entries()]
+      .map(([key, v]) => ({ key, label: v.label, cantidad: v.cantidad }))
+      .sort((a, b) => b.cantidad - a.cantidad || a.label.localeCompare(b.label))
+  }, [base])
 
   const handleDelete = async (id: string, machineName: string) => {
     if (!window.confirm(`Eliminar la reparación de ${machineName}?`)) return
@@ -300,6 +334,20 @@ export default function RepairsPage() {
             <SelectItem value="nofacturada">No facturada</SelectItem>
           </SelectContent>
         </Select>
+
+        <Select value={excludeClient} onValueChange={(v) => setExcludeClient(typeof v === "string" ? v : TODOS_LOS_CLIENTES)}>
+          <SelectTrigger size="sm" className="w-[260px]" aria-label="Excluir cliente">
+            <SelectValue placeholder="Excluir cliente" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODOS_LOS_CLIENTES}>Sin excluir (todos)</SelectItem>
+            {clientesDisponibles.map((c) => (
+              <SelectItem key={c.key} value={c.key}>
+                {`Excluir: ${c.label} (${c.cantidad})`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {orderFilter && (
@@ -335,6 +383,9 @@ export default function RepairsPage() {
             dateFrom ? `Desde: ${dateFrom}` : null,
             dateTo ? `Hasta: ${dateTo}` : null,
             orderFilter ? `Orden: ${orderFilter}` : null,
+            excludeClient !== TODOS_LOS_CLIENTES
+              ? `Sin: ${clientesDisponibles.find((c) => c.key === excludeClient)?.label ?? excludeClient}`
+              : null,
           ]
             .filter(Boolean)
             .join(" · ")}
