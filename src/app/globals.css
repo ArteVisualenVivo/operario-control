@@ -128,3 +128,19 @@
     @apply font-sans;
   }
 }
+
+/*
+ * Impresión: la app vive dentro de un shell con alto fijo y áreas con scroll
+ * ("h-screen" + "overflow-auto"). En papel eso recorta el contenido a una sola
+ * página, así que en @media print se suelta el alto y el scroll y se deja que el
+ * contenido fluya y se reparta en tantas páginas como necesite.
+ */
+@media print {
+  html,
+  body {
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+  }
+}

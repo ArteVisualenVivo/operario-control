@@ -25,7 +25,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-full flex flex-col">
         <AuthProvider>
           {children}
-          <Toaster />
+          <div className="print:hidden">
+            <Toaster />
+          </div>
         </AuthProvider>
       </body>
     </html>

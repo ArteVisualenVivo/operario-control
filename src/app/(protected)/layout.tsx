@@ -54,9 +54,9 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   if (!user) return null
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="flex h-screen flex-col print:block print:h-auto">
       <AgentAutoStart />
-      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-6 py-3">
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-6 py-3 print:hidden">
         <Link href="/dashboard" className="text-lg font-bold tracking-tight">
           OPERARIO CONTROL
         </Link>
@@ -94,7 +94,9 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
           </Button>
         </nav>
       </header>
-      <main className="flex-1 overflow-auto p-6">{children}</main>
+      {/* En papel no hay contenedor con scroll: la tabla fluye y se reparte en
+          tantas páginas como haga falta (si no, se recortaría a una sola). */}
+      <main className="flex-1 overflow-auto p-6 print:overflow-visible print:p-0">{children}</main>
     </div>
   )
 }

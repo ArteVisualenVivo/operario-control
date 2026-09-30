@@ -429,81 +429,150 @@ export default function RepairsPage() {
         </div>
       )}
 
-      {/* Encabezado SOLO de impresión: qué filtros se usaron. */}
-      <div>
-        <h2 className="text-lg font-bold">Reparaciones</h2>
-        <p className="text-sm">
-          {[
-            statusFilter === TODOS_LOS_ESTADOS
-              ? "Todos los estados"
-              : `Estado: ${statusFilter}`,
-            facturaFilter === TODAS_FACTURACION
-              ? "Todas (facturadas y no facturadas)"
-              : facturaFilter === "facturada"
-                ? "Solo facturadas"
-                : "Solo no facturadas",
-            search.trim() ? `Búsqueda: ${search.trim()}` : null,
-            dateFrom ? `Desde: ${dateFrom}` : null,
-            dateTo ? `Hasta: ${dateTo}` : null,
-            orderFilter ? `Orden: ${orderFilter}` : null,
-            excludeClient !== TODOS_LOS_CLIENTES
-              ? `Sin: ${clientesDisponibles.find((c) => c.key === excludeClient)?.label ?? excludeClient}`
-              : null,
-            excludeEstado !== TODOS_LOS_ESTADOS
-              ? `Sin estado: ${excludeEstado}`
-              : null,
-          ]
-            .filter(Boolean)
-            .join(" · ")}
-          {` — ${filtered.length} ${filtered.length === 1 ? "orden" : "órdenes"}`}
-        </p>
-      </div>
-
-      {/* Hoja de impresión: SOLO esto se imprime (ver <style> al final). */}
+      {/* Hoja de impresión: es lo único que se imprime (ver <style jsx global> al
+          final del componente). Queda en flujo normal —sin position:absolute— para
+          que la tabla se reparta en varias páginas sin recortes. */}
       <div id="repairs-print">
-      <div className="overflow-x-auto">
-        <table className="w-full caption-bottom text-sm">
-          <thead className="[&_tr]:border-b">
-            <tr className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-              <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground">N° Orden</th>
-              <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground">Cliente</th>
-              <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground">Máquina</th>
-              <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground">Modelo</th>
-              <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground">Ingreso</th>
-              <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground">Egreso</th>
-              <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground">Facturada</th>
-              <th className="h-10 px-2 text-left align-middle font-medium text-muted-foreground">Estado</th>
-            </tr>
-          </thead>
-          <tbody className="[&_tr:last-child]:border-0">
-            {filtered.map((r) => {
-              const info = facturaInfo(orderNumberFor(r), maintByOrder)
-              return (
-                <tr key={r.id} className="border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted">
-                  <td className="p-2 align-middle font-mono text-xs">{orderNumberFor(r) || "—"}</td>
-                  <td className="p-2 align-middle">{r.clientName}</td>
-                  <td className="p-2 align-middle">{r.machineName}</td>
-                  <td className="p-2 align-middle">{r.machineModel}</td>
-                  <td className="p-2 align-middle">{formatDate(r.entryDate)}</td>
-                  <td className="p-2 align-middle">{r.exitDateReal ? formatDate(r.exitDate) : "—"}</td>
-                  <td className="p-2 align-middle">
-                    {info.facturada && info.facturaDate ? formatDate(info.facturaDate) : "—"}
-                  </td>
-                  <td className="p-2 align-middle">{estadoLabel(r)}</td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+        {/* Encabezado SOLO de impresión: qué filtros se usaron. */}
+        <div className="hidden print:block">
+          <h2 className="text-lg font-bold">Reparaciones</h2>
+          <p className="text-sm">
+            {[
+              statusFilter === TODOS_LOS_ESTADOS
+                ? "Todos los estados"
+                : `Estado: ${statusFilter}`,
+              facturaFilter === TODAS_FACTURACION
+                ? "Todas (facturadas y no facturadas)"
+                : facturaFilter === "facturada"
+                  ? "Solo facturadas"
+                  : "Solo no facturadas",
+              search.trim() ? `Búsqueda: ${search.trim()}` : null,
+              dateFrom ? `Desde: ${dateFrom}` : null,
+              dateTo ? `Hasta: ${dateTo}` : null,
+              orderFilter ? `Orden: ${orderFilter}` : null,
+              excludeClient !== TODOS_LOS_CLIENTES
+                ? `Sin: ${clientesDisponibles.find((c) => c.key === excludeClient)?.label ?? excludeClient}`
+                : null,
+              excludeEstado !== TODOS_LOS_ESTADOS
+                ? `Sin estado: ${excludeEstado}`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+            {` — ${filtered.length} ${filtered.length === 1 ? "orden" : "órdenes"}`}
+          </p>
+        </div>
+
+        <div className="overflow-x-auto print:overflow-visible">
+        <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>N° Orden</TableHead>
+            <TableHead>Cliente</TableHead>
+            <TableHead>Máquina</TableHead>
+            <TableHead>Modelo</TableHead>
+            <TableHead>Ingreso</TableHead>
+            <TableHead>Egreso</TableHead>
+            <TableHead>Facturada</TableHead>
+            <TableHead>Estado</TableHead>
+            <TableHead className="print:hidden">Mantenimiento</TableHead>
+            <TableHead className="print:hidden">Acción</TableHead>
+          </TableRow>
+        </TableHeader>
+
+        <TableBody>
+          {filtered.map((r) => (
+            <TableRow key={r.id} onClick={() => router.push(`/repairs/${r.id}`)}>
+              <TableCell className="font-mono text-xs">{orderNumberFor(r) || "—"}</TableCell>
+              <TableCell>{r.clientName}</TableCell>
+              <TableCell>{r.machineName}</TableCell>
+              <TableCell>{r.machineModel}</TableCell>
+              <TableCell>{formatDate(r.entryDate)}</TableCell>
+              <TableCell>{r.exitDateReal ? formatDate(r.exitDate) : "—"}</TableCell>
+              <TableCell>
+                {(() => {
+                  const info = facturaInfo(orderNumberFor(r), maintByOrder)
+                  return info.facturada && info.facturaDate ? formatDate(info.facturaDate) : "—"
+                })()}
+              </TableCell>
+              <TableCell>{estadoLabel(r)}</TableCell>
+              <TableCell className="print:hidden">
+                {hasMaintenanceLink(r) ? (
+                  <Button
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0 text-xs"
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      const orderKey = r.externalId ?? r.machineId
+                      gotoEstado3C(orderKey)
+                    }}
+                  >
+                    Ver orden
+                  </Button>
+                ) : (
+                  <span className="text-xs text-muted-foreground">—</span>
+                )}
+              </TableCell>
+
+              <TableCell className="print:hidden">
+                <Button
+                  variant="destructive"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDelete(r.id, r.machineName)
+                  }}
+                >
+                  Eliminar
+                </Button>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+        </div>
       </div>
 
       <style jsx global>{`
         @media print {
-          @page { size: landscape; }
-          body * { visibility: hidden; }
-          #repairs-print, #repairs-print * { visibility: visible; }
-          #repairs-print { position: absolute; top: 0; left: 0; width: 100%; }
+          /* Apaisado: las 8 columnas entran sin apretarse. */
+          @page { size: landscape; margin: 10mm; }
+
+          /*
+           * CLAVE: el <Table> de shadcn mete su propio contenedor
+           * "relative w-full overflow-x-auto" y las celdas usan
+           * "whitespace-nowrap". Eso recorta las columnas de la derecha al
+           * imprimir. En papel: sin scroll, sin nowrap.
+           */
+          #repairs-print [data-slot="table-container"],
+          #repairs-print .overflow-x-auto {
+            overflow: visible !important;
+            position: static !important;
+          }
+          #repairs-print th,
+          #repairs-print td {
+            white-space: normal !important;
+            overflow-wrap: break-word;
+          }
+
+          /* Planilla legible en papel. */
+          #repairs-print table {
+            width: 100% !important;
+            border-collapse: collapse !important;
+            font-size: 10pt !important;
+          }
+          #repairs-print th,
+          #repairs-print td {
+            border: 1px solid #999 !important;
+            padding: 3px 6px !important;
+            color: #000 !important;
+            height: auto !important;
+          }
+          #repairs-print th { background: #eee !important; }
+
+          /* Repetir el encabezado en cada página y no partir filas al medio. */
+          #repairs-print thead { display: table-header-group; }
+          #repairs-print tr { break-inside: avoid; page-break-inside: avoid; }
         }
       `}</style>
     </div>
