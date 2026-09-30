@@ -11,6 +11,8 @@
     "seed": "npx tsx scripts/seed-machines.ts",
     "audit": "npx tsx scripts/audit.ts",
     "fix:rented": "npx tsx scripts/fix-rented-machines.ts",
+    "fix:phantom-orders": "npx tsx scripts/cleanup-phantom-spare-orders.ts",
+    "verify:spare-orders": "npx tsx scripts/verify-spare-orders-snapshot.ts",
     "sync-agent": "npx tsx sync-agent/agent.ts",
     "diagnostic": "npx tsx sync-agent/diagnostic-mode.ts"
   },

@@ -53,6 +53,20 @@ function asValidDate(value: unknown): Date | null {
 }
 
 /**
+ * ¿La fila identifica un pedido? Fila FANTASMA = sin nº de orden Y sin repuesto:
+ * no es un pedido, es el residuo de una escritura dirigida a un id inexistente
+ * (bug del placeholder `"pending"`, corregido el 2026-09-30). Se descarta al leer
+ * las fuentes locales y al publicar el snapshot para que no llegue nunca a la
+ * pantalla ni a la hoja de compra.
+ */
+export function isIdentifiableOrder(order: SparePartOrder | null | undefined): boolean {
+  if (!order) return false
+  return Boolean(
+    String(order.orderNumber ?? "").trim() || String(order.description ?? "").trim(),
+  )
+}
+
+/**
  * Fecha de PEDIDO que debe quedar guardada en `requestedAt` de un pedido que YA
  * existe. Devuelve la fecha a escribir o `null` si no hay que tocar nada.
  *
@@ -380,14 +394,14 @@ async function loadOrdersFromLocalSources(): Promise<SparePartOrder[] | null> {
     const { readModuleData, getRedis } = await import("@/lib/sync-3c/redisPrimary")
     const env = await readModuleData("spare_part_orders", getRedis())
     if (env && Array.isArray(env.data) && env.data.length > 0) {
-      return (env.data as Record<string, unknown>[]).map(rawToOrder)
+      return (env.data as Record<string, unknown>[]).map(rawToOrder).filter(isIdentifiableOrder)
     }
   } catch {
     // sigue con el caché en disco
   }
   try {
     const rows = await serverStore?.readCachedOrders()
-    if (rows && rows.length > 0) return rows.map(rawToOrder)
+    if (rows && rows.length > 0) return rows.map(rawToOrder).filter(isIdentifiableOrder)
   } catch {
     // sin fuentes locales
   }
@@ -515,7 +529,9 @@ export async function getAllOrders(): Promise<SparePartOrder[]> {
   if (typeof window !== "undefined") {
     const { loadSparePartOrdersPrimary } = await import("@/lib/local-sync")
     const primary = await loadSparePartOrdersPrimary()
-    if (primary && primary.length > 0) return primary.map(rawToOrder)
+    if (primary && primary.length > 0) {
+      return primary.map(rawToOrder).filter(isIdentifiableOrder)
+    }
   }
   return (await getAllOrdersFromFirestore()) ?? []
 }
@@ -673,6 +689,10 @@ export async function publishSparePartOrdersSnapshot(): Promise<number> {
       if (local && local.length > 0) orders = local
     }
     if (!orders || orders.length === 0) return 0
+    // Filas fantasma (sin nº de orden NI repuesto): no se publican ni se guardan
+    // en el caché en disco — ver isIdentifiableOrder().
+    orders = orders.filter(isIdentifiableOrder)
+    if (orders.length === 0) return 0
     // Escrituras que Firestore rechazó: se aplican al snapshot para que la
     // web las vea de inmediato (se reintentan en Firestore cuando la cuota
     // vuelva, ver flushPendingOrderWrites).

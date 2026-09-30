@@ -261,8 +261,18 @@ aunque se habían creado el 19/09, 24/09 y 25/09.
   apuntaba a un documento inexistente y quedaba **encolada para siempre**,
   publicando además una fila **VACÍA** (sin orden ni repuesto) en la lista y en
   la hoja de compra. Ahora se guarda el **id real** del alta, `applyPendingOrderOps`
-  ignora escrituras pendientes que no identifican un pedido y
-  `flushPendingOrderWrites` descarta de la cola los residuos con id `"pending"`.
+  ignora escrituras pendientes que no identifican un pedido,
+  `flushPendingOrderWrites` descarta de la cola los residuos con id `"pending"` y
+  `isIdentifiableOrder()` filtra esas filas al leer las fuentes locales y al
+  publicar el snapshot (una fila sin nº de orden Y sin repuesto no es un pedido).
+- **Residuos ya guardados:** el fantasma había quedado persistido en la cola y en
+  el caché del agente (y se republicaba en cada snapshot). Se limpian con
+  `npx tsx scripts/cleanup-phantom-spare-orders.ts` (`npm run fix:phantom-orders`),
+  que además republica el snapshot de Redis. Para ver qué hay publicado en
+  cualquier momento: `npx tsx scripts/verify-spare-orders-snapshot.ts`
+  (`npm run verify:spare-orders`) → cantidad de pedidos, filas fantasma, fechas
+  pisadas que el próximo sync va a curar y distribución de fechas de los
+  pendientes antes/después de curar.
 
 
 
