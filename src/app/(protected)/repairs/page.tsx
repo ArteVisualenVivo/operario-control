@@ -64,8 +64,29 @@ function normClient(value?: string | null): string {
   return (value ?? "").toUpperCase().replace(/\s+/g, " ").trim()
 }
 
+/**
+ * Grupos rápidos del desplegable de ESTADO: combinan varios estados de 3C en
+ * una sola opción (ej: "Reparada/Retirada" muestra las reparadas Y las
+ * retiradas juntas). Son atajos sobre los mismos estados, no cambian datos.
+ */
+const ESTADO_GROUPS: { key: string; label: string; match: RegExp }[] = [
+  { key: "__grupo_reparada_retirada__", label: "Reparada/Retirada", match: /reparada/i },
+]
+
 /** Valor del desplegable de ESTADO cuando NO hay filtro. */
 const TODOS_LOS_ESTADOS = "__todos__"
+
+/**
+ * ¿La reparación pasa el filtro de ESTADO? Vale para un estado puntual
+ * ("Reparada") o para un grupo ("Reparada/Retirada" = cualquiera de los dos).
+ */
+function matchesEstado(repair: MachineRepair, filter: string): boolean {
+  if (filter === TODOS_LOS_ESTADOS) return true
+  const label = estadoLabel(repair)
+  const group = ESTADO_GROUPS.find((g) => g.key === filter)
+  if (group) return group.match.test(label)
+  return label === filter
+}
 
 /**
  * Etiqueta de estado que se MUESTRA y se FILTRA en la lista.
@@ -91,6 +112,8 @@ function estadoLabel(repair: MachineRepair): string {
       return "(sin estado)"
   }
 }
+
+
 
 /**
  * Facturación de 3C por orden: ¿tiene fila "Entreg./Factur." en su línea de
@@ -240,7 +263,7 @@ export default function RepairsPage() {
   const filtered = useMemo(
     () =>
       (
-        statusFilter === TODOS_LOS_ESTADOS ? base : base.filter((r) => estadoLabel(r) === statusFilter)
+        statusFilter === TODOS_LOS_ESTADOS ? base : base.filter((r) => matchesEstado(r, statusFilter))
       )
         .filter((r) => {
           if (facturaFilter === TODAS_FACTURACION) return true
@@ -313,6 +336,14 @@ export default function RepairsPage() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value={TODOS_LOS_ESTADOS}>{`Todos los estados (${base.length})`}</SelectItem>
+            {ESTADO_GROUPS.map((g) => {
+              const cantidad = base.filter((r) => g.match.test(estadoLabel(r))).length
+              return (
+                <SelectItem key={g.key} value={g.key}>
+                  {`${g.label} (${cantidad})`}
+                </SelectItem>
+              )
+            })}
             {estadosDisponibles.map((o) => (
               <SelectItem key={o.estado} value={o.estado}>
                 {`${o.estado} (${o.cantidad})`}
@@ -373,7 +404,9 @@ export default function RepairsPage() {
         <h2 className="text-lg font-bold">Reparaciones</h2>
         <p className="text-sm">
           {[
-            statusFilter === TODOS_LOS_ESTADOS ? "Todos los estados" : `Estado: ${statusFilter}`,
+            statusFilter === TODOS_LOS_ESTADOS
+              ? "Todos los estados"
+              : `Estado: ${ESTADO_GROUPS.find((g) => g.key === statusFilter)?.label ?? statusFilter}`,
             facturaFilter === TODAS_FACTURACION
               ? "Todas (facturadas y no facturadas)"
               : facturaFilter === "facturada"
