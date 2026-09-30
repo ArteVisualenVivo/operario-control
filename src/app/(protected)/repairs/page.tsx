@@ -70,7 +70,8 @@ function normClient(value?: string | null): string {
  * retiradas juntas). Son atajos sobre los mismos estados, no cambian datos.
  */
 const ESTADO_GROUPS: { key: string; label: string; match: RegExp }[] = [
-  { key: "__grupo_reparada_retirada__", label: "Reparada/Retirada", match: /reparada/i },
+  // "Reparada" pero NO "No Reparada": el negativo se excluye con el lookbehind.
+  { key: "__grupo_reparada_retirada__", label: "Reparada/Retirada", match: /(?<!no\s)reparada/i },
 ]
 
 /** Valor del desplegable de ESTADO cuando NO hay filtro. */
@@ -179,6 +180,9 @@ export default function RepairsPage() {
   // empresa). Por defecto no se excluye nada. Es exclusión, no filtro: todo lo
   // demás sigue apareciendo igual.
   const [excludeClient, setExcludeClient] = useState<string>(TODOS_LOS_CLIENTES)
+  // Estado a EXCLUIR de la lista/impresión (ej: "No Reparada"). Mismo patrón
+  // que Excluir cliente: por defecto no se excluye nada, es exclusión.
+  const [excludeEstado, setExcludeEstado] = useState<string>(TODOS_LOS_ESTADOS)
   // Línea de tiempo de 3C por orden (para el filtro de facturación y su fecha).
   // Misma fuente que la pestaña "Estado 3C" (Redis/Firestore vía local-sync).
   const [maintByOrder, setMaintByOrder] = useState<Map<string, MaintenanceRecord>>(new Map())
@@ -272,8 +276,10 @@ export default function RepairsPage() {
         })
         // Exclusión de cliente (ej: COCREAR): se aplica DESPUÉS, para que las
         // opciones y conteos de los otros desplegables no cambien al excluir.
-        .filter((r) => excludeClient === TODOS_LOS_CLIENTES || normClient(r.clientName) !== excludeClient),
-    [base, statusFilter, facturaFilter, maintByOrder, excludeClient],
+        .filter((r) => excludeClient === TODOS_LOS_CLIENTES || normClient(r.clientName) !== excludeClient)
+        // Exclusión de estado (ej: "No Reparada"): igual que cliente.
+        .filter((r) => excludeEstado === TODOS_LOS_ESTADOS || !matchesEstado(r, excludeEstado)),
+    [base, statusFilter, facturaFilter, maintByOrder, excludeClient, excludeEstado],
   )
 
   /** Clientes PRESENTES en lo que se está viendo, con su cantidad. */
@@ -379,6 +385,25 @@ export default function RepairsPage() {
             ))}
           </SelectContent>
         </Select>
+
+        <Select value={excludeEstado} onValueChange={(v) => setExcludeEstado(typeof v === "string" ? v : TODOS_LOS_ESTADOS)}>
+          <SelectTrigger size="sm" className="w-[260px]" aria-label="Excluir estado">
+            <SelectValue placeholder="Excluir estado" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={TODOS_LOS_ESTADOS}>Sin excluir (todos)</SelectItem>
+            {ESTADO_GROUPS.map((g) => (
+              <SelectItem key={g.key} value={g.key}>
+                {`Excluir: ${g.label}`}
+              </SelectItem>
+            ))}
+            {estadosDisponibles.map((o) => (
+              <SelectItem key={o.estado} value={o.estado}>
+                {`Excluir: ${o.estado} (${o.cantidad})`}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       {orderFilter && (
@@ -418,6 +443,9 @@ export default function RepairsPage() {
             orderFilter ? `Orden: ${orderFilter}` : null,
             excludeClient !== TODOS_LOS_CLIENTES
               ? `Sin: ${clientesDisponibles.find((c) => c.key === excludeClient)?.label ?? excludeClient}`
+              : null,
+            excludeEstado !== TODOS_LOS_ESTADOS
+              ? `Sin estado: ${ESTADO_GROUPS.find((g) => g.key === excludeEstado)?.label ?? excludeEstado}`
               : null,
           ]
             .filter(Boolean)
