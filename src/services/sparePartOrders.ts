@@ -37,6 +37,68 @@ function toCanonicalDay(d: Date): Date {
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 12, 0, 0))
 }
 
+/** Día LOCAL del operario, canonizado al mediodía UTC (misma convención que
+ * `requestedAt`). Se usa para días de fechas REALES (timestamps), no de 3C. */
+function canonicalLocalDay(d: Date): Date {
+  return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0))
+}
+
+/** Día calendario (UTC) de una fecha de pedido: sirve para comparar días. */
+function orderDayKey(d: Date): number {
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
+}
+
+function asValidDate(value: unknown): Date | null {
+  return value instanceof Date && !Number.isNaN(value.getTime()) ? value : null
+}
+
+/**
+ * Fecha de PEDIDO que debe quedar guardada en `requestedAt` de un pedido que YA
+ * existe. Devuelve la fecha a escribir o `null` si no hay que tocar nada.
+ *
+ * POR QUÉ EXISTE (bug medido el 30/09/2026: 45 de 47 pedidos fechados HOY,
+ * aunque se habían creado el 19/09, 24/09, 25/09...):
+ * 3C NO informa la fecha del cambio de estado, así que `resolveWaitingStatusDate`
+ * devuelve el día en que el sync BAJÓ el Excel con el estado "A la Espera
+ * Repuestos" (`observedAt`). El importador corría todos los días y REESCRIBÍA la
+ * fecha en cada corrida (`updates.requestedAt = waitingDate`), de modo que la
+ * fecha de TODOS los pedidos pendientes se corría al día del último sync. Efectos:
+ *  - el filtro "desde/hasta" no seleccionaba nada (todo caía en "hoy"),
+ *  - "Atrasados" (>7 días sin encargar) daba siempre 0,
+ *  - la regla de cierre de 3C (orderClosure) miraba estados desde "hoy", así que
+ *    órdenes ya reparadas/entregadas seguían apareciendo (y reimprimiéndose).
+ *
+ * REGLA (misma doctrina que `collapseRepeatedStates` en consolidated.ts): la
+ * PRIMERA vez que vimos el estado es lo más cercano al cambio real. Por eso la
+ * fecha NUNCA se mueve hacia adelante: entre lo guardado y lo que informa el sync
+ * de hoy se conserva el día MÁS VIEJO.
+ *
+ * Y si la fecha YA había quedado pisada (`requestedAt` posterior al día en que se
+ * creó el pedido: imposible en una primera observación), se repara al día de
+ * `createdAt`, que es el día en que el pedido apareció por primera vez. Sólo para
+ * pedidos auto-importados: los cargados a mano nunca se tocan.
+ */
+function requestedAtToStore(
+  order: Pick<SparePartOrder, "requestedAt" | "createdAt" | "notes">,
+  waitingDate: Date | null,
+): Date | null {
+  const stored = asValidDate(order.requestedAt)
+  let next: Date | null = stored
+  if (!next) next = waitingDate
+  else if (waitingDate && orderDayKey(waitingDate) < orderDayKey(next)) next = waitingDate
+
+  const created = asValidDate(order.createdAt)
+  if (next && created && isAutoImportedOrder(order)) {
+    const createdDay = canonicalLocalDay(created)
+    if (orderDayKey(next) > orderDayKey(createdDay)) next = createdDay
+  }
+
+  if (!next) return null
+  // Sin cambio de DÍA no se escribe: idempotente y sin gastar escrituras.
+  if (stored && orderDayKey(stored) === orderDayKey(next)) return null
+  return next
+}
+
 /**
  * Fecha REAL del registro de 3C cuyo estado es "A la Espera Repuestos".
  *
@@ -237,6 +299,15 @@ export async function flushPendingOrderWrites(): Promise<{ applied: number; rema
   const applied: string[] = []
   let remaining = 0
   for (const op of pending) {
+    // Id imposible: "pending" era el placeholder de las altas de la misma
+    // corrida (bug ya corregido: ahora se guarda el id real del alta). Firestore
+    // nunca genera ese id, así que ese update jamás podría aplicarse y la cola
+    // quedaba trabada reintentándolo para siempre: se descarta.
+    if (op.id === "pending") {
+      applied.push(op.id)
+      console.warn("[sparePartOrders] Se descarta una escritura pendiente con id 'pending' (residuo de un alta en curso)")
+      continue
+    }
     try {
       if (op.op === "delete") {
         remaining++
@@ -473,6 +544,13 @@ function applyPendingOrderOps(
       ...(base ? orderToPlain(base) : {}),
       ...op.data,
       id: op.id,
+    }
+    // Guarda contra filas fantasma: una escritura pendiente que NO identifica un
+    // pedido (sin nº de orden NI repuesto) es residuo de un bug viejo que usaba
+    // "pending" como id de las altas de la misma corrida. Sin esta guarda se
+    // publicaba una fila VACÍA en la lista y en la hoja de compra.
+    if (!String(merged.orderNumber ?? "").trim() && !String(merged.description ?? "").trim()) {
+      continue
     }
     map.set(op.id, rawToOrder(merged))
   }
@@ -1294,9 +1372,21 @@ export function splitMachineIdentification(name: unknown): { machine: string; mo
   return { machine: raw, model: null }
 }
 
-/** ¿El pedido fue auto-importado de 3C? (los cargados a mano NUNCA se tocan). */
-function isAutoImportedOrder(order: SparePartOrder): boolean {
-  return /importado desde .{0,20}rdenes de reparaci/i.test(order.notes ?? "")
+/**
+ * ¿El pedido fue auto-importado de 3C? (los cargados a mano NUNCA se tocan).
+ *
+ * Dos marcas válidas, porque la primera se puede perder:
+ *  1. "Importado desde Órdenes de Reparación (3C)..." → la escribe el alta.
+ *  2. "MOTIVO_ESTADO_REP: ..." → el motivo que el importador AGREGA a las notas
+ *     en cada corrida. Cuando el operario aprieta "Encargar" y carga la casa de
+ *     repuestos, ese texto REEMPLAZA las notas (markOrdered) y el pedido dejaba
+ *     de reconocerse como importado: se quedaba con la fecha vieja sin reparar y
+ *     con la máquina/modelo truncados sin completar.
+ */
+function isAutoImportedOrder(order: Pick<SparePartOrder, "notes">): boolean {
+  const notes = order.notes ?? ""
+  if (/importado desde .{0,20}rdenes de reparaci/i.test(notes)) return true
+  return /MOTIVO_ESTADO_REP/i.test(notes)
 }
 
 /**
@@ -1622,13 +1712,12 @@ export async function importPendingPartsFromMaintenance(): Promise<{
       const model = modelFromDenominacion(rec.machineDenominacion) ?? modelFromIdentification
       const previously = seen.get(key)
       if (previously) {
-        // El pedido ya existe: se respeta (idempotencia) pero se reconstruye la
-        // fecha real de 3C si faltaba o si quedó mal (p. ej. fecha de importación).
+        // El pedido ya existe: se respeta (idempotencia). La única corrección es
+        // la FECHA DEL PEDIDO, y sólo si el día cambió y NUNCA hacia adelante
+        // (ver requestedAtToStore: el sync no puede "rejuvenecer" un pedido).
         const updates: Record<string, unknown> = {}
-        const current = previously.requestedAt
-        if (waitingDate && (!current || current.getTime() !== waitingDate.getTime())) {
-          updates.requestedAt = waitingDate
-        }
+        const nextRequestedAt = requestedAtToStore(previously, waitingDate)
+        if (nextRequestedAt) updates.requestedAt = nextRequestedAt
         // Completar máquina/modelo cuando 3C había partido la identificación en
         // dos celdas (dato truncado). Solo pedidos auto-importados.
         if (isAutoImportedOrder(previously)) {
@@ -1636,14 +1725,20 @@ export async function importPendingPartsFromMaintenance(): Promise<{
         }
         if (Object.keys(updates).length > 0) {
           await updateOrderDoc(previously.id, { ...updates, updatedAt: new Date() })
-          if (updates.requestedAt) previously.requestedAt = waitingDate
+          if (nextRequestedAt) previously.requestedAt = nextRequestedAt
           updated++
         }
         skippedExisting++
         continue
       }
 
-      await createOrder({
+      // Se guarda el id REAL que devuelve el alta: antes quedaba el texto
+      // "pending" como id y, si el mismo repuesto volvía a aparecer en la misma
+      // corrida (motivo duplicado en 3C), la actualización apuntaba a ese id
+      // inexistente → Firestore la rechazaba, quedaba encolada y el snapshot
+      // publicaba una fila VACÍA (sin orden ni repuesto) que se veía en la lista
+      // y en la hoja de compra.
+      const createdId = await createOrder({
         repairId: rec.id ?? rec.orderNumber,
         orderNumber: rec.orderNumber,
         machineId: rec.orderNumber,
@@ -1657,7 +1752,7 @@ export async function importPendingPartsFromMaintenance(): Promise<{
         notes: "Importado desde Órdenes de Reparación (3C): repuesto en espera",
       }, { allowEmptyCode: true })
       seen.set(key, {
-        id: "pending",
+        id: createdId,
         repairId: rec.id ?? rec.orderNumber,
         orderNumber: rec.orderNumber,
         machineId: rec.orderNumber,
@@ -2537,11 +2632,12 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
         } else if (!codeNorm && storedCode && !storedKey) {
           updates.code = ""
         }
-        // Reconstruir la fecha real de 3C si faltaba o quedó mal (p. ej. fecha de importación).
-        const currentDate = existingOrder.requestedAt
-        if (waitingDate && (!currentDate || currentDate.getTime() !== waitingDate.getTime())) {
-          updates.requestedAt = waitingDate
-        }
+        // FECHA DEL PEDIDO: se corrige sólo si el día cambió y NUNCA hacia
+        // adelante (el sync no puede "rejuvenecer" un pedido; ver
+        // requestedAtToStore). Repara además las fechas ya pisadas por corridas
+        // anteriores, devolviéndolas al día en que el pedido apareció.
+        const nextRequestedAt = requestedAtToStore(existingOrder, waitingDate)
+        if (nextRequestedAt) updates.requestedAt = nextRequestedAt
         if (!existingOrder.notes || !existingOrder.notes.includes(motivo)) {
           updates.notes = existingOrder.notes
             ? `${existingOrder.notes}\n---\nMOTIVO_ESTADO_REP: ${motivo}`
@@ -2564,7 +2660,10 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
       // Reparaciones (copiado tal cual, con su prefijo "REPARACION: ").
       const { machine, model: modelFromIdentification } = splitMachineIdentification(rec.machineName)
       const model = modelFromDenominacion(rec.machineDenominacion) ?? modelFromIdentification
-      await createOrder({
+      // Id REAL del alta (ver comentario en importPendingPartsFromMaintenance):
+      // el placeholder "pending" generaba actualizaciones imposibles y una fila
+      // vacía en el snapshot/listado.
+      const createdId = await createOrder({
         repairId: rec.id ?? rec.orderNumber,
         orderNumber: rec.orderNumber,
         machineId: rec.orderNumber,
@@ -2580,7 +2679,7 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
       }, { allowEmptyCode: true })
 
       seen.set(dedupKey, {
-        id: "pending",
+        id: createdId,
         repairId: rec.id ?? rec.orderNumber,
         orderNumber: rec.orderNumber,
         machineId: rec.orderNumber,

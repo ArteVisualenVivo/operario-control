@@ -124,6 +124,18 @@ export default function SparePartOrdersPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  /**
+   * Rango rápido "Hoy": deja los dos campos con el día de HOY (`YYYY-MM-DD`, el
+   * formato del `<input type="date">`). Sirve para trabajar/imprimir sólo con los
+   * pedidos que aparecieron hoy, sin volver a ver los de días anteriores.
+   */
+  const setTodayRange = () => {
+    const d = new Date()
+    const iso = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+    setDateFrom(iso)
+    setDateTo(iso)
+  }
+
   const daysOld = (d: Date | null): number => {
     if (!d) return 0
     return Math.floor((MODULE_LOAD_TS - new Date(d).getTime()) / (1000 * 60 * 60 * 24))
@@ -343,11 +355,22 @@ export default function SparePartOrdersPage() {
         </label>
       </div>
 
-      {/* Buscador global + fechas */}
+      {/* Buscador global + fechas.
+          El rango filtra por FECHA DEL PEDIDO (el día en que 3C informó "A la
+          Espera Repuestos" y el pedido apareció por primera vez). Se etiqueta
+          porque esa fecha no se muestra en la fila: sin etiqueta no se sabía qué
+          estaban filtrando los dos calendarios. */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <SearchInput value={query} onChange={setQuery} debounce={300} placeholder="Buscar por repuesto, código, orden, máquina o cliente" className="max-w-md" />
-        <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-auto" />
-        <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-auto" />
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">Pedido desde</span>
+          <Input type="date" aria-label="Pedido desde" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="w-auto" />
+          <span className="text-xs text-muted-foreground">hasta</span>
+          <Input type="date" aria-label="Pedido hasta" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="w-auto" />
+          <Button variant="outline" size="sm" onClick={setTodayRange} title="Pedidos que aparecieron hoy">
+            Hoy
+          </Button>
+        </div>
       </div>
 
       {/* Barra de seleccion / eliminacion (por N° de Orden) */}

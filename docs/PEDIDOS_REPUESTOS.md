@@ -215,6 +215,51 @@ spare_part_orders/{id}
   (Firestore, snapshot de Redis y caché en disco): sin eso el dato se perdía al
   republicar el snapshot del agente.
 
+## 16. Fecha del pedido: NUNCA se rejuvenece (2026-09-30)
+
+**Bug medido:** el 30/09/2026, 45 de 47 pedidos tenían `requestedAt` = **30/09**
+aunque se habían creado el 19/09, 24/09 y 25/09.
+
+- **Causa:** 3C **no** informa la fecha del cambio de estado, así que
+  `resolveWaitingStatusDate` devuelve el día en que el sync bajó el Excel con el
+  estado "A la Espera Repuestos" (`observedAt`). El importador hacía
+  `updates.requestedAt = waitingDate` en **cada** corrida → la fecha de TODOS los
+  pedidos pendientes se corría al día del último sync.
+- **Efectos colaterales:**
+  - El filtro "desde/hasta" no seleccionaba nada: todo caía en "hoy".
+  - **Atrasados** (>7 días sin encargar) daba siempre 0.
+  - La regla de cierre de 3C (`orderClosure`) miraba estados desde "hoy", así que
+    órdenes ya reparadas/entregadas seguían apareciendo (y **reimprimiéndose**).
+- **Regla (misma doctrina que `collapseRepeatedStates` en `consolidated.ts`):**
+  la PRIMERA vez que se observó un estado es lo más cercano al cambio real. La
+  fecha de pedido **nunca se mueve hacia adelante**: entre lo guardado y lo que
+  informa el sync de hoy se conserva el **día más viejo**.
+- **Reparación automática:** si la fecha ya había quedado pisada (`requestedAt`
+  posterior al día de `createdAt`, imposible en una primera observación), se
+  devuelve al día de `createdAt`, que es el día en que el pedido apareció. Sólo
+  para pedidos **auto-importados** de 3C: los cargados a mano no se tocan nunca.
+- **Implementación** (`src/services/sparePartOrders.ts`):
+  `requestedAtToStore(order, waitingDate)` + `canonicalLocalDay`, `orderDayKey`,
+  `asValidDate`. Devuelve `null` si no hay que escribir (idempotente: sin cambio
+  de día no gasta escrituras). Se usa en las **dos** ramas del importador
+  (dedupe de la corrida y pedido ya existente).
+- `isAutoImportedOrder` ahora reconoce **dos** marcas: `"Importado desde Órdenes
+  de Reparación (3C)..."` y `"MOTIVO_ESTADO_REP: ..."`. La primera se pierde
+  cuando el operario aprieta **Encargar** y carga la casa de repuestos (esas
+  notas se reemplazan), con lo cual el pedido dejaba de reconocerse como
+  importado y no se le reparaba la fecha.
+- **Pantalla:** el rango de fechas del buscador tiene botón **Hoy** (y etiquetas
+  "Pedido desde" / "Pedido hasta") para no tener que tipear el rango del día.
+- **Fila fantasma corregida:** las altas de una misma corrida guardaban el texto
+  `"pending"` como id; si el mismo repuesto volvía a aparecer, la actualización
+  apuntaba a un documento inexistente y quedaba **encolada para siempre**,
+  publicando además una fila **VACÍA** (sin orden ni repuesto) en la lista y en
+  la hoja de compra. Ahora se guarda el **id real** del alta, `applyPendingOrderOps`
+  ignora escrituras pendientes que no identifican un pedido y
+  `flushPendingOrderWrites` descarta de la cola los residuos con id `"pending"`.
+
+
+
 ## 6. Integración con Reparaciones / Órdenes
 
 - Desde `repairs/[id]` se muestra el panel **"Repuestos"** con:
