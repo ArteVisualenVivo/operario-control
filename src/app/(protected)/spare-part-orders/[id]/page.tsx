@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { SparePartOrderBadge } from "@/components/repairs/SparePartOrderBadge"
 import { SparePartOrderDatesEditor } from "@/components/repairs/SparePartOrderDatesEditor"
 import { SparePartOrderCodeInput } from "@/components/repairs/SparePartOrderCodeInput"
-import { getOrderById, updateOrderDates, updateOrderCode } from "@/services/sparePartOrders"
+import { getOrderById, updateOrderDates, updateOrderCode, displaySparePartCode } from "@/services/sparePartOrders"
 import { formatDate } from "@/lib/ui"
 import type { SparePartOrder, SparePartOrderDatesInput } from "@/types"
 
@@ -61,7 +61,7 @@ export default function SparePartOrderDetailPage() {
           <div className="flex items-start justify-between">
             <div>
               <CardTitle className="text-xl">{order.description}</CardTitle>
-              <p className="text-sm text-muted-foreground font-mono">{order.code || "—"}</p>
+              <p className="text-sm text-muted-foreground font-mono">{displaySparePartCode(order.code)}</p>
             </div>
             <SparePartOrderBadge status={order.status} />
           </div>

@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { toast } from "sonner"
 import type { SparePartOrder } from "@/types"
+import { displaySparePartCode } from "@/services/sparePartOrders"
 
 interface Props {
   open: boolean
@@ -71,7 +72,7 @@ export function SparePartOrderReceiveUseDialog({ open, onOpenChange, action, ord
           <DialogDescription>
             {order ? (
               <>
-                {order.description} · {order.code}<br />
+                {order.description} · {displaySparePartCode(order.code)}<br />
                 Orden: <strong>{order.orderNumber || order.repairId}</strong>
               </>
             ) : ""}

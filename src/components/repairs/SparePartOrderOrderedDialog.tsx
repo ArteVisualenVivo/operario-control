@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { SparePartOrder } from "@/types"
+import { displaySparePartCode } from "@/services/sparePartOrders"
 
 interface Props {
   open: boolean
@@ -62,7 +63,7 @@ export function SparePartOrderOrderedDialog({ open, onOpenChange, order, onConfi
         <DialogHeader>
           <DialogTitle>Marcar encargado</DialogTitle>
           <DialogDescription>
-            {order.description} ({order.code}) — cantidad solicitada: {order.quantityRequested}
+            {order.description} ({displaySparePartCode(order.code)}) — cantidad solicitada: {order.quantityRequested}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
 import { toast } from "sonner"
-import { getAllOrders, splitMachineIdentification, isUsablePartCode } from "@/services/sparePartOrders"
+import { getAllOrders, splitMachineIdentification, displaySparePartCode } from "@/services/sparePartOrders"
 import { buildMaintenanceByOrder, getOrderClosure, normOrderKey } from "@/lib/orderClosure"
 import type { MaintenanceRecord } from "@/services/maintenance"
 import { groupOrdersByRealNumber } from "@/lib/sparePartOrderGroups"
@@ -240,11 +240,11 @@ export default function PurchaseListPage() {
   // es "Casa de repuesto" (ver `persistSupplier`).
 
   // Código a imprimir: el guardado, tal cual (con los espacios de 3C). Se
-  // imprime "—" cuando NO hay un código real (vacío, "S/C", interno de mano de
-  // obra o un voltaje como "220V" que quedó de una importación vieja). El código
+  // imprime "SEGUN MUESTRA" (mayúsculas) cuando NO hay un código real (vacío,
+  // "S/C", interno de mano de obra o un voltaje como "220V" que quedó de una
+  // importación vieja). La base sigue guardando el código vacío y el código real
   // se corrige a mano en "Pedidos Rep.".
-  const displayCode = (code: string | null | undefined) =>
-    isUsablePartCode(code) ? String(code).trim() : "—"
+  const displayCode = (code: string | null | undefined) => displaySparePartCode(code)
   // Modelo a mostrar: el guardado; si falta, se deriva con el mismo divisor del
   // importador (conserva el modelo completo, sin recortar ni duplicar).
   const displayModel = (o: SparePartOrder) =>

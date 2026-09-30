@@ -1133,7 +1133,7 @@ export async function updateOrderDates(
  * "220V" en lugar del código real, o "—" cuando no hay ninguno.
  *
  * - Se guarda normalizado (`normalizePartCode`): mayúsculas y espacios simples.
- * - Vacío = "sin código" (la UI muestra "—"), nunca "S/C".
+ * - Vacío = "sin código" (la UI muestra "SEGUN MUESTRA"), nunca "S/C".
  * - NO toca cantidades, stock, estado ni fechas.
  * - Devuelve lo escrito para que la pantalla lo aplique en memoria sin releer
  *   la lista entera (mismo criterio que `updateOrderDates`).
@@ -1273,6 +1273,23 @@ export function isUsablePartCode(code: unknown): boolean {
   const upper = raw.toUpperCase().replace(/\s+/g, " ").trim()
   if (upper === "S/C" || upper === "SC" || upper === "SIN CODIGO") return false
   return !isInternalCode(upper) && !isVoltageCode(upper)
+}
+
+/**
+ * Código tal como se MUESTRA en pantalla y en la hoja de compra: el guardado
+ * cuando es un código real; "SEGUN MUESTRA" (mayúsculas) cuando 3C no informó
+ * código (vacío, "S/C", interno de mano de obra o voltaje).
+ *
+ * SOLO visual: la base sigue guardando el código vacío y el editor de código
+ * sigue mostrando el campo vacío para poder cargar el código real cuando se
+ * consiga. NUNCA se guarda "SEGUN MUESTRA" como código (ver
+ * `sparePartCodeKey`: no es un código usable, así que no interfiere con la
+ * detección de duplicados).
+ */
+export const NO_PART_CODE_LABEL = "SEGUN MUESTRA"
+
+export function displaySparePartCode(code: unknown): string {
+  return isUsablePartCode(code) ? String(code).trim() : NO_PART_CODE_LABEL
 }
 
 /**

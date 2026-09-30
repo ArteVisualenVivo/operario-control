@@ -22,7 +22,7 @@ import type { SparePartOrder } from "@/types"
  *   del agente, otra pantalla) el campo muestra ese valor sin remontarse.
  * - Si la escritura falla, el campo vuelve al valor guardado: la pantalla nunca
  *   muestra un código que no está en la base.
- * - Dejarlo VACÍO borra el código (la UI muestra "—").
+ * - Dejarlo VACÍO borra el código (la UI muestra "SEGUN MUESTRA").
  */
 interface Props {
   order: SparePartOrder
@@ -60,7 +60,7 @@ export function SparePartOrderCodeInput({ order, onSave, className }: Props) {
   return (
     <Input
       value={value}
-      placeholder="—"
+      placeholder="SEGUN MUESTRA"
       aria-label="Código del repuesto"
       title="Código del repuesto: se guarda con Enter o al salir del campo (vacío = sin código)"
       autoComplete="off"
