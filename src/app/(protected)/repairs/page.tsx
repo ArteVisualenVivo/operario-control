@@ -90,7 +90,7 @@ export default function RepairsPage() {
   const [search, setSearch] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
-  // Filtro por ESTADO: valor del desplegable. Arranca sin filtro (todas).,  const [statusFilter, setStatusFilter] = useState<string>(TODOS_LOS_ESTADOS)
+  const [statusFilter, setStatusFilter] = useState<string>(TODOS_LOS_ESTADOS)
   // Filtro por orden recibido vía ?order= (botón "Ver reparaciones" en la
   // pestaña Estado 3C). Se inicializa desde el query y el usuario puede limpiarlo.
   const [orderFilter, setOrderFilter] = useState<string | null>(orderParam)
