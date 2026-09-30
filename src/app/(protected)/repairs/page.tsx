@@ -250,11 +250,14 @@ export default function RepairsPage() {
   // El título y las pestañas (Taller / Estado 3C) los renderiza RepairsTabs.
   const tallerContent = (
     <div className="space-y-6">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2 print:hidden">
         <Button onClick={() => router.push("/repairs/new")}>Nueva reparación</Button>
+        <Button variant="outline" onClick={() => window.print()} disabled={filtered.length === 0}>
+          {`Imprimir (${filtered.length})`}
+        </Button>
       </div>
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end print:hidden">
         <SearchInput
           placeholder="Buscar por orden, cliente o máquina"
           value={search}
@@ -300,7 +303,7 @@ export default function RepairsPage() {
       </div>
 
       {orderFilter && (
-        <div className="flex items-center gap-2 rounded-md border border-blue-300 bg-blue-50 px-3 py-2 text-sm">
+        <div className="flex items-center gap-2 rounded-md border border-blue-300 bg-blue-50 px-3 py-2 text-sm print:hidden">
           <span>
             Mostrando reparaciones de la orden <span className="font-mono font-medium">{orderFilter}</span>
           </span>
@@ -317,6 +320,28 @@ export default function RepairsPage() {
         </div>
       )}
 
+      {/* Encabezado SOLO de impresión: qué filtros se usaron. */}
+      <div className="hidden print:block">
+        <h2 className="text-lg font-bold">Reparaciones</h2>
+        <p className="text-sm">
+          {[
+            statusFilter === TODOS_LOS_ESTADOS ? "Todos los estados" : `Estado: ${statusFilter}`,
+            facturaFilter === TODAS_FACTURACION
+              ? "Todas (facturadas y no facturadas)"
+              : facturaFilter === "facturada"
+                ? "Solo facturadas"
+                : "Solo no facturadas",
+            search.trim() ? `Búsqueda: ${search.trim()}` : null,
+            dateFrom ? `Desde: ${dateFrom}` : null,
+            dateTo ? `Hasta: ${dateTo}` : null,
+            orderFilter ? `Orden: ${orderFilter}` : null,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
+          {` — ${filtered.length} ${filtered.length === 1 ? "orden" : "órdenes"}`}
+        </p>
+      </div>
+
       <Table>
         <TableHeader>
           <TableRow>
@@ -328,8 +353,8 @@ export default function RepairsPage() {
             <TableHead>Egreso</TableHead>
             <TableHead>Facturada</TableHead>
             <TableHead>Estado</TableHead>
-            <TableHead>Mantenimiento</TableHead>
-            <TableHead>Acción</TableHead>
+            <TableHead className="print:hidden">Mantenimiento</TableHead>
+            <TableHead className="print:hidden">Acción</TableHead>
           </TableRow>
         </TableHeader>
 
@@ -349,7 +374,7 @@ export default function RepairsPage() {
                 })()}
               </TableCell>
               <TableCell>{estadoLabel(r)}</TableCell>
-              <TableCell>
+              <TableCell className="print:hidden">
                 {hasMaintenanceLink(r) ? (
                   <Button
                     variant="link"
@@ -368,7 +393,7 @@ export default function RepairsPage() {
                 )}
               </TableCell>
 
-              <TableCell>
+              <TableCell className="print:hidden">
                 <Button
                   variant="destructive"
                   onClick={(e) => {
