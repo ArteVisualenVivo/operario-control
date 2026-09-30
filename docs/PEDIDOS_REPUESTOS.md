@@ -243,6 +243,12 @@ aunque se habían creado el 19/09, 24/09 y 25/09.
   `asValidDate`. Devuelve `null` si no hay que escribir (idempotente: sin cambio
   de día no gasta escrituras). Se usa en las **dos** ramas del importador
   (dedupe de la corrida y pedido ya existente).
+- **Curación general:** `repairBumpedRequestedDates()` (llamada al final de las
+  DOS importaciones) recorre todos los pedidos y devuelve al día de `createdAt`
+  los auto-importados con la fecha pisada. Hace falta porque el importador sólo
+  visita las órdenes que siguen "A la Espera Repuestos" en el Excel: las que 3C
+  ya cerró no se tocaban nunca y seguían figurando como de hoy (por eso volvían
+  a imprimirse). No escribe nada si no hay fechas que reparar.
 - `isAutoImportedOrder` ahora reconoce **dos** marcas: `"Importado desde Órdenes
   de Reparación (3C)..."` y `"MOTIVO_ESTADO_REP: ..."`. La primera se pierde
   cuando el operario aprieta **Encargar** y carga la casa de repuestos (esas

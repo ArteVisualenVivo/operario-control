@@ -46,6 +46,8 @@ export interface Sync3CResult {
   maintenanceError?: string
   sparePartsCreated?: number
   sparePartsUpdated?: number
+  /** Fechas de pedido que el sync había pisado y se devolvieron a su día real. */
+  sparePartsDatesRepaired?: number
   sparePartsError?: string
   scaffoldCuerposAlquilados?: number
   scaffoldDetalleCount?: number

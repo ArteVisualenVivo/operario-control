@@ -597,6 +597,54 @@ export async function getAllOrdersMerged(): Promise<SparePartOrder[]> {
 }
 
 /**
+ * CURACIÓN de fechas de pedido ya PISADAS por el bug corregido el 2026-09-30.
+ *
+ * El importador corría `requestedAt` al día de cada sync, así que casi todos los
+ * pedidos pendientes quedaron fechados "hoy". La importación repara sola los
+ * pedidos que vuelven a aparecer en el Excel, pero los que YA no están "A la
+ * Espera Repuestos" (reparados/entregados) no se visitan nunca más: sin esta
+ * pasada seguirían figurando como de hoy y entonces
+ *   - el filtro "desde/hasta" los muestra en el rango equivocado,
+ *   - "Atrasados" (>7 días sin encargar) los da por nuevos, y
+ *   - la regla de cierre de 3C (`orderClosure`) los da por vigentes →
+ *     órdenes ya cerradas reaparecen (y se reimprimen).
+ *
+ * Sólo toca pedidos AUTO-IMPORTADOS cuya fecha sea POSTERIOR al día en que se
+ * creó el pedido (imposible en una primera observación) y los devuelve al día de
+ * `createdAt`. Si no hay nada que reparar no escribe NI una vez
+ * (`requestedAtToStore` devuelve null cuando el día no cambia).
+ */
+export async function repairBumpedRequestedDates(): Promise<number> {
+  let orders: SparePartOrder[]
+  try {
+    orders = await getAllOrdersMerged()
+  } catch {
+    return 0
+  }
+  let repaired = 0
+  for (const order of orders) {
+    if (!order?.id) continue
+    const next = requestedAtToStore(order, null)
+    if (!next) continue
+    try {
+      await updateOrderDoc(order.id, { requestedAt: next, updatedAt: new Date() })
+      repaired++
+    } catch (err) {
+      // Cuota/permisos: el pedido queda como está y se reintenta en el próximo sync.
+      console.warn(
+        "[sparePartOrders] No se pudo reparar la fecha del pedido",
+        order.id,
+        err instanceof Error ? err.message : err,
+      )
+    }
+  }
+  if (repaired > 0) {
+    console.log(`[sparePartOrders] Fechas de pedido reparadas (estaban pisadas por el sync): ${repaired}`)
+  }
+  return repaired
+}
+
+/**
  * PUBLICACIÓN DEL SNAPSHOT en Redis (solo NODE / agente).
  *
  * Deja en Redis la última foto COMPLETA de Pedidos Rep. para que la web la
@@ -1615,6 +1663,8 @@ export async function importPendingPartsFromMaintenance(): Promise<{
   skippedExisting: number
   /** Repuestos cuyo registro de 3C no tiene fecha válida (requestedAt = null). */
   withoutDate: number
+  /** Fechas de pedido que el sync había pisado y se devolvieron a su día real. */
+  datesRepaired: number
   /** Pedidos existentes cuyo Modelo se llevó a la DENOMINACION real de 3C. */
   modelsUpdated: number
   createdOrders: { orderNumber: string; description: string }[]
@@ -1777,14 +1827,27 @@ export async function importPendingPartsFromMaintenance(): Promise<{
   // DENOMINACION real de 3C (cruce por nº de orden). No crea ni borra pedidos.
   const models = await refreshModelsFromDenominacion(maintenance)
 
+  // CURACIÓN de fechas ya pisadas: los pedidos que NO vuelven a aparecer en el
+  // Excel (orden ya cerrada en 3C) nunca se visitan en el bucle de arriba, así
+  // que su fecha se reparaba sólo por casualidad.
+  const datesRepaired = await repairBumpedRequestedDates()
+
   // Si esta corrida cambió algo, se republica el snapshot en Redis para que la
   // pantalla (que lee de la fuente primaria) vea el resultado sin depender de la
   // cuota de Firestore. Si no hubo cambios, no se gasta una lectura extra.
-  if (updated > 0 || createdOrders.length > 0 || models.updated > 0) {
+  if (updated > 0 || createdOrders.length > 0 || models.updated > 0 || datesRepaired > 0) {
     await publishSnapshotFromBrowser()
   }
 
-  return { created: createdOrders.length, updated, skippedExisting, withoutDate, createdOrders, modelsUpdated: models.updated }
+  return {
+    created: createdOrders.length,
+    updated,
+    skippedExisting,
+    withoutDate,
+    datesRepaired,
+    createdOrders,
+    modelsUpdated: models.updated,
+  }
 }
 
 // ============================================================================
@@ -2539,6 +2602,8 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
   modelsUpdated: number
   /** Filas DUPLICADAS del mismo repuesto que se consolidaron en esta corrida. */
   duplicatesMerged: number
+  /** Fechas de pedido que el sync había pisado y se devolvieron a su día real. */
+  datesRepaired: number
   createdOrders: { orderNumber: string; code: string | null; description: string }[]
 }> {
   // Los registros llegan del propio agente (misma fuente primaria Redis), sin
@@ -2710,6 +2775,11 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
   // DENOMINACION real de 3C (cruce por nº de orden). No crea ni borra pedidos.
   const models = await refreshModelsFromDenominacion(maintenance)
 
+  // CURACIÓN de fechas ya pisadas: los pedidos cuya orden ya no está "A la
+  // Espera Repuestos" (cerrada en 3C) no entran al bucle de arriba, así que sin
+  // esta pasada seguirían fechados el día del último sync.
+  const datesRepaired = await repairBumpedRequestedDates()
+
   return {
     created: createdOrders.length,
     updated,
@@ -2717,5 +2787,6 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
     createdOrders,
     modelsUpdated: models.updated,
     duplicatesMerged: consolidated.merged,
+    datesRepaired,
   }
 }

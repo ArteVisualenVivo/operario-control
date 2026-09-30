@@ -1256,7 +1256,7 @@ async function runModule(
               // Se importan los repuestos desde los MISMOS registros consolidados que el
               // agente ya tiene en memoria (sin fetch relativo, que falla en Node).
               const sparePartsResult = await importSparePartsFromRecords(consolidatedRecords ?? maintenanceRecords)
-              console.log(`[AGENT] Spare parts from MOTIVO_ESTADO_REP: created=${sparePartsResult.created}, updated=${sparePartsResult.updated}, skippedAdmin=${sparePartsResult.skippedAdmin}, modelsFromDenominacion=${sparePartsResult.modelsUpdated}, duplicadosConsolidados=${sparePartsResult.duplicatesMerged}`)
+              console.log(`[AGENT] Spare parts from MOTIVO_ESTADO_REP: created=${sparePartsResult.created}, updated=${sparePartsResult.updated}, skippedAdmin=${sparePartsResult.skippedAdmin}, modelsFromDenominacion=${sparePartsResult.modelsUpdated}, duplicadosConsolidados=${sparePartsResult.duplicatesMerged}, fechasReparadas=${sparePartsResult.datesRepaired}`)
               if (sparePartsResult.createdOrders.length > 0) {
                 console.log(`[AGENT] Spare parts detail:`, sparePartsResult.createdOrders)
               }
@@ -1264,6 +1264,7 @@ async function runModule(
                 ...result,
                 sparePartsCreated: sparePartsResult.created,
                 sparePartsUpdated: sparePartsResult.updated,
+                sparePartsDatesRepaired: sparePartsResult.datesRepaired,
               }
             } catch (spareErr) {
               const spareMsg = spareErr instanceof Error ? spareErr.message : String(spareErr)

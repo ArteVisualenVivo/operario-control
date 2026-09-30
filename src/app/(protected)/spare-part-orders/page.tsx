@@ -97,7 +97,7 @@ export default function SparePartOrdersPage() {
     try {
       const res = await importPendingPartsFromMaintenance()
       toast.success(
-        `Importados ${res.created} repuesto(s) en espera${res.skippedExisting > 0 ? ` · ${res.skippedExisting} ya existían` : ""}`,
+        `Importados ${res.created} repuesto(s) en espera${res.skippedExisting > 0 ? ` · ${res.skippedExisting} ya existían` : ""}${res.datesRepaired > 0 ? ` · ${res.datesRepaired} fecha(s) reparada(s)` : ""}`,
       )
       await reload()
     } catch (err) {
@@ -116,7 +116,9 @@ export default function SparePartOrdersPage() {
     autoImportRan.current = true
     importPendingPartsFromMaintenance()
       .then((res) => {
-        if (res.created > 0) void reload()
+        // También recarga si se repararon fechas pisadas: el listado y el filtro
+        // por fechas cambian sin que se haya creado un pedido nuevo.
+        if (res.created > 0 || res.datesRepaired > 0) void reload()
       })
       .catch(() => {
         /* silencioso en montaje: ya existe el botón manual */
