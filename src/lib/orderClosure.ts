@@ -74,9 +74,22 @@ function dayKey(d: Date): number {
   return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())
 }
 
-/** Misma normalizacion que el agrupamiento visual de pedidos. */
+/**
+ * Misma normalizacion que el agrupamiento visual de pedidos.
+ *
+ * El prefijo "X" de 3C ("X 0001-00010867") es una marca de la fuente y NO parte
+ * del numero: la misma orden aparece escrita con y sin el (47 de 48 pedidos lo
+ * traen, los 1140 registros de mantenimiento tambien). Si no se ignora, la
+ * busqueda del registro de 3C falla y la regla de cierre NO se aplica: la orden
+ * ya reparada/entregada queda como vigente y se sigue mostrando (e imprimiendo).
+ * Se normaliza igual que `normOrderKey()` de sparePartOrders.ts.
+ */
 export function normOrderKey(value: unknown): string {
-  return String(value ?? "").trim().replace(/\s+/g, " ").toUpperCase()
+  return String(value ?? "")
+    .toUpperCase()
+    .replace(/^X\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
 }
 
 export function buildMaintenanceByOrder(records: MaintenanceRecord[]): Map<string, MaintenanceRecord> {

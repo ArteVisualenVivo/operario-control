@@ -265,6 +265,15 @@ aunque se habían creado el 19/09, 24/09 y 25/09.
   `flushPendingOrderWrites` descarta de la cola los residuos con id `"pending"` y
   `isIdentifiableOrder()` filtra esas filas al leer las fuentes locales y al
   publicar el snapshot (una fila sin nº de orden Y sin repuesto no es un pedido).
+- **Prefijo `X` del nº de orden:** 3C escribe la misma orden como `X 0001-00010867`
+  y `0001-00010867`. El servicio ya ignoraba ese prefijo al deduplicar, pero
+  `normOrderKey()` de `orderClosure.ts` (que busca el registro de 3C para aplicar
+  la regla de cierre) no lo hacía: en un pedido guardado sin la `X` la búsqueda
+  fallaba y la orden **nunca** se daba por cerrada. Ahora ambas normalizan igual.
+  Medido con los datos reales (2026-09-30): 47 de 48 pedidos traen la `X` y los
+  1140 registros de mantenimiento también; tras el cambio los 48 pedidos
+  encuentran su registro y las órdenes dadas por cerradas son las mismas 3 de
+  antes (0 cambios de comportamiento hoy, se elimina el caso que quedaba afuera).
 - **Residuos ya guardados:** el fantasma había quedado persistido en la cola y en
   el caché del agente (y se republicaba en cada snapshot). Se limpian con
   `npx tsx scripts/cleanup-phantom-spare-orders.ts` (`npm run fix:phantom-orders`),
@@ -273,8 +282,6 @@ aunque se habían creado el 19/09, 24/09 y 25/09.
   (`npm run verify:spare-orders`) → cantidad de pedidos, filas fantasma, fechas
   pisadas que el próximo sync va a curar y distribución de fechas de los
   pendientes antes/después de curar.
-
-
 
 ## 6. Integración con Reparaciones / Órdenes
 
