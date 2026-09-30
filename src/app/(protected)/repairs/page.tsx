@@ -68,10 +68,15 @@ function normClient(value?: string | null): string {
  * Grupos rápidos del desplegable de ESTADO: combinan varios estados de 3C en
  * una sola opción (ej: "Reparada/Retirada" muestra las reparadas Y las
  * retiradas juntas). Son atajos sobre los mismos estados, no cambian datos.
+ *
+ * REGLA del desplegable Base UI: el `value` del item DEBE ser el texto que se
+ * quiere ver en el casillero (lo muestra tal cual). Por eso el grupo usa como
+ * value su propio label legible ("Reparada/Retirada"), nunca una clave
+ * interna (eso mostraba "__grupo_reparada_retirada__" en el casillero).
  */
-const ESTADO_GROUPS: { key: string; label: string; match: RegExp }[] = [
-  // "Reparada" pero NO "No Reparada": el negativo se excluye con el lookbehind.
-  { key: "__grupo_reparada_retirada__", label: "Reparada/Retirada", match: /(?<!no\s)reparada/i },
+const ESTADO_GROUPS: { value: string; label: string; match: RegExp }[] = [
+  // "Reparada" o "Retirada", pero NO "No Reparada" (el negativo se excluye).
+  { value: "Reparada/Retirada", label: "Reparada/Retirada", match: /(?<!no\s)(reparada|retirada)/i },
 ]
 
 /** Valor del desplegable de ESTADO cuando NO hay filtro. */
@@ -84,7 +89,7 @@ const TODOS_LOS_ESTADOS = "__todos__"
 function matchesEstado(repair: MachineRepair, filter: string): boolean {
   if (filter === TODOS_LOS_ESTADOS) return true
   const label = estadoLabel(repair)
-  const group = ESTADO_GROUPS.find((g) => g.key === filter)
+  const group = ESTADO_GROUPS.find((g) => g.value === filter)
   if (group) return group.match.test(label)
   return label === filter
 }
@@ -345,7 +350,7 @@ export default function RepairsPage() {
             {ESTADO_GROUPS.map((g) => {
               const cantidad = base.filter((r) => g.match.test(estadoLabel(r))).length
               return (
-                <SelectItem key={g.key} value={g.key}>
+                <SelectItem key={g.value} value={g.value}>
                   {`${g.label} (${cantidad})`}
                 </SelectItem>
               )
@@ -393,7 +398,7 @@ export default function RepairsPage() {
           <SelectContent>
             <SelectItem value={TODOS_LOS_ESTADOS}>Sin excluir (todos)</SelectItem>
             {ESTADO_GROUPS.map((g) => (
-              <SelectItem key={g.key} value={g.key}>
+              <SelectItem key={g.value} value={g.value}>
                 {`Excluir: ${g.label}`}
               </SelectItem>
             ))}
@@ -431,7 +436,7 @@ export default function RepairsPage() {
           {[
             statusFilter === TODOS_LOS_ESTADOS
               ? "Todos los estados"
-              : `Estado: ${ESTADO_GROUPS.find((g) => g.key === statusFilter)?.label ?? statusFilter}`,
+              : `Estado: ${statusFilter}`,
             facturaFilter === TODAS_FACTURACION
               ? "Todas (facturadas y no facturadas)"
               : facturaFilter === "facturada"
@@ -445,7 +450,7 @@ export default function RepairsPage() {
               ? `Sin: ${clientesDisponibles.find((c) => c.key === excludeClient)?.label ?? excludeClient}`
               : null,
             excludeEstado !== TODOS_LOS_ESTADOS
-              ? `Sin estado: ${ESTADO_GROUPS.find((g) => g.key === excludeEstado)?.label ?? excludeEstado}`
+              ? `Sin estado: ${excludeEstado}`
               : null,
           ]
             .filter(Boolean)
