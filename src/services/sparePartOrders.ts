@@ -1134,8 +1134,9 @@ export async function updateOrderNotes(id: string, notes: string): Promise<void>
  *   realmente pasó. Y al revés: si se BORRA esa fecha, vuelve a SOLICITADO
  *   (pendiente de encargar), así no queda un ENCARGADO sin ninguna fecha.
  * - Lo MISMO con la fecha "traído" (`receivedAt`), que es la marca de RECIBIDO:
- *   BORRARLA deshace la recepción (el pedido vuelve a ENCARGADO) y CARGARLA lo
- *   vuelve a marcar RECIBIDO, pero sólo si el pedido ya tiene cantidad recibida
+ *   BORRARLA deshace la recepción (el pedido vuelve a ENCARGADO, o a SOLICITADO
+ *   si nunca tuvo fecha de encargo) y CARGARLA lo vuelve a marcar RECIBIDO, pero
+ *   sólo si el pedido ya tiene cantidad recibida
  *   (la fecha sola no inventa una recepción que nunca se registró). Sin esta
  *   regla, borrar el día que lo traje dejaba el pedido "Recibido" para siempre.
  *   Las CANTIDADES y el STOCK no se tocan nunca acá: borrar la fecha NO devuelve
