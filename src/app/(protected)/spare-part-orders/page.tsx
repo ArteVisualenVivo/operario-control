@@ -551,6 +551,9 @@ export default function SparePartOrdersPage() {
                     </td>
                     <td className="py-2 px-3 text-right align-top">
                       <div className="flex items-center justify-end gap-1 flex-wrap">
+                        {(o.status === "SOLICITADO" || o.status === "PEDIDO") && (
+                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setOrderedTarget(o)}>Encargar</Button>
+                        )}
                         {o.status !== "UTILIZADO" && o.status !== "CANCELADO" && (
                           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAction({ type: "receive", order: o })}>Recibir</Button>
                         )}

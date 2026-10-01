@@ -390,18 +390,10 @@ compra: ese día ya no se carga a mano ni se imprime.
   `repuestero` / `traído` / `retiro`: es informativo y no se imprime. Si molesta,
   se quita con una línea (es el mismo `ownerRequestedAt`).
 
-## 19. Se quitó el botón "Encargar" de la lista (2026-10-01)
+## 19. El botón "Encargar" de la lista se quitó y se volvió a poner (2026-10-01)
 
-**Pedido del dueño:** eliminar el botón **Encargar** de la columna **Acción** de
-"Pedidos Rep." (el que estaba al lado de *Recibir*), sin tocar nada más.
-
-**Qué se cambió:** en `spare-part-orders/page.tsx` se quitó el botón
-`Encargar` (el que aparecía en los pedidos `SOLICITADO` / `PEDIDO`). La columna
-Acción de la lista queda con **Recibir**, **Utilizar** (cuando el pedido está
-`RECIBIDO`), **Ver** y **Eliminar**.
-
-**Qué NO se tocó:** el diálogo `SparePartOrderOrderedDialog`, su estado
-(`orderedTarget`) y `handleMarkOrdered` siguen en el archivo, pero ya **no hay
-desde dónde abrirlo en esta pantalla**: quedan como código sin uso (no molestan ni
-rompen el build) por si se quiere volver a mostrar el botón. Marcarlo como
-encargado sigue siendo posible desde el **panel Repuestos** de la reparación.
+Se quitó a pedido del dueño y **se volvió a poner el mismo día** ("perdón, regresa
+el botón Encargar"). No queda ningún cambio: la columna **Acción** de "Pedidos Rep."
+vuelve a tener **Encargar** (en los pedidos `SOLICITADO` / `PEDIDO`), **Recibir**,
+**Utilizar** (cuando está `RECIBIDO`), **Ver** y **Eliminar**, con su diálogo
+(`SparePartOrderOrderedDialog`) y `handleMarkOrdered` funcionando como siempre.
