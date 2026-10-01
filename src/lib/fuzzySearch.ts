@@ -3,6 +3,11 @@
  *
  * "martillo 15k" tiene que encontrar "MARTILLO 15 KG", "Martillo 15kg" o
  * "MARTILLO-15K". "motosierr" tiene que encontrar "motosierra".
+ *
+ * Números: "10" encuentra "10KG", "10 k" o "10x" (número COMPLETO, no dentro de
+ * otro: "10" NO encuentra "100"); "10 kg" y "10kg" se buscan igual. Las palabras
+ * alfabéticas siguen con reglas estrictas (no se cruzan palabras: "punta largo"
+ * no debe entrar dentro de "puntalargo").
  */
 
 /** Minúsculas, sin acentos ni formato. */
@@ -32,9 +37,35 @@ export function normalizeFlat(value: unknown): string {
   return normalizeSpaced(value).replace(/\s+/g, "")
 }
 
-/** Tokens de búsqueda ya normalizados. */
+/**
+ * Unidades que se "pegan" al número: "10 kg" ↔ "10kg", "20 mm" ↔ "20mm".
+ * Solo se usan para UNIR un número con la unidad que lo sigue (no como palabra
+ * suelta), así "10 kg" se busca igual que "10kg" sin volver la búsqueda vaga.
+ */
+const UNIT_WORDS = new Set([
+  "kg", "kgs", "kilo", "kilos", "g", "gr", "grs", "gramo", "gramos",
+  "mm", "cm", "m", "mt", "mts", "metro", "metros",
+  "v", "w", "kw", "kva", "hp", "cc", "lt", "lts", "l", "tn", "un", "uds",
+])
+
+/**
+ * Tokens de búsqueda ya normalizados. Une un número con la unidad que lo sigue
+ * ("10 kg" → "10kg") para que se encuentre igual escrito con o sin espacio.
+ */
 export function queryTokens(query: string): string[] {
-  return normalizeSpaced(query).split(" ").filter(Boolean)
+  const words = normalizeSpaced(query).split(" ").filter(Boolean)
+  const out: string[] = []
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i]
+    const next = words[i + 1]
+    if (/^\d+$/.test(word) && next && UNIT_WORDS.has(next)) {
+      out.push(canonUnitFlat(`${word}${next}`))
+      i++ // consumir la unidad (ya quedó pegada al número)
+      continue
+    }
+    out.push(canonUnitFlat(word))
+  }
+  return out
 }
 
 /** "15k"/"15kgs"/"15kilo(s)" → "15kg" (solo cuando van pegados al número). */
@@ -92,10 +123,21 @@ export function matchesLoose(haystack: string, tokens: string[]): boolean {
     const t = raw.toLowerCase()
     if (!t) return true
     const tFlat = canonUnitFlat(t.replace(/\s+/g, ""))
-    // La comparación "sin espacios" solo vale para códigos/cifras con dígitos
-    // ("15k" ↔ "15 kg", "0010101" ↔ "00-10101"). Con texto alfabético genera
-    // falsos positivos al cruzar palabras ("punta largo" → "puntalargo").
-    if (/\d/.test(tFlat) && tFlat.length >= 3 && flat.includes(tFlat)) return true
+    if (/\d/.test(tFlat)) {
+      // Códigos/cifras con dígitos: vale como subcadena, con o sin espacios
+      // ("15k" ↔ "15 kg", "0010101" ↔ "00-10101"). Con texto alfabético genera
+      // falsos positivos al cruzar palabras ("punta largo" → "puntalargo").
+      if (tFlat.length >= 3 && flat.includes(tFlat)) return true
+      // Número corto ("10", "20"): vale como número COMPLETO, no como parte de
+      // otro ("10" encuentra "10KG"/"10 k"/"10x" pero NO "100"). El texto
+      // alfabético sigue con las reglas estrictas de abajo.
+      if (/^\d+$/.test(tFlat)) {
+        const boundary = new RegExp(`(^|[^0-9])${tFlat}([^0-9]|$)`)
+        if (boundary.test(flat)) return true
+      }
+    }
+    // Unidad suelta ("kg"): vale como sufijo del número que la precede ("10kg").
+    if (UNIT_WORDS.has(tFlat) && words.some((w) => /\d/.test(w) && w.endsWith(tFlat))) return true
     return words.some((w) => wordMatches(t, w))
   })
 }
