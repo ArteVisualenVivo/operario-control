@@ -1,15 +1,21 @@
-// scaffoldTotals.ts — Cálculo de la vista "Andamios: alquilados vs depósito".
+// scaffoldTotals.ts — Cálculo de la vista "Andamios: alquilados vs disponible".
 //
-// REGLAS DE NEGOCIO (definidas por el usuario, 2026-09):
-// - De los remitos de alquiler 3C solo se toman: andamios (módulos), ruedas y
-//   tablones ALQUILADOS.
-// - El stock guardado en DEPÓSITO se carga MANUALMENTE en la web.
-// - TOTAL = ALQUILADOS + DEPÓSITO.  DISPONIBLES = DEPÓSITO (lo libre para alquilar).
+// REGLAS DE NEGOCIO (definidas por el usuario, 2026-10):
+// - El TOTAL FÍSICO real por familia se carga UNA sola vez en la web y queda fijo.
+// - ALQUILADOS viene de los remitos 3C ("Alquileres pendientes").
+// - DISPONIBLE = max(0, TOTAL FÍSICO − ALQUILADOS). Sale alquiler → baja solo.
+//   Hay devolución (desaparece del informe) → sube solo.
+// - Si ALQUILADOS > TOTAL se marca `faltante` (alerta: revisar físico).
+// - RIENDAS: no salen sueltas, salen como juego con los paños. Como 3C no trae
+//   códigos de rienda, se derivan: 1 módulo/pasillero alquilado = 1 larga + 1 corta.
+// - PUNTALES: total físico POR TIPO, descuento directo del remito.
+// - RUEDAS/TABLONES: solo descuentan lo que dice el remito (el cliente las pide
+//   si las necesita). 1 juego set x4 (29601) = stock APARTE (opción A): no toca sueltas.
 // - Cada JUEGO de andamio (común o pasillero) = 2 módulos + 2 riendas largas
 //   + 2 riendas cortas.
 
 export interface ScaffoldDepositoStock {
-  /** Cantidad guardada en depósito por familia. */
+  /** Total físico real por familia (carga única en la web). */
   items: Record<string, number>
   updatedAt?: string
 }
@@ -18,9 +24,15 @@ export interface ScaffoldTotalRow {
   key: ScaffoldRowKey
   label: string
   alquilados: number
-  deposito: number
-  total: number
+  /** Total físico real (carga única). */
+  totalFisico: number
   disponibles: number
+  /** true cuando lo alquilado supera el físico cargado. */
+  faltante: boolean
+  /** @deprecated alias de totalFisico (compatibilidad con la vista vieja). */
+  deposito: number
+  /** @deprecated alias de totalFisico (compatibilidad con la vista vieja). */
+  total: number
 }
 
 export type ScaffoldRowKey =
@@ -32,6 +44,11 @@ export type ScaffoldRowKey =
   | "ruedasConFreno"
   | "juegosRuedas"
   | "tablones"
+  | "puntalBarovo"
+  | "puntalMarron"
+  | "puntalNaranja"
+  | "puntalLargo380"
+  | "puntalMmq"
 
 export const SCAFFOLD_ROW_LABELS: Record<ScaffoldRowKey, string> = {
   modulos: "Módulos de andamio",
@@ -42,6 +59,11 @@ export const SCAFFOLD_ROW_LABELS: Record<ScaffoldRowKey, string> = {
   ruedasConFreno: "Ruedas con freno",
   juegosRuedas: "Juegos de ruedas (set x4)",
   tablones: "Tablones",
+  puntalBarovo: "Puntal Barovo 3,05 m",
+  puntalMarron: "Puntal marrón 3,00 m",
+  puntalNaranja: "Puntal naranja 3 m",
+  puntalLargo380: "Puntal largo 3,80 m",
+  puntalMmq: "Puntal MMQ 3,05 m",
 }
 
 export interface ScaffoldJuegos {
@@ -60,28 +82,40 @@ function num(value: unknown): number {
 }
 
 /**
- * Calcula las filas (alquilados / depósito / total / disponibles) y los juegos
+ * Calcula las filas (alquilados / total físico / disponibles) y los juegos
  * completos armables con el stock disponible.
  *
- * @param alquilados  Agregados de remitos 3C (resumen del parser de alquileres).
- * @param deposito    Stock en depósito cargado manualmente.
+ * @param alquilados   Agregados de remitos 3C (resumen del parser de alquileres).
+ *                     Las riendas se DERIVAN de módulos+pasilleros (se ignoran
+ *                     valores pasados para esas claves).
+ * @param totalFisico  Total físico real cargado una sola vez en la web.
  */
 export function computeScaffoldTotals(
   alquilados: Partial<Record<ScaffoldRowKey, number>> | null | undefined,
-  deposito: Partial<Record<ScaffoldRowKey, number>> | null | undefined,
+  totalFisico: Partial<Record<ScaffoldRowKey, number>> | null | undefined,
 ): ScaffoldTotals {
+  const aModulos = num(alquilados?.["modulos"])
+  const aPasilleros = num(alquilados?.["pasilleros"])
+  const riendasAlquiladas = aModulos + aPasilleros
+
   const keys = Object.keys(SCAFFOLD_ROW_LABELS) as ScaffoldRowKey[]
   const rows: ScaffoldTotalRow[] = keys.map((key) => {
-    const a = num(alquilados?.[key])
-    const d = num(deposito?.[key])
+    const a =
+      key === "riendasLargas" || key === "riendasCortas"
+        ? riendasAlquiladas
+        : num(alquilados?.[key])
+    const t = num(totalFisico?.[key])
+    const disponibles = Math.max(0, t - a)
     return {
       key,
       label: SCAFFOLD_ROW_LABELS[key],
       alquilados: a,
-      deposito: d,
-      total: a + d,
-      // Lo disponible para alquilar es lo que está guardado en depósito.
-      disponibles: d,
+      totalFisico: t,
+      disponibles,
+      faltante: t > 0 && a > t,
+      // aliases de compatibilidad
+      deposito: t,
+      total: t,
     }
   })
 

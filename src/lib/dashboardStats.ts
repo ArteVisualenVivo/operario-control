@@ -46,7 +46,8 @@ export interface ScaffoldRentalStats {
 }
 
 /**
- * Lee el stock manual de andamios guardado en depósito (Redis).
+ * Lee el TOTAL FÍSICO de andamios guardado en Redis (carga única desde la web).
+ * El disponible se calcula en los consumidores como max(0, total − alquilados).
  */
 export async function loadScaffoldDeposito(): Promise<ScaffoldRentalStats['deposito'] | null> {
     try {

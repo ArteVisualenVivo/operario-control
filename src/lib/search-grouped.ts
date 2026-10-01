@@ -402,23 +402,23 @@ export function searchGrouped(query: string, data: GroupedSearchData): GroupedRe
   if (scaffoldTerm || puntalTerm || componentes.length > 0) {
     // Datos desde Redis (remitos 3C + depósito manual)
     const resumen = data.scaffoldRentals?.resumen
-    const deposito = data.scaffoldRentals?.deposito
-    
-    // Módulos alquilados (comunes = total - pasilleros)
+    // `deposito` ahora guarda el TOTAL FÍSICO por familia (carga única).
+    const totalFisico = data.scaffoldRentals?.deposito
+
+    // Alquilados (desde los remitos 3C). Comunes = total − pasilleros.
     const modulosAlq = Math.max(0, (resumen?.estructuras ?? 0) - (resumen?.pasilleros ?? 0))
     const pasillerosAlq = resumen?.pasilleros ?? 0
-    
-    // Módulos en depósito
-    const modulosDisp = deposito?.modulos ?? 0
-    const pasillerosDisp = deposito?.pasilleros ?? 0
-    const riendasLargasDisp = deposito?.riendasLargas ?? 0
-    const riendasCortasDisp = deposito?.riendasCortas ?? 0
-    const tablonesDisp = deposito?.tablones ?? 0
-    
-    // Riendas alquiladas (calculadas por receta: 2 largas + 2 cortas por módulo)
+    // Riendas alquiladas (por receta: 1 larga + 1 corta por módulo/pasillero).
     const riendasLargasAlq = modulosAlq + pasillerosAlq
     const riendasCortasAlq = modulosAlq + pasillerosAlq
     const tablonesAlq = resumen?.tablones ?? 0
+
+    // Disponible = max(0, total físico − alquilados).
+    const modulosDisp = Math.max(0, (totalFisico?.modulos ?? 0) - modulosAlq)
+    const pasillerosDisp = Math.max(0, (totalFisico?.pasilleros ?? 0) - pasillerosAlq)
+    const riendasLargasDisp = Math.max(0, (totalFisico?.riendasLargas ?? 0) - riendasLargasAlq)
+    const riendasCortasDisp = Math.max(0, (totalFisico?.riendasCortas ?? 0) - riendasCortasAlq)
+    const tablonesDisp = Math.max(0, (totalFisico?.tablones ?? 0) - tablonesAlq)
     
     // Cálculo de juegos: 1 juego = 2 módulos + 2 riendas L + 2 riendas C + 1 tablón
     const calcJuegos = (m: number, rl: number, rc: number, t: number) =>

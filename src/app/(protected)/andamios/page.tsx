@@ -15,6 +15,7 @@ import { loadScaffoldRentalStats, type ScaffoldRentalStats, type PuntalAlquilado
 import { SearchInput } from "@/components/ui/SearchInput"
 import {
   computeScaffoldTotals,
+  SCAFFOLD_ROW_LABELS,
   type ScaffoldRowKey,
 } from "@/lib/scaffoldTotals"
 import { toast } from "sonner"
@@ -27,13 +28,45 @@ const MAIN_ROWS: { key: ScaffoldRowKey; label: string }[] = [
   { key: "tablones", label: "Tablones" },
 ]
 
-// Artículos secundarios (se muestran más chicos).
+// Artículos secundarios (se muestran más chicos, sin puntales: tienen su sector).
 const SECONDARY_ROWS: { key: ScaffoldRowKey; label: string }[] = [
   { key: "pasilleros", label: "Módulos pasilleros" },
   { key: "ruedasSinFreno", label: "Ruedas sin freno" },
   { key: "ruedasConFreno", label: "Ruedas con freno" },
   { key: "juegosRuedas", label: "Juegos de ruedas (x4)" },
 ]
+
+// Puntales: total físico POR TIPO (cada medida es una familia propia).
+const PUNTAL_ROWS: { key: ScaffoldRowKey; label: string }[] = [
+  { key: "puntalBarovo", label: "Barovo 3,05 m" },
+  { key: "puntalMarron", label: "Marrón 3,00 m" },
+  { key: "puntalNaranja", label: "Naranja 3 m" },
+  { key: "puntalMmq", label: "MMQ 3,05 m" },
+  { key: "puntalLargo380", label: "Largo 3,80 m" },
+]
+
+// El formato viejo guardaba los puntales con la clave corta (barovo, marron…).
+// Al leer lo guardado aceptamos ambas para no perder la carga previa.
+const LEGACY_ROW_KEY: Partial<Record<ScaffoldRowKey, string>> = {
+  puntalBarovo: "barovo",
+  puntalMarron: "marron",
+  puntalNaranja: "naranja",
+  puntalLargo380: "largo380",
+  puntalMmq: "mmq",
+}
+
+/** Normaliza los ítems guardados (clave nueva o vieja) a las claves de fila. */
+function readStoredItems(items: Record<string, unknown>): Partial<Record<ScaffoldRowKey, number>> {
+  const rowKeys = Object.keys(SCAFFOLD_ROW_LABELS) as ScaffoldRowKey[]
+  const result: Partial<Record<ScaffoldRowKey, number>> = {}
+  for (const key of rowKeys) {
+    const legacy = LEGACY_ROW_KEY[key]
+    const value = items[key] ?? (legacy ? items[legacy] : undefined)
+    const n = Number(value)
+    if (Number.isFinite(n) && n > 0) result[key] = n
+  }
+  return result
+}
 
 function normalizeText(value: string): string {
   return value.toLowerCase().trim()
@@ -57,16 +90,22 @@ export default function AndamiosPage() {
     } catch { /* sin query: no precargar */ }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  // ---- Control de stock: alquilados (remitos 3C) vs depósito (manual) ----
-  const [deposito, setDeposito] = useState<Partial<Record<ScaffoldRowKey, number>>>({})
+  // ---- Control de stock: TOTAL FÍSICO (carga única) vs ALQUILADOS (remitos 3C) ----
+  // El total físico real se carga UNA sola vez desde la web; de ahí en más la
+  // página calcula disponible = max(0, total − alquilados). Sale un alquiler →
+  // baja solo; entra una devolución (sale del informe) → sube solo.
+  const [totalFisico, setTotalFisico] = useState<Partial<Record<ScaffoldRowKey, number>>>({})
   const [alquiladosResumen, setAlquiladosResumen] = useState<Partial<Record<ScaffoldRowKey, number>>>({})
-  const [pasillerosAlq, setPasillerosAlq] = useState(0)
-  const [depositoLoaded, setDepositoLoaded] = useState(false)
-  const [savingDeposito, setSavingDeposito] = useState(false)
-  const [depositoDirty, setDepositoDirty] = useState(false)
+  const [totalLoaded, setTotalLoaded] = useState(false)
+  const [savingTotal, setSavingTotal] = useState(false)
+  const [totalDirty, setTotalDirty] = useState(false)
+  const [alquiladosLoaded, setAlquiladosLoaded] = useState(false)
+  // De dónde salió la carga actual: guardada, migrada desde el depósito viejo
+  // (base = depósito + alquilados) o estimada con el stock de 3C.
+  const [totalSource, setTotalSource] = useState<"saved" | "migrated" | "estimate">("saved")
 
-  // ---- Sector PUNTALES ----
-  const [depositoPuntal, setDepositoPuntal] = useState<PuntalAlquilados>({ barovo: 0, marron: 0, naranja: 0, largo380: 0, mmq: 0, total: 0 })
+  // ---- Sector PUNTALES: alquilados (remitos 3C) ----
+  // El total físico por tipo vive dentro de `totalFisico` (claves puntal*).
   const [puntalAlquilados, setPuntalAlquilados] = useState<PuntalAlquilados | null>(null)
 
   // ---- Buscador de alquileres por cliente (remitos 3C) ----
@@ -80,12 +119,14 @@ export default function AndamiosPage() {
   useEffect(() => {
     let cancelled = false
     loadScaffoldRentalStats().then((stats) => {
-      if (cancelled || !stats) return
+      if (cancelled || !stats) { if (!cancelled) setAlquiladosLoaded(true); return }
       setScaffoldDetalle(stats.detalle ?? [])
       const r = stats.resumen
       const modulosComunes = Math.max(0, (r?.estructuras ?? 0) - (r?.pasilleros ?? 0))
       const pasilleros = r?.pasilleros ?? 0
-      setPasillerosAlq(pasilleros)
+      // Puntales alquilados (remitos 3C) con desglose por tipo.
+      const p = r?.puntalEstructuras
+      setPuntalAlquilados(p && typeof p === "object" ? p : null)
       setAlquiladosResumen({
         modulos: modulosComunes,
         pasilleros,
@@ -98,15 +139,20 @@ export default function AndamiosPage() {
         ruedasConFreno: r?.ruedasConFreno ?? 0,
         juegosRuedas: r?.juegosRuedas ?? 0,
         tablones: r?.tablones ?? 0,
+        // Puntales alquilados por tipo (se descuentan del total físico de cada uno).
+        puntalBarovo: p?.barovo ?? 0,
+        puntalMarron: p?.marron ?? 0,
+        puntalNaranja: p?.naranja ?? 0,
+        puntalLargo380: p?.largo380 ?? 0,
+        puntalMmq: p?.mmq ?? 0,
       })
-      // Puntales alquilados (remitos 3C) con desglose por tipo.
-      const p = r?.puntalEstructuras
-      setPuntalAlquilados(p && typeof p === "object" ? p : null)
-    }).catch(() => {})
+      setAlquiladosLoaded(true)
+    }).catch(() => { if (!cancelled) setAlquiladosLoaded(true) })
     return () => { cancelled = true }
   }, [])
 
-  // Precarga del depósito con el stock disponible de 3C (solo valor inicial).
+  // Estimación inicial del total físico con el stock disponible de 3C (solo si
+  // todavía no se cargó ningún total). El usuario la corrige con el conteo real.
   const totals3C = useMemo(() => {
     const estructuras = stockItems
       .filter((item) => ["A03", "A04", "A07", "28501", "28601"].includes((item.codigo ?? "").trim()))
@@ -121,78 +167,97 @@ export default function AndamiosPage() {
     return { estructuras, riendasLargas, riendasCortas, tablones }
   }, [stockItems])
 
+  // Ref: la carga del total físico corre una sola vez.
+  const totalInitDone = useRef(false)
+
+  // Carga del TOTAL FÍSICO. Espera a tener el stock y los alquilados para poder
+  // migrar el depósito viejo: total = depósito viejo + alquilados actuales.
   useEffect(() => {
+    if (totalInitDone.current) return
+    if (stockLoading || !alquiladosLoaded) return
+    totalInitDone.current = true
     let cancelled = false
     fetch("/api/andamios/deposito", { cache: "no-store" })
       .then((res) => res.json())
       .then((body) => {
         if (cancelled) return
         if (body?.available && body.items && Object.keys(body.items).length > 0) {
-          const all = body.items as Record<string, unknown>
-          setDeposito(all as Partial<Record<ScaffoldRowKey, number>>)
-          setDepositoPuntal({ barovo: Number(all.barovo)||0, marron: Number(all.marron)||0, naranja: Number(all.naranja)||0, largo380: Number(all.largo380)||0, mmq: Number(all.mmq)||0, total: Number(all.total)||0 })
+          const stored = readStoredItems(body.items as Record<string, unknown>)
+          if (body.migrated) {
+            // Base inicial = depósito viejo + alquilados actuales. Se puede
+            // corregir con el conteo físico y guardar.
+            const base: Partial<Record<ScaffoldRowKey, number>> = { ...stored }
+            const riendasAlq = (alquiladosResumen.modulos ?? 0) + (alquiladosResumen.pasilleros ?? 0)
+            for (const key of Object.keys(SCAFFOLD_ROW_LABELS) as ScaffoldRowKey[]) {
+              const alq =
+                key === "riendasLargas" || key === "riendasCortas"
+                  ? riendasAlq
+                  : alquiladosResumen[key] ?? 0
+              base[key] = (base[key] ?? 0) + alq
+            }
+            setTotalFisico(base)
+            setTotalSource("migrated")
+            setTotalDirty(true)
+          } else {
+            setTotalFisico(stored)
+            setTotalSource("saved")
+          }
         } else {
-          setDeposito({
+          // Sin total cargado: se usa el stock de 3C como estimación inicial.
+          setTotalFisico({
             modulos: totals3C.estructuras,
             riendasLargas: totals3C.riendasLargas,
             riendasCortas: totals3C.riendasCortas,
             tablones: totals3C.tablones,
-            pasilleros: 0,
           })
+          setTotalSource("estimate")
+          setTotalDirty(true)
         }
-        setDepositoLoaded(true)
+        setTotalLoaded(true)
       })
-      .catch(() => { if (!cancelled) setDepositoLoaded(true) })
+      .catch(() => { if (!cancelled) setTotalLoaded(true) })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stockLoading])
+  }, [stockLoading, alquiladosLoaded])
 
   const controlRows = useMemo(
-    () => computeScaffoldTotals(alquiladosResumen, deposito),
-    [alquiladosResumen, deposito],
+    () => computeScaffoldTotals(alquiladosResumen, totalFisico),
+    [alquiladosResumen, totalFisico],
   )
+
+  // Valor de una fila por campo (alquilados / disponibles / totalFisico).
+  const rowVal = (key: ScaffoldRowKey, field: "alquilados" | "disponibles" | "totalFisico") =>
+    controlRows.rows.find((r) => r.key === key)?.[field] ?? 0
 
   // Juegos de andamios: 1 juego = 2 módulos + 2 riendas largas + 2 riendas cortas + 1 tablón.
   const { juegosComunesDisp, juegosComunesAlq, juegosPasillerosDisp, juegosPasillerosAlq } = useMemo(() => {
-    const disp = {
-      modulos: deposito.modulos ?? 0,
-      pasilleros: deposito.pasilleros ?? 0,
-      riendasLargas: deposito.riendasLargas ?? 0,
-      riendasCortas: deposito.riendasCortas ?? 0,
-      tablones: deposito.tablones ?? 0,
-    }
-    const alq = {
-      modulos: Math.max(0, (alquiladosResumen.modulos ?? 0)),
-      pasilleros: pasillerosAlq,
-      riendasLargas: alquiladosResumen.riendasLargas ?? 0,
-      riendasCortas: alquiladosResumen.riendasCortas ?? 0,
-      tablones: alquiladosResumen.tablones ?? 0,
-    }
     const calcJuegos = (m: number, rl: number, rc: number, t: number) =>
       Math.min(Math.floor(m / 2), Math.floor(rl / 2), Math.floor(rc / 2), t)
     return {
-      juegosComunesDisp: calcJuegos(disp.modulos, disp.riendasLargas, disp.riendasCortas, disp.tablones),
-      juegosComunesAlq: calcJuegos(alq.modulos, alq.riendasLargas, alq.riendasCortas, alq.tablones),
-      juegosPasillerosDisp: calcJuegos(disp.pasilleros, disp.riendasLargas, disp.riendasCortas, disp.tablones),
-      juegosPasillerosAlq: calcJuegos(alq.pasilleros, alq.riendasLargas, alq.riendasCortas, alq.tablones),
+      juegosComunesDisp: calcJuegos(rowVal("modulos", "disponibles"), rowVal("riendasLargas", "disponibles"), rowVal("riendasCortas", "disponibles"), rowVal("tablones", "disponibles")),
+      juegosComunesAlq: calcJuegos(rowVal("modulos", "alquilados"), rowVal("riendasLargas", "alquilados"), rowVal("riendasCortas", "alquilados"), rowVal("tablones", "alquilados")),
+      juegosPasillerosDisp: calcJuegos(rowVal("pasilleros", "disponibles"), rowVal("riendasLargas", "disponibles"), rowVal("riendasCortas", "disponibles"), rowVal("tablones", "disponibles")),
+      juegosPasillerosAlq: calcJuegos(rowVal("pasilleros", "alquilados"), rowVal("riendasLargas", "alquilados"), rowVal("riendasCortas", "alquilados"), rowVal("tablones", "alquilados")),
     }
-  }, [deposito, pasillerosAlq, alquiladosResumen])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [controlRows])
 
-  const handleSaveDeposito = async () => {
-    setSavingDeposito(true)
+  const handleSaveTotal = async () => {
+    setSavingTotal(true)
     try {
       const res = await fetch("/api/andamios/deposito", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ items: { ...deposito, ...depositoPuntal, total: depositoPuntal.barovo+depositoPuntal.marron+depositoPuntal.naranja+depositoPuntal.largo380+depositoPuntal.mmq } }),
+        body: JSON.stringify({ items: totalFisico }),
       })
       if (!res.ok) throw new Error()
-      toast.success("Stock de depósito guardado")
-      setDepositoDirty(false)
+      toast.success("Total físico guardado")
+      setTotalDirty(false)
+      setTotalSource("saved")
     } catch {
-      toast.error("Error al guardar el stock de depósito")
+      toast.error("Error al guardar el total físico")
     } finally {
-      setSavingDeposito(false)
+      setSavingTotal(false)
     }
   }
   // ---- fin control de stock ----
@@ -445,23 +510,35 @@ export default function AndamiosPage() {
             </div>
           </div>
         </div>
-      
       </div>
-  )
 
-      {/* ===== ZONA DE CARGA MANUAL DEL DEPÓSITO ===== */}
+      {/* ===== TOTAL FÍSICO (carga única) ===== */}
       <section className="rounded-lg border p-4 bg-card space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <h2 className="text-lg font-semibold">Stock guardado en depósito</h2>
+            <h2 className="text-lg font-semibold">Total físico (carga única)</h2>
             <p className="text-sm text-muted-foreground">
-              Cargá la cantidad de cada artículo que hay en depósito y guardá.
+              Cargá cuánto stock físico real tenés de cada artículo. El disponible se
+              calcula solo: <span className="font-medium">disponible = total − alquilados</span>.
             </p>
           </div>
-          <Button onClick={handleSaveDeposito} disabled={savingDeposito || !depositoLoaded}>
-            {savingDeposito ? "Guardando..." : "Guardar depósito"}
+          <Button onClick={handleSaveTotal} disabled={savingTotal || !totalLoaded}>
+            {savingTotal ? "Guardando..." : "Guardar total"}
           </Button>
         </div>
+
+        {totalSource === "migrated" && (
+          <p className="text-xs rounded-md border border-amber-300 bg-amber-50 text-amber-700 px-3 py-2">
+            ⚠ Base migrada del depósito viejo: se sumó el depósito anterior + los alquilados
+            actuales. Revisá con el conteo físico y guardá.
+          </p>
+        )}
+        {totalSource === "estimate" && (
+          <p className="text-xs rounded-md border border-amber-300 bg-amber-50 text-amber-700 px-3 py-2">
+            ⚠ Todavía no hay total físico cargado: se usó el stock disponible de 3C como
+            estimación inicial. Revisá con el conteo físico y guardá.
+          </p>
+        )}
 
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
           {MAIN_ROWS.map(({ key, label }) => (
@@ -471,12 +548,12 @@ export default function AndamiosPage() {
                 type="number"
                 min={0}
                 className="mt-2 h-12 text-2xl font-bold text-center"
-                value={deposito[key] ?? 0}
-                disabled={!depositoLoaded}
+                value={totalFisico[key] ?? 0}
+                disabled={!totalLoaded}
                 onChange={(e) => {
                   const v = Math.max(0, Number(e.target.value) || 0)
-                  setDeposito((prev) => ({ ...prev, [key]: v }))
-                  setDepositoDirty(true)
+                  setTotalFisico((prev) => ({ ...prev, [key]: v }))
+                  setTotalDirty(true)
                 }}
               />
             </div>
@@ -491,25 +568,57 @@ export default function AndamiosPage() {
                 type="number"
                 min={0}
                 className="w-16 h-8 text-center"
-                value={deposito[key] ?? 0}
-                disabled={!depositoLoaded}
+                value={totalFisico[key] ?? 0}
+                disabled={!totalLoaded}
                 onChange={(e) => {
                   const v = Math.max(0, Number(e.target.value) || 0)
-                  setDeposito((prev) => ({ ...prev, [key]: v }))
-                  setDepositoDirty(true)
+                  setTotalFisico((prev) => ({ ...prev, [key]: v }))
+                  setTotalDirty(true)
                 }}
               />
             </div>
           ))}
         </div>
 
+        {/* Detalle: alquilados / disponible / total físico */}
+        <div className="rounded-md border overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/40">
+                <th className="p-2 text-left font-medium">Artículo</th>
+                <th className="p-2 text-right font-medium">Alquilados</th>
+                <th className="p-2 text-right font-medium">Disponible</th>
+                <th className="p-2 text-right font-medium">Total físico</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[...MAIN_ROWS, ...SECONDARY_ROWS].map(({ key, label }) => {
+                const row = rowBy(key)
+                return (
+                  <tr key={key} className="border-b last:border-0">
+                    <td className="p-2">
+                      {label}
+                      {row.faltante && <span className="ml-2 text-xs text-red-600">⚠ revisar físico</span>}
+                    </td>
+                    <td className="p-2 text-right font-semibold text-blue-600">{row.alquilados}</td>
+                    <td className={`p-2 text-right font-bold ${row.faltante ? "text-red-600" : "text-green-600"}`}>
+                      {row.disponibles}
+                    </td>
+                    <td className="p-2 text-right">{row.totalFisico}</td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+
         <p className="text-xs text-muted-foreground">
           Alquilados (automático): {rowBy("modulos").alquilados} módulos · {rowBy("riendasLargas").alquilados} riendas
           largas · {rowBy("riendasCortas").alquilados} cortas · {rowBy("tablones").alquilados} tablones ·{" "}
           {rowBy("ruedasConFreno").alquilados} ruedas c/freno. Las riendas no se alquilan sueltas en 3C: se
-          calculan por receta (2 largas + 2 cortas por juego).
+          derivan de los paños (1 larga + 1 corta por módulo/pasillero alquilado).
         </p>
-        {depositoDirty && <p className="text-xs text-amber-600">⚠ Hay cambios sin guardar.</p>}
+        {totalDirty && <p className="text-xs text-amber-600">⚠ Hay cambios sin guardar.</p>}
       </section>
 
       {/* ===== SECTOR PUNTALES ===== */}
@@ -526,10 +635,11 @@ export default function AndamiosPage() {
             </CardHeader>
             <CardContent>
               <p className="text-6xl font-bold text-green-700">
-                {depositoPuntal.barovo + depositoPuntal.marron + depositoPuntal.naranja + depositoPuntal.largo380 + depositoPuntal.mmq}
+                {PUNTAL_ROWS.reduce((s, { key }) => s + rowVal(key, "disponibles"), 0)}
               </p>
               <p className="text-xs text-muted-foreground mt-2">
-                Según lo guardado en depósito
+                Total físico {PUNTAL_ROWS.reduce((s, { key }) => s + rowVal(key, "totalFisico"), 0)} ·{" "}
+                alquilados {PUNTAL_ROWS.reduce((s, { key }) => s + rowVal(key, "alquilados"), 0)}
               </p>
             </CardContent>
           </Card>
@@ -568,62 +678,60 @@ export default function AndamiosPage() {
           </Card>
         </div>
 
-        {/* Zona de carga manual por tipo */}
+        {/* Carga del total físico por tipo + detalle */}
         <div className="rounded-lg border p-4 bg-card space-y-4">
           <p className="text-sm text-muted-foreground">
-            Cargá la cantidad de puntales que hay en depósito, separado por medida.
+            Cargá cuántos puntales tenés en total (físico), separado por medida. El
+            disponible se calcula solo con los alquilados de 3C.
           </p>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
-            <div className="rounded-lg border p-3">
-              <p className="text-sm font-medium">Barovo 3,05 m</p>
-              <Input
-                type="number" min={0}
-                className="mt-2 h-12 text-2xl font-bold text-center"
-                value={depositoPuntal.barovo}
-                disabled={!depositoLoaded}
-                onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setDepositoPuntal((p) => ({ ...p, barovo: v })); setDepositoDirty(true) }}
-              />
-            </div>
-            <div className="rounded-lg border p-3">
-              <p className="text-sm font-medium">Marrón 3,00 m</p>
-              <Input
-                type="number" min={0}
-                className="mt-2 h-12 text-2xl font-bold text-center"
-                value={depositoPuntal.marron}
-                disabled={!depositoLoaded}
-                onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setDepositoPuntal((p) => ({ ...p, marron: v })); setDepositoDirty(true) }}
-              />
-            </div>
-            <div className="rounded-lg border p-3">
-              <p className="text-sm font-medium">Naranja 3 m</p>
-              <Input
-                type="number" min={0}
-                className="mt-2 h-12 text-2xl font-bold text-center"
-                value={depositoPuntal.naranja}
-                disabled={!depositoLoaded}
-                onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setDepositoPuntal((p) => ({ ...p, naranja: v })); setDepositoDirty(true) }}
-              />
-            </div>
-            <div className="rounded-lg border p-3">
-              <p className="text-sm font-medium">MMQ 3,05 m</p>
-              <Input
-                type="number" min={0}
-                className="mt-2 h-12 text-2xl font-bold text-center"
-                value={depositoPuntal.mmq}
-                disabled={!depositoLoaded}
-                onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setDepositoPuntal((p) => ({ ...p, mmq: v })); setDepositoDirty(true) }}
-              />
-            </div>
-            <div className="rounded-lg border p-3">
-              <p className="text-sm font-medium">Largo 3,80 m</p>
-              <Input
-                type="number" min={0}
-                className="mt-2 h-12 text-2xl font-bold text-center"
-                value={depositoPuntal.largo380}
-                disabled={!depositoLoaded}
-                onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setDepositoPuntal((p) => ({ ...p, largo380: v })); setDepositoDirty(true) }}
-              />
-            </div>
+            {PUNTAL_ROWS.map(({ key, label }) => (
+              <div key={key} className="rounded-lg border p-3">
+                <p className="text-sm font-medium">{label}</p>
+                <Input
+                  type="number" min={0}
+                  className="mt-2 h-12 text-2xl font-bold text-center"
+                  value={totalFisico[key] ?? 0}
+                  disabled={!totalLoaded}
+                  onChange={(e) => {
+                    const v = Math.max(0, Number(e.target.value) || 0)
+                    setTotalFisico((prev) => ({ ...prev, [key]: v }))
+                    setTotalDirty(true)
+                  }}
+                />
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-md border overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b bg-muted/40">
+                  <th className="p-2 text-left font-medium">Tipo de puntal</th>
+                  <th className="p-2 text-right font-medium">Alquilados</th>
+                  <th className="p-2 text-right font-medium">Disponible</th>
+                  <th className="p-2 text-right font-medium">Total físico</th>
+                </tr>
+              </thead>
+              <tbody>
+                {PUNTAL_ROWS.map(({ key, label }) => {
+                  const row = rowBy(key)
+                  return (
+                    <tr key={key} className="border-b last:border-0">
+                      <td className="p-2">
+                        {label}
+                        {row.faltante && <span className="ml-2 text-xs text-red-600">⚠ revisar físico</span>}
+                      </td>
+                      <td className="p-2 text-right font-semibold text-blue-600">{row.alquilados}</td>
+                      <td className={`p-2 text-right font-bold ${row.faltante ? "text-red-600" : "text-green-600"}`}>
+                        {row.disponibles}
+                      </td>
+                      <td className="p-2 text-right">{row.totalFisico}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
       </section>
