@@ -540,8 +540,14 @@ export default function SparePartOrdersPage() {
                             "Traído"        = día en que me lo trajo → la MISMA
                                               fecha que pone el botón "Recibir"
                                               (se imprime como "Me lo trajo").
-                          Los botones las cargan solas; acá se corrigen. */}
-                      <SparePartOrderDatesEditor order={o} onSave={updateDates} />
+                          Los botones las cargan solas; acá se corrigen.
+
+                          "P. dueño" NO se muestra (pedido del dueño, 2026-10-01):
+                          el día en que le pedí el repuesto al dueño ya no se carga
+                          a mano y la hoja de compra tampoco lo imprime. El dato lo
+                          sigue poniendo solo el botón "Encargar" y se conserva
+                          porque ordena el anexo (los encargos más viejos primero). */}
+                      <SparePartOrderDatesEditor order={o} onSave={updateDates} omit={["ownerRequestedAt"]} />
                     </td>
                     <td className="py-2 px-3 text-right align-top">
                       <div className="flex items-center justify-end gap-1 flex-wrap">

@@ -182,8 +182,9 @@ spare_part_orders/{id}
 - **Regla:** cargar `orderedAt` en un pedido `SOLICITADO`/`PEDIDO` lo pasa a
   `ENCARGADO` (mismo criterio que `markOrdered`), así el resumen, los filtros y
   el anexo "Encargados esta semana" reflejan la realidad.
-- La hoja de compra muestra **3** columnas de fecha, una por cada hecho del
-  circuito, y ya **no** imprime `Pedido` (fecha de 3C) ni `Entrega`: eran el
+- La hoja de compra muestra **2** columnas de fecha (`Lo pidió en la casa` y
+  `Me lo trajo`; "Le pedí al dueño" se quitó el 2026-10-01 — ver §18), y ya **no**
+  imprime `Pedido` (fecha de 3C) ni `Entrega`: eran el
   mismo dato que `receivedAt`. Esas fechas de 3C siguen guardadas (se ven en la
   ficha del pedido, "Ver", como "Fecha de pedido (3C)"), pero la **lista** de
   Pedidos Rep. ya **no** tiene la columna "F. pedido": no se usa para decidir
@@ -191,23 +192,24 @@ spare_part_orders/{id}
   "Atrasados" (más de 7 días sin encargar) y para el rango de fechas del
   buscador.
 - Los **3 hechos son distintos** y cada uno tiene su fuente:
-  1. `Le pedí al dueño` = `ownerRequestedAt` → botón **Encargar** (día en que el
-     operario le encargó el repuesto al dueño).
+  1. ~~`Le pedí al dueño` = `ownerRequestedAt` → botón **Encargar**~~ — **ya no se
+     muestra ni se imprime** (2026-10-01, ver §18). El dato lo sigue escribiendo
+     solo el botón **Encargar** y se usa para ordenar el anexo.
   2. `Lo pidió en la casa` = `orderedAt` → **calendario "P. repuestero"** de la
      columna "Fechas" (día en que el dueño lo encargó en la casa de repuestos).
   3. `Me lo trajo` = `receivedAt` → botón **Recibir**.
   Antes el botón Encargar y el calendario "P. repuestero" escribían el MISMO
   campo (`orderedAt`), así que no podían ser fechas distintas; ahora el botón
   guarda en `ownerRequestedAt` y el calendario en `orderedAt`.
-- Las tres fechas se ven en la pantalla de Pedidos Rep. (renglón bajo el Estado:
-  `enc` / `repuestero` / `traído` / `retiro`) y en la hoja impresa.
-- La columna "Fechas" de Pedidos Rep. tiene los **3 calendarios, para CORREGIR a
-  mano** lo que haya salido mal al apretar un botón (no hay duplicación: cada uno
-  corresponde al mismo hecho que su botón): `P. dueño` = `ownerRequestedAt` (la
-  fecha del botón **Encargar**), `P. repuestero` = `orderedAt` (el día en que el
-  dueño lo pidió en la casa) y `Traído` = `receivedAt` (la fecha del botón
-  **Recibir**). También se pueden corregir desde el detalle del pedido
-  ("Ver") y desde el panel Repuestos de la reparación.
+- Las fechas se ven en la pantalla de Pedidos Rep. (renglón bajo el Estado:
+  `enc` / `repuestero` / `traído` / `retiro`). En la hoja impresa salen sólo las
+  dos del circuito de compra (`Lo pidió en la casa` y `Me lo trajo`).
+- La columna "Fechas" de Pedidos Rep. tiene **2 calendarios**: `P. repuestero` =
+  `orderedAt` (el día en que el dueño lo pidió en la casa) y `Traído` =
+  `receivedAt` (la fecha del botón **Recibir**), para CORREGIR a mano lo que haya
+  salido mal al apretar un botón. El campo `P. dueño` (`ownerRequestedAt`) se quitó
+  de la lista el 2026-10-01 (ver §18); sigue disponible en el detalle del pedido
+  ("Ver") y en el panel Repuestos de la reparación.
 - También se agregaron los botones **Recibir** / **Utilizar** en la pantalla
   general de Pedidos Rep. (reutilizan `SparePartOrderReceiveUseDialog`), para
   cargar cantidad + fecha sin entrar a la orden de trabajo.
@@ -359,3 +361,31 @@ Detalles y por qué:
   `/maintenance`.
 - **Sin parámetro** (entrar a la hoja por el menú o por un enlace viejo) se sigue
   mostrando **todo**, como antes: nada de lo que ya funcionaba cambia.
+
+## 18. Se quitó "el día que le pedí el repuesto al dueño" (2026-10-01)
+
+**Pedido del dueño:** eliminar el campo **P. DUEÑO** de la lista (el calendario que
+está al lado del botón "Encargar") y la columna **"Le pedí al dueño"** de la hoja de
+compra: ese día ya no se carga a mano ni se imprime.
+
+**Qué se cambió:**
+
+| Archivo | Cambio |
+|---|---|
+| `components/repairs/SparePartOrderDatesEditor.tsx` | Nuevo prop **`omit`**: campos que NO se dibujan aunque el pedido los tenga. `omit={["ownerRequestedAt"]}` deja sólo `P. repuestero` y `Traído`. |
+| `spare-part-orders/page.tsx` | La lista pasa `omit={["ownerRequestedAt"]}`: el calendario "P. dueño" ya no aparece. |
+| `spare-part-orders/print/page.tsx` | `printCols` ya no incluye "Le pedí al dueño" y se quitó la celda de `ownerRequestedAt` de las **dos** tablas (pendientes y anexo). |
+
+**Qué NO se tocó (y por qué):**
+
+- El **dato** `ownerRequestedAt` sigue existiendo y lo sigue escribiendo solo el
+  botón **Encargar**: no se borra nada de la base ni de los pedidos ya cargados.
+- Se sigue usando para **ordenar el anexo** (encargos más viejos primero,
+  `byOldestOrderedAt`).
+- En el **detalle del pedido** ("Ver") y en el **panel Repuestos** de la reparación
+  el calendario sigue estando: ahí es donde se corrige a mano una fecha cargada mal.
+  Si alguna vez se quiere sacar también de esos dos lugares, es pasarles el mismo
+  `omit`.
+- El renglón chico de fechas de la lista sigue mostrando `enc: <fecha>` junto a
+  `repuestero` / `traído` / `retiro`: es informativo y no se imprime. Si molesta,
+  se quita con una línea (es el mismo `ownerRequestedAt`).

@@ -62,6 +62,15 @@ interface Props {
   variant?: "compact" | "full" | "sheet"
   /** Renderiza UNA sola de las 3 fechas (columnas separadas de la hoja impresa). */
   only?: DateFieldKey
+  /**
+   * Campos que NO se dibujan aunque el pedido los tenga.
+   *
+   * La lista de "Pedidos Rep." lo usa para no mostrar "P. dueño" (pedido del
+   * dueño, 2026-10-01: ese día ya no se carga a mano y la hoja de compra tampoco
+   * lo imprime). El DATO sigue existiendo: lo pone solo el botón "Encargar" y
+   * ordena el anexo de la hoja de compra (encargos más viejos primero).
+   */
+  omit?: DateFieldKey[]
   /** Oculta la etiqueta (cuando el encabezado de la tabla ya la muestra). */
   hideLabel?: boolean
   /** `false` = inputs sin borde (hoja de compra impresa). */
@@ -101,6 +110,7 @@ export function SparePartOrderDatesEditor({
   layout = "stack",
   variant = "compact",
   only,
+  omit = [],
   hideLabel = false,
   bordered = true,
   className,
@@ -121,8 +131,9 @@ export function SparePartOrderDatesEditor({
   /** Último valor pedido por campo: evita reescribir lo mismo (change + blur). */
   const requested = useRef<Partial<Record<DateFieldKey, string>>>({})
 
-  /** Con `only` se renderiza una sola fecha (columnas de la hoja impresa). */
-  const fields = only ? FIELDS.filter((f) => f.key === only) : FIELDS
+  /** Con `only` se renderiza una sola fecha (columnas de la hoja impresa); con
+   *  `omit` se saltean los campos que la pantalla no debe mostrar. */
+  const fields = FIELDS.filter((f) => (!only || f.key === only) && !omit.includes(f.key))
   // Valores GUARDADOS hoy en el pedido (llegan por props): se usan para no
   // reescribir lo mismo y para volver a ellos si una escritura falla.
   const saved = initialDraft(order)
