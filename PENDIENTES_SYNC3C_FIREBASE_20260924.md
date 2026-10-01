@@ -143,16 +143,21 @@ Si se aplican 1+2: el sync completo pasaría de ≈2.379 a ≈**950 escrituras**
 
 ---
 
-## 6. Artefactos y limpieza pendiente (no se tocó nada)
+## 6. Artefactos y limpieza — APLICADA (2026-10-01, commit `c27b080`)
 
-Untracked en el repo al cerrar la sesión (borrar **sólo con OK del usuario**):
+El usuario dio el OK, así que se limpió el ruido sin trackear (`.gitignore` con los nombres exactos
+para que no vuelva):
 
-- Raíz: `_agent_diff.txt`, `agent_diff_preview.txt`, `diff_agent.txt`, `diff_preview.txt`, `tsc_out.txt`
-- `sync-agent/`: `agent-manual.log`, `agent-manual.err`, `agent.err`
-- `startup-backup/` — carpeta creada al sacar el `.lnk` duplicado del autostart (contiene el acceso directo viejo). **Conservar** hasta confirmar que el arranque único es estable.
-- Ruido normal de runtime (no borrar): `automation-watcher/3c_exports/*.xls`, `automation-watcher/cache/*.json`, `automation/logs/sync_2026*.log`, `sync-agent/agent.log`, `sync-agent/.agent.lock`, `automation/logs/last_status.ini`.
-
-No quedan archivos `audit_tmp_*` (los temporales de sesiones anteriores ya no están).
+- **Borrados del disco** (papelones de sesiones, no son parte del programa): raíz `_agent_diff.txt`,
+  `agent_diff_preview.txt`, `diff_agent.txt`, `diff_preview.txt` (`tsc_out.txt` ya no existía);
+  `sync-agent/agent-manual.log` (590 KB de una corrida a mano — `agent-manual.err`/`agent.err` no existían).
+- **`startup-backup/`** — se **conserva en disco** (acceso directo viejo del autostart) hasta confirmar que
+  el arranque único es estable; sólo se sacó de git con la regla `/startup-backup/`.
+- **NO se tocó** el ruido normal de runtime (son los datos que lee la web): `automation-watcher/3c_exports/*.xls`,
+  `automation-watcher/cache/*.json`, `automation/logs/sync_2026*.log`, `sync-agent/agent.log`,
+  `sync-agent/.agent.lock`, `automation/logs/last_status.ini`.
+- Ojo: `agent-diff.txt` (raíz, 5/7) **sí está versionado** en el repo (commit `7cde683`), así que se restauró
+  tal cual: para sacarlo del repo hace falta `git rm --cached agent-diff.txt` (no se hizo sin pedido explícito).
 
 ---
 
