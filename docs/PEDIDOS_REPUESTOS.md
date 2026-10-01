@@ -397,3 +397,52 @@ el botón Encargar"). No queda ningún cambio: la columna **Acción** de "Pedido
 vuelve a tener **Encargar** (en los pedidos `SOLICITADO` / `PEDIDO`), **Recibir**,
 **Utilizar** (cuando está `RECIBIDO`), **Ver** y **Eliminar**, con su diálogo
 (`SparePartOrderOrderedDialog`) y `handleMarkOrdered` funcionando como siempre.
+
+## 20. La fecha "Traído" es la marca de RECIBIDO, en los dos sentidos (2026-10-01)
+
+**Reporte del dueño:** *"en esta orden no aparece el botón Encargar y cuando elimino
+el día en que lo traje, sigue marcado recibido"*.
+
+**Qué pasaba (una sola causa):** borrar la fecha **Traído** del calendario no bajaba
+el estado. El pedido quedaba **`RECIBIDO` con la fecha vacía**, y como el botón
+**Encargar** sólo se dibuja en `SOLICITADO` / `PEDIDO`, no había forma de
+deshacerlo desde la lista. La orden real (`X 0001-00011174` · PARTE INFERIOR DE
+PROTEC · `qRecv: 1`, sin ninguna fecha) quedó exactamente así.
+
+**Qué se cambió:**
+
+| Archivo | Cambio |
+|---|---|
+| `services/sparePartOrders.ts` | `updateOrderDates()`: borrar la fecha **Traído** ahora **deshace la recepción** en los dos sentidos (ver regla abajo). Además, `healReceivedWithoutDate()` devuelve al circuito los pedidos que YA estaban en ese estado, y se llama en los dos caminos de importación. |
+
+**La regla (una sola, en `updateOrderDates`):**
+
+- **Borrar** la fecha "Traído" en un pedido `RECIBIDO` → vuelve al punto del
+  circuito que dicen sus propias fechas: **`ENCARGADO`** si hay alguna fecha de
+  encargo (el día que se lo pedí al dueño, el día que el dueño lo pidió en la casa,
+  o la fecha estimada de retiro) y **`SOLICITADO`** si no hay ninguna (nunca se
+  encargó: se recibió de una). En ambos casos vuelve a aparecer el botón que
+  corresponda.
+- **Cargar** la fecha "Traído" → vuelve a marcar `RECIBIDO`, pero **sólo si ya hay
+  cantidad recibida**: una fecha sola no inventa una recepción que nunca se registró
+  (para eso está el botón **Recibir**, que además mueve el stock).
+- **Nunca** se tocan cantidades ni stock: borrar una fecha no mueve mercadería.
+
+**`healReceivedWithoutDate()`** (curación, idempotente): recorre TODOS los pedidos,
+no sólo los que siguen "A la Espera Repuestos", y devuelve al circuito los que
+quedaron `RECIBIDO` sin fecha "Traído" con la misma regla de arriba. Sin escrituras
+si no hay nada que curar. Se llama en `importPendingPartsFromMaintenance()` (web y
+agente) y en `importSparePartsFromRecords()` (agente), junto a
+`repairBumpedRequestedDates()`.
+
+**Estado real al aplicarlo:** 1 pedido curado (el `11174`), que pasó de `RECIBIDO` a
+`SOLICITADO` (no tenía ninguna fecha de encargo) → la lista vuelve a mostrar **Encargar**
+y la hoja de compra lo cuenta como pendiente. Sus cantidades no se tocaron
+(`qRecv: 1` sigue igual).
+
+**Nota de infraestructura:** con las **lecturas** de Firestore bloqueadas por cuota,
+una escritura al Admin SDK entra bien pero el snapshot de Redis (lo que lee la
+pantalla) no la refleja, porque el publicador lee del espejo local y no hay ninguna
+op encolada que la aplique. Para verla al instante hubo que corregir también el
+espejo (caché en disco + snapshot), que es lo que hace `applyPendingOrderOps()`
+cuando la escritura queda encolada.

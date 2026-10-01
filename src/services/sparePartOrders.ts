@@ -661,6 +661,62 @@ export async function repairBumpedRequestedDates(): Promise<number> {
 }
 
 /**
+ * Cura la RECEPCIÓN sin fecha "traído": pedidos marcados RECIBIDO a los que ya no
+ * les queda la fecha del día en que trajeron el repuesto.
+ *
+ * POR QUÉ EXISTE (reporte del dueño, 2026-10-01): antes, borrar la fecha "Traído"
+ * del calendario NO bajaba el estado, así que el pedido quedaba "Recibido" para
+ * siempre, con la fecha vacía, sin botón "Encargar" (sólo aparece en SOLICITADO /
+ * PEDIDO) y sin forma de deshacerlo desde la lista. `updateOrderDates` ya no
+ * permite crear ese estado (la fecha "traído" es la marca de RECIBIDO en los dos
+ * sentidos); esta pasada devuelve al circuito los pedidos que YA quedaron así:
+ *
+ *   - con alguna fecha de encargo (el día en que le pedí el repuesto al dueño, el
+ *     día en que el dueño lo pidió en la casa, o la fecha estimada de retiro) →
+ *     ENCARGADO,
+ *   - sin ninguna → SOLICITADO (nunca se encargó: se recibió de una).
+ *
+ * Es idempotente: cuando no hay nada que curar no escribe NI una vez. NO toca
+ * cantidades ni stock: borrar una fecha no mueve mercadería.
+ */
+export async function healReceivedWithoutDate(): Promise<number> {
+  let orders: SparePartOrder[]
+  try {
+    orders = await getAllOrdersMerged()
+  } catch {
+    return 0
+  }
+  let healed = 0
+  for (const order of orders) {
+    if (!order?.id || order.status !== "RECIBIDO") continue
+    if (asValidDate(order.receivedAt)) continue
+    const wasOrdered = Boolean(
+      asValidDate(order.ownerRequestedAt) ||
+        asValidDate(order.orderedAt) ||
+        asValidDate(order.expectedAt),
+    )
+    try {
+      await updateOrderDoc(order.id, {
+        status: wasOrdered ? "ENCARGADO" : "SOLICITADO",
+        updatedAt: new Date(),
+      })
+      healed++
+    } catch (err) {
+      // Cuota/permisos: el pedido queda como está y se reintenta en el próximo sync.
+      console.warn(
+        "[sparePartOrders] No se pudo deshacer la recepción sin fecha de traído",
+        order.id,
+        err instanceof Error ? err.message : err,
+      )
+    }
+  }
+  if (healed > 0) {
+    console.log(`[sparePartOrders] Recepciones deshechas (RECIBIDO sin fecha traído): ${healed}`)
+  }
+  return healed
+}
+
+/**
  * PUBLICACIÓN DEL SNAPSHOT en Redis (solo NODE / agente).
  *
  * Deja en Redis la última foto COMPLETA de Pedidos Rep. para que la web la
@@ -1077,6 +1133,13 @@ export async function updateOrderNotes(id: string, notes: string): Promise<void>
  *   resumen, los filtros y la hoja impresa ("Encargados") reflejen lo que
  *   realmente pasó. Y al revés: si se BORRA esa fecha, vuelve a SOLICITADO
  *   (pendiente de encargar), así no queda un ENCARGADO sin ninguna fecha.
+ * - Lo MISMO con la fecha "traído" (`receivedAt`), que es la marca de RECIBIDO:
+ *   BORRARLA deshace la recepción (el pedido vuelve a ENCARGADO) y CARGARLA lo
+ *   vuelve a marcar RECIBIDO, pero sólo si el pedido ya tiene cantidad recibida
+ *   (la fecha sola no inventa una recepción que nunca se registró). Sin esta
+ *   regla, borrar el día que lo traje dejaba el pedido "Recibido" para siempre.
+ *   Las CANTIDADES y el STOCK no se tocan nunca acá: borrar la fecha NO devuelve
+ *   stock (eso lo manejan `markReceived()` / `markUsed()`).
  * - Devuelve SÓLO lo que quedó escrito (fechas + estado) con la forma que
  *   muestra la pantalla, para que quien llama lo aplique en memoria sin releer
  *   la lista entera.
@@ -1117,6 +1180,37 @@ export async function updateOrderDates(
   // ESA fecha, para no tocar el estado por borrar las otras dos.
   if ("orderedAt" in input && !updates.orderedAt && status === "ENCARGADO") {
     updates.status = "SOLICITADO"
+  }
+
+  // Fecha "traído" (`receivedAt`) = la marca de RECIBIDO, así que el estado la
+  // sigue en los DOS sentidos (reporte del dueño, 2026-10-01: borraba el día en
+  // que lo trajo y el pedido seguía marcado "Recibido", con la fecha vacía).
+  //   - BORRARLA deshace la recepción: el pedido vuelve al punto del circuito
+  //     donde estaba — ENCARGADO si ya se había encargado (hay fecha de encargo)
+  //     o SOLICITADO si nunca se encargó, y así vuelve a aparecer en pantalla el
+  //     botón "Encargar" (antes quedaba "Recibido" para siempre, con la fecha
+  //     vacía y sin forma de reencargarlo desde la lista).
+  //   - CARGARLA lo vuelve a marcar RECIBIDO, pero SÓLO si ya hay cantidad
+  //     recibida: la fecha sola no inventa una recepción que nunca se registró
+  //     (para eso está el botón "Recibir", que además mueve el stock).
+  // NUNCA se tocan cantidades ni stock: borrar la fecha no devuelve stock.
+  if ("receivedAt" in input && !updates.receivedAt && status === "RECIBIDO") {
+    // ¿Ya se había encargado? Lo dicen sus propias fechas: el día en que le pedí
+    // el repuesto al dueño (lo pone el botón "Encargar"), el día en que el dueño
+    // lo pidió en la casa o la fecha estimada de retiro (las dos del mismo
+    // diálogo). Con cualquiera de ellas el pedido estaba encargado; sin ninguna,
+    // nunca se encargó (se recibió de una) y lo correcto es volver a SOLICITADO.
+    const wasOrdered = Boolean(
+      toDate(before.ownerRequestedAt) || toDate(before.orderedAt) || toDate(before.expectedAt),
+    )
+    updates.status = wasOrdered ? "ENCARGADO" : "SOLICITADO"
+  }
+  if (
+    updates.receivedAt &&
+    (status === "SOLICITADO" || status === "PEDIDO" || status === "ENCARGADO") &&
+    Number(before.quantityReceived ?? 0) > 0
+  ) {
+    updates.status = "RECIBIDO"
   }
 
   updates.updatedAt = new Date()
@@ -1869,10 +1963,20 @@ export async function importPendingPartsFromMaintenance(): Promise<{
   // que su fecha se reparaba sólo por casualidad.
   const datesRepaired = await repairBumpedRequestedDates()
 
+  // RECEPCIONES sin fecha "traído" (RECIBIDO con la fecha borrada): se devuelven
+  // al circuito — ver healReceivedWithoutDate().
+  const receivingsHealed = await healReceivedWithoutDate()
+
   // Si esta corrida cambió algo, se republica el snapshot en Redis para que la
   // pantalla (que lee de la fuente primaria) vea el resultado sin depender de la
   // cuota de Firestore. Si no hubo cambios, no se gasta una lectura extra.
-  if (updated > 0 || createdOrders.length > 0 || models.updated > 0 || datesRepaired > 0) {
+  if (
+    updated > 0 ||
+    createdOrders.length > 0 ||
+    models.updated > 0 ||
+    datesRepaired > 0 ||
+    receivingsHealed > 0
+  ) {
     await publishSnapshotFromBrowser()
   }
 
@@ -2816,6 +2920,10 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
   // Espera Repuestos" (cerrada en 3C) no entran al bucle de arriba, así que sin
   // esta pasada seguirían fechados el día del último sync.
   const datesRepaired = await repairBumpedRequestedDates()
+
+  // RECEPCIONES sin fecha "traído" (RECIBIDO con la fecha borrada): se devuelven
+  // al circuito — ver healReceivedWithoutDate().
+  await healReceivedWithoutDate()
 
   return {
     created: createdOrders.length,
