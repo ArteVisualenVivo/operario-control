@@ -58,7 +58,30 @@ service-account.json
 /sync-agent/agent-manual.log
 /sync-agent/agent-manual.err
 /sync-agent/agent.err
+# Logs de dev redirigidos a disco y scripts temporales de pruebas a mano:
+# no forman parte del programa.
+/dev-stdout*.txt
+/dev-stderr*.txt
+/temp_run_*.ts
 
 # Copia de respaldo del acceso directo del autostart del agente (se CONSERVA en
 # disco hasta confirmar que el arranque unico es estable; solo se saca de git).
 /startup-backup/
+
+# ── Ruido del watcher/agente de 3C (se regenera solo; no es fuente) ──────────
+# Excel exportados, índices/cachés, manifiesto de corrida y logs: cambian en
+# cada sincronización. Con la retención de 3C (1 Excel por informe) se borran
+# solos; no van a git.
+/automation-watcher/3c_exports/*.xls
+/automation-watcher/3c_exports/*.xlsx
+/automation-watcher/3c_exports/_last_export.json
+/automation-watcher/cache/
+/automation/logs/
+/sync-agent/.agent.lock
+/sync-agent/agent.log
+/sync-agent/agent-autostart.log
+/sync-agent/agent-stderr.log
+/sync-agent/agent-stdout.log
+/sync-agent/agent.err.log
+/sync-agent/logs/
+

@@ -1,7 +1,0 @@
-▲ Next.js 16.2.9 (Turbopack)
-- Local:         http://127.0.0.1:3002
-- Network:       http://127.0.0.1:3002
-- Environments: .env.local
-✓ Ready in 1523ms
-Creating turbopack project { dir: 'C:\\Users\\Cesar\\Desktop\\operario-control', testMode: true }
-
