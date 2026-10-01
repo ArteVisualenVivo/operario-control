@@ -1,7 +1,8 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react"
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import Link from "next/link"
+import { useSearchParams } from "next/navigation"
 import { toast } from "sonner"
 import { getAllOrders, splitMachineIdentification, displaySparePartCode } from "@/services/sparePartOrders"
 import { buildMaintenanceByOrder, getOrderClosure, normOrderKey } from "@/lib/orderClosure"
@@ -65,6 +66,18 @@ function byOldestOrderedAt(a: SparePartOrder, b: SparePartOrder): number {
 }
 
 export default function PurchaseListPage() {
+  // `useSearchParams` (lo usa PurchaseListScreen para leer el alcance
+  // `?orders=...` que manda "🖨️ Lista de compra") obliga a tener un <Suspense>
+  // por encima: sin él, el build de producción falla con "Missing Suspense
+  // boundary with useSearchParams". Mismo patrón que /maintenance y /repairs.
+  return (
+    <Suspense fallback={<p className="p-6 text-sm text-muted-foreground print:hidden">Cargando lista de compra...</p>}>
+      <PurchaseListScreen />
+    </Suspense>
+  )
+}
+
+function PurchaseListScreen() {
   const [orders, setOrders] = useState<SparePartOrder[]>([])
   const [encargados, setEncargados] = useState<SparePartOrder[]>([])
   const [repairsMap, setRepairsMap] = useState<Map<string, MachineRepair>>(new Map())
@@ -74,6 +87,32 @@ export default function PurchaseListPage() {
   const [entryDatesByOrder, setEntryDatesByOrder] = useState<Map<string, Date>>(new Map())
   /** Casas de repuesto ya usadas, para el desplegable de sugerencias. */
   const [knownStores, setKnownStores] = useState<string[]>([])
+  /**
+   * Cuántos pedidos vinieron en `?orders=...` desde "🖨️ Lista de compra"
+   * (`null` = no vino el parámetro, o sea que la hoja muestra todo). Solo sirve
+   * para avisar en pantalla qué se está imprimiendo.
+   */
+  const [scopedOrderCount, setScopedOrderCount] = useState<number | null>(null)
+
+  /**
+   * ALCANCE de la hoja: `?orders=<ids separados por coma>` = los pedidos que
+   * estaban en pantalla en "Pedidos Rep." (filtro por fechas / buscador / estado,
+   * o lo tildado).
+   *
+   * POR QUÉ (reporte del dueño, 30/09/2026: "selecciono 2 órdenes y en la
+   * pantalla de imprimir me aparecen todas"): el botón abría esta hoja sin
+   * pasarle nada, así que la hoja mostraba SIEMPRE todos los pendientes del
+   * sistema e ignoraba la búsqueda por fechas.
+   *
+   * El parámetro presente pero VACÍO significa "no hay nada que imprimir": no se
+   * cae de vuelta a "todas" (si no, un filtro sin resultados imprimiría todo).
+   */
+  const searchParams = useSearchParams()
+  const scopeParam = searchParams.get("orders")
+  const scopedIds = useMemo(
+    () => (scopeParam === null ? null : new Set(scopeParam.split(",").map((id) => id.trim()).filter(Boolean))),
+    [scopeParam],
+  )
 
   useEffect(() => {
     ;(async () => {
@@ -92,8 +131,13 @@ export default function PurchaseListPage() {
           maintenance = []
         }
         const byOrder = buildMaintenanceByOrder(maintenance)
-        const vigentes = ords.filter((o) => !getOrderClosure(o, byOrder.get(normOrderKey(o.orderNumber)) ?? null).closed)
-        setClosedHiddenCount(ords.length - vigentes.length)
+        // Alcance pedido desde "Pedidos Rep.": si vino `?orders=...` se trabaja
+        // SOLO con esos pedidos; sin parámetro, con todos (comportamiento de
+        // siempre para quien entra a la hoja por el menú o por un enlace).
+        const scoped = scopedIds ? ords.filter((o) => scopedIds.has(o.id)) : ords
+        setScopedOrderCount(scopedIds ? scoped.length : null)
+        const vigentes = scoped.filter((o) => !getOrderClosure(o, byOrder.get(normOrderKey(o.orderNumber)) ?? null).closed)
+        setClosedHiddenCount(scoped.length - vigentes.length)
         // Cliente y fecha de ingreso por orden (cruce 3C en memoria): la Fecha
         // de alta de la orden en 3C, que se imprime debajo de cada orden.
         const clients = new Map<string, string>()
@@ -130,7 +174,10 @@ export default function PurchaseListPage() {
         setLoading(false)
       }
     })()
-  }, [])
+    // `scopedIds` cambia solo si cambia `?orders=...` (memo sobre el parámetro):
+    // así, si se llega a la hoja completa desde el aviso "Ver la lista completa",
+    // los datos se vuelven a cargar con el alcance nuevo.
+  }, [scopedIds])
 
   const today = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })
     const hasContent = orders.length > 0 || encargados.length > 0
@@ -291,6 +338,12 @@ export default function PurchaseListPage() {
             Pendientes ({orders.length}) · Encargados ({encargados.length})
             {closedHiddenCount > 0 && ` · ${closedHiddenCount} de órdenes cerradas ocultos`}
           </p>
+          {scopedOrderCount !== null && (
+            <p className="text-xs text-amber-700">
+              Se está imprimiendo SÓLO lo que buscaste en “Pedidos Rep.” ({scopedOrderCount} pedido(s)).{" "}
+              <Link href="/spare-part-orders/print" className="underline">Ver la lista completa</Link>
+            </p>
+          )}
         </div>
         <div className="flex gap-2">
           <Link href="/spare-part-orders" className="inline-flex h-9 items-center rounded-md border px-4 text-sm font-medium hover:bg-muted">Volver</Link>
@@ -474,7 +527,9 @@ list="casas-repuesto"
 
       {!loading && !hasContent && (
         <p className="text-sm text-muted-foreground print:hidden">
-          No hay pedidos pendientes de encargar ni encargados registrados.
+          {scopedOrderCount !== null
+            ? "La búsqueda que hiciste en \"Pedidos Rep.\" no dejó pedidos pendientes ni encargados para imprimir."
+            : "No hay pedidos pendientes de encargar ni encargados registrados."}
         </p>
       )}
 

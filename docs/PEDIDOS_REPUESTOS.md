@@ -322,3 +322,40 @@ Ruta: `/spare-part-orders` (acceso desde la barra de navegación).
 Detalle: `/spare-part-orders/[id]` con historial completo (fechas de pedido,
 recepción y utilización, cantidades, disponible, pendiente de recibir,
 observaciones, vínculo a la orden).
+
+## 17. La hoja de compra imprime SÓLO lo que buscaste (2026-09-30)
+
+**Reporte del dueño:** «selecciono 2 órdenes para imprimir y, cuando voy a la
+pantalla de imprimir, me aparecen todas las órdenes».
+
+**Causa:** el botón **🖨️ Lista de compra** hacía
+`router.push("/spare-part-orders/print")` sin pasarle nada, y `print/page.tsx`
+cargaba **todos** los pedidos (`getAllOrders()`) sin leer ningún parámetro: el
+filtro por fechas, el buscador y la selección por tilde NO tenían ningún efecto
+sobre la hoja.
+
+**Ahora:**
+
+| Quién | Qué hace |
+|---|---|
+| `spare-part-orders/page.tsx` | El botón manda `?orders=<ids de repuesto separados por coma>` con lo que está en pantalla. Si hay órdenes **tildadas**, manda sólo ésas (la selección manda sobre el filtro); si no, manda todo lo que dejó el filtro (fechas + buscador + estado + "Ver finalizadas"). |
+| `spare-part-orders/print/page.tsx` | Lee `?orders=...` y trabaja sólo con esos pedidos (lista de pendientes + anexo de encargados). Avisa "Se está imprimiendo SÓLO lo que buscaste en «Pedidos Rep.» (N pedido(s))" con un enlace **Ver la lista completa** (`/print` sin parámetros). |
+
+Detalles y por qué:
+
+- El parámetro va **siempre**, aunque quede vacío: vacío = "no hay nada que
+  imprimir". Si no se mandara, la hoja caería en su modo histórico (todas) y un
+  filtro sin resultados terminaría imprimiendo el sistema completo.
+- Se mandan **ids de documento** (uno por repuesto), no la clave del grupo: la
+  hoja vuelve a agrupar con `groupOrdersByRealNumber()`, así que muestra los
+  mismos repuestos que la tabla y cuenta las órdenes igual.
+- El botón se **deshabilita** cuando no hay nada para imprimir y, cuando el
+  alcance es parcial, la barra de selección avisa
+  «La lista de compra saldrá sólo con N de M orden(es): lo que se ve en pantalla».
+- `print/page.tsx` usa `useSearchParams()`, que **obliga** a un `<Suspense>` por
+  encima (si no, el build de producción falla con "Missing Suspense boundary with
+  useSearchParams"): la pantalla se divide en `PurchaseListPage` (envoltorio con
+  `<Suspense>`) y `PurchaseListScreen` (la pantalla real). Mismo patrón que
+  `/maintenance`.
+- **Sin parámetro** (entrar a la hoja por el menú o por un enlace viejo) se sigue
+  mostrando **todo**, como antes: nada de lo que ya funcionaba cambia.

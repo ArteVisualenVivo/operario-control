@@ -284,6 +284,37 @@ export default function SparePartOrdersPage() {
     }
   }
 
+  /**
+   * Órdenes que van a la HOJA DE COMPRA cuando se aprieta "🖨️ Lista de compra".
+   *
+   * POR QUÉ EXISTE (reporte del dueño, 30/09/2026: "selecciono 2 órdenes y en la
+   * pantalla de imprimir me aparecen todas"): el botón abría la hoja completa sin
+   * pasarle nada, así que la hoja ignoraba el filtro por fechas, el buscador y la
+   * selección.
+   *
+   * Ahora se imprimen SÓLO los pedidos que están en pantalla: lo TILDADO manda; si
+   * no hay nada tildado, se imprime lo que dejó el filtro (fechas + buscador +
+   * estado + "Ver finalizadas").
+   */
+  const printTargets = useMemo(
+    () => (selectedOrders.size > 0 ? groups.filter((g) => selectedOrders.has(g.key)) : groups),
+    [groups, selectedOrders],
+  )
+
+  /**
+   * Abre la hoja de compra con los pedidos de `printTargets`, identificados por su
+   * id de documento (uno por repuesto). La hoja vuelve a agrupar por N° de orden,
+   * así que muestra exactamente los mismos repuestos que esta tabla.
+   *
+   * El parámetro va SIEMPRE, aunque quede vacío: vacío = "no hay nada que
+   * imprimir". Si no se mandara, la hoja caería en su modo histórico (todas), que
+   * es justo lo que se quiere evitar cuando el filtro no devuelve nada.
+   */
+  const handlePrintList = () => {
+    const ids = [...new Set(printTargets.flatMap((g) => g.ids))]
+    router.push(`/spare-part-orders/print?orders=${ids.map(encodeURIComponent).join(",")}`)
+  }
+
   if (loading) return <p className="text-muted-foreground">Cargando pedidos...</p>
 
   return (
@@ -294,7 +325,14 @@ export default function SparePartOrdersPage() {
           <Button variant="outline" onClick={handleImport} disabled={importing}>
             {importing ? "Importando..." : "📥 Importar repuestos en espera (3C)"}
           </Button>
-          <Button variant="outline" onClick={() => router.push("/spare-part-orders/print")}>
+          <Button
+            variant="outline"
+            onClick={handlePrintList}
+            disabled={printTargets.length === 0}
+            title={printTargets.length < groups.length
+              ? `Imprime sólo las ${printTargets.length} orden(es) que se están viendo (no todo el sistema)`
+              : "Imprime todas las orden(es) que están en pantalla"}
+          >
             🖨️ Lista de compra
           </Button>
         </div>
@@ -381,6 +419,14 @@ export default function SparePartOrdersPage() {
           {selectedOrders.size > 0
             ? `${selectedOrders.size} orden(es) seleccionada(s) · ${selectedPartIds(groups).length} repuesto(s)`
             : `${groups.length} orden(es) · ${visible.length} repuesto(s) con el filtro actual`}
+          {/* La hoja de compra sale SÓLO con lo que se está viendo (o con lo
+              tildado, si hay algo tildado). Se avisa acá porque el botón está
+              arriba: sin este dato parecía que imprimía todo el sistema. */}
+          {printTargets.length < groups.length && (
+            <span className="block text-xs text-amber-700">
+              La lista de compra saldrá sólo con {printTargets.length} de {groups.length} orden(es): lo que se ve en pantalla.
+            </span>
+          )}
         </p>
         <div className="flex gap-2">
           <Button variant="outline" size="sm" onClick={() => setSelectedOrders(new Set())} disabled={selectedOrders.size === 0}>
