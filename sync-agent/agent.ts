@@ -15,6 +15,7 @@ import { parseScaffoldRentals, saveScaffoldRentalStats, type ScaffoldRentalStats
 import { loadInventoryIndexByCodes, syncItems, syncRepairsToMaintenance } from "../src/lib/sync-3c/engine"
 import { writeStockItemsIdempotent, writeMaintenanceStatusesIdempotent } from "../src/lib/sync-3c/firestoreSync"
 import { buildConsolidatedOrders, consolidatedToMaintenanceRecords } from "../src/lib/sync-3c/consolidated"
+import { pruneExportsDir, registerExportFile } from "../src/lib/sync-3c/exportsRetention"
 import {
     saveModuleData,
     removeOutboxItem,
@@ -1058,6 +1059,20 @@ async function runModule(
         deleteExportManifest()               // limpiar manifiesto de una corrida previa
         console.log(`[AGENT] Baseline 3c_exports=${baseline.size}; Temp\\tresc previo=${Object.keys(tempBefore).length}`)
 
+        // ── RETENCIÓN: barrer los Excel que no son el vigente de ningún informe ──
+        // (deja 1 por informe). No borra nada si todavía no hay índice ni archivos
+        // recién creados. Solo disco: no toca Redis ni Firebase.
+        const pruned = await pruneExportsDir({ exportsDir: EXPORTS_DIR, cacheDir: CACHE_DIR })
+        if (pruned.deleted.length > 0) {
+            console.log(`[AGENT] Retención: ${pruned.deleted.length} Excel viejo(s) borrado(s) (queda 1 por informe)`)
+        }
+        if (pruned.unknown.length > 0) {
+            console.log(`[AGENT] Retención: ${pruned.unknown.length} archivo(s) sin clasificar, se conservan`)
+        }
+        if (pruned.skipped) {
+            console.log("[AGENT] Retención: sin índice de informes, no se borra nada (correr scripts/prune-3c-exports.ts)")
+        }
+
         // Pasar commandId + módulo al AHK para que identifique la ejecución
         const ahkStart = Date.now()
         await runAhk(scriptPath, [commandId, module, String(runStart)])
@@ -1066,6 +1081,18 @@ async function runModule(
 
         const latest = await waitForExport(commandId, module, baseline)
         console.log(`[AGENT] Export found: ${latest.name} (mtime ${new Date(latest.mtime).toISOString()})`)
+
+        // ── RETENCIÓN: este Excel pasa a ser el VIGENTE de este informe y se borra
+        // el anterior del MISMO informe (queda 1 por informe) ──
+        const retention = await registerExportFile({
+            exportsDir: EXPORTS_DIR,
+            cacheDir: CACHE_DIR,
+            module,
+            fileName: latest.name,
+        })
+        if (retention.replaced.length > 0) {
+            console.log(`[AGENT] Retención: reemplazado(s) ${retention.replaced.join(", ")} por ${latest.name}`)
+        }
 
         const expStat = fs.statSync(latest.fullPath)
         exportInfo = {

@@ -14,6 +14,8 @@
     "fix:phantom-orders": "npx tsx scripts/cleanup-phantom-spare-orders.ts",
     "verify:spare-orders": "npx tsx scripts/verify-spare-orders-snapshot.ts",
     "verify:part-search": "npx tsx scripts/verify-part-search.ts",
+    "verify:exports-retention": "npx tsx scripts/verify-exports-retention.ts",
+    "prune:3c-exports": "npx tsx scripts/prune-3c-exports.ts",
     "sync-agent": "npx tsx sync-agent/agent.ts",
     "diagnostic": "npx tsx sync-agent/diagnostic-mode.ts"
   },

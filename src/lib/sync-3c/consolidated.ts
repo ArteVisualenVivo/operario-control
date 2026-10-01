@@ -519,6 +519,46 @@ function collapseRepeatedStates(states: ConsolidatedState[]): ConsolidatedState[
   return out
 }
 
+/**
+ * Une la línea de tiempo de estados GUARDADA con la que aportan los Excel de
+ * ESTA corrida, sin duplicar ni perder historia.
+ *
+ * Sólo se AGREGAN los estados que vienen de archivos que no se habían procesado
+ * antes (`sourceFile` fuera de `prev.sourceFiles`). Lo ya observado queda tal
+ * cual estaba guardado, así borrar los Excel viejos (retención de 3C: 1 archivo
+ * por informe) NO pierde cambios de estado: la historia vive en el registro
+ * guardado (Redis), no en los archivos de disco.
+ *
+ * Sin esto, cada corrida reconstruiría la historia sólo con los archivos que
+ * quedan en disco y la retención borraría los cambios de estado viejos.
+ */
+function mergeStatesHistory(
+  prev: MaintenanceRecord | undefined,
+  incoming: ConsolidatedState[],
+): ConsolidatedState[] {
+  const known = new Set(prev?.sourceFiles ?? [])
+  const fresh = incoming.filter((s) => !s.sourceFile || !known.has(s.sourceFile))
+  const base = (prev?.states ?? []) as ConsolidatedState[]
+  return collapseRepeatedStates([...base, ...fresh])
+}
+
+/**
+ * Une los trabajos/repuestos GUARDADOS con los de esta corrida, sin duplicar.
+ * Igual que los estados: son hechos que sólo se AGREGAN, nunca se pisan. Así la
+ * retención no pierde los trabajos que sólo figuraban en un Excel viejo.
+ */
+function mergeWorkItems(prev: MaintenanceRecord | undefined, incoming: string[]): string[] {
+  const out = [...(prev?.workItems ?? [])]
+  const seen = new Set(out.map((w) => w.toLowerCase()))
+  for (const w of incoming) {
+    const key = w.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(w)
+  }
+  return out
+}
+
 export function consolidatedToMaintenanceRecords(
   consolidated: Map<string, OrderConsolidated>,
   existing?: MaintenanceRecord[],
@@ -544,12 +584,16 @@ export function consolidatedToMaintenanceRecords(
       entryDate: prev?.entryDate ?? (rec.entryDate ? new Date(rec.entryDate) : new Date()),
       returnDate: rec.returnDate ? new Date(rec.returnDate) : prev?.returnDate,
       repairDate: rec.repairDate ? new Date(rec.repairDate) : prev?.repairDate,
-      clientName: rec.clientName || prev?.clientName || "",
-      clientCode: rec.clientCode || prev?.clientCode,
-      machineName: rec.machineName || prev?.machineName || "",
+      // Identidad de la orden (cliente, máquina, modelo): una vez aprendida NO se
+      // degrada con una corrida más "flaca" (la retención de 3C deja 1 Excel por
+      // informe, así que la corrida ve menos archivos). Se conserva lo guardado y
+      // sólo se completa lo que faltaba.
+      clientName: prev?.clientName || rec.clientName || "",
+      clientCode: prev?.clientCode || rec.clientCode,
+      machineName: prev?.machineName || rec.machineName || "",
       // DENOMINACION del Excel de Reparaciones copiada TAL CUAL: es la fuente del
       // campo Modelo de Pedidos de repuesto. Nunca se completa con otra columna.
-      machineDenominacion: rec.denominacion ?? prev?.machineDenominacion,
+      machineDenominacion: prev?.machineDenominacion ?? rec.denominacion,
       status: cur?.status || prev?.status || "",
       statusDate: cur?.statusDate ? new Date(cur.statusDate) : prev?.statusDate,
       statusDescription: cur?.statusDescription || prev?.statusDescription,
@@ -557,8 +601,8 @@ export function consolidatedToMaintenanceRecords(
       observations: rec.observations || prev?.observations,
       createdAt: prev?.createdAt ?? (rec.entryDate ? new Date(rec.entryDate) : new Date()),
       updatedAt: new Date(),
-      states: collapseRepeatedStates(rec.states),
-      workItems: rec.workItems,
+      states: mergeStatesHistory(prev, rec.states),
+      workItems: mergeWorkItems(prev, rec.workItems),
       sourceFiles: rec.sourceFiles,
       // Preservar motivo + estado de 3C del parse del Excel de Detalle
       // (necesario para la regla "A la Espera Repuestos" → Pedidos Rep.)
