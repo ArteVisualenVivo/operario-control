@@ -47,3 +47,18 @@ service-account.json
 /local_exports/
 
 .vercel
+
+# Papelones de sesiones de trabajo (capturas de "diff", logs de pruebas a mano):
+# no forman parte del programa. Van por nombre exacto para no tapar nada real.
+/_agent_diff.txt
+/agent_diff_preview.txt
+/diff_agent.txt
+/diff_preview.txt
+/tsc_out.txt
+/sync-agent/agent-manual.log
+/sync-agent/agent-manual.err
+/sync-agent/agent.err
+
+# Copia de respaldo del acceso directo del autostart del agente (se CONSERVA en
+# disco hasta confirmar que el arranque unico es estable; solo se saca de git).
+/startup-backup/
