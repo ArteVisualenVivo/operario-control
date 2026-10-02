@@ -287,15 +287,27 @@ Documento fijo: `maintenance_settings/config`
 | `result` | `object \| null` | Resultado del sync |
 | `error` | `string \| null` | Mensaje de error |
 
-### 2.12 `sync-3c-agent` — Heartbeat del Agente
+### 2.12 `sync-3c-agent` — Heartbeat del Agente (Redis)
 
-Documento fijo: `sync-3c-agent/production`
+Dos keys en Upstash Redis, ambas escritas por `sync-agent/agent.ts`:
+
+| Key | TTL | Semántica |
+|-----|-----|-----------|
+| `sync-3c:agent:production` | 120s | Hay una corrida AHORA (heartbeat cada 30s) |
+| `sync-3c:agent:last-seen` | sin TTL | Última actividad conocida (el agente duerme entre corridas) |
 
 | Campo | Tipo | Notas |
 |-------|------|-------|
-| `lastHeartbeat` | `Timestamp` | Último heartbeat |
-| `status` | `string` | `"idle" \| "running"` |
+| `lastHeartbeat` | `number` (epoch ms) | Último heartbeat |
+| `status` | `string` | `"running" \| "idle" \| "listening"` |
 | `machineName` | `string \| null` | Nombre del PC |
+
+`GET /api/sync-3c/agent-status` combina las dos keys (`evaluateAgentHealth` en
+`src/lib/agentHealth.ts`): `online`/`running` (efímera fresca), `standby` (el
+reporte persistente está dentro de `LAST_SEEN_MAX_AGE_MS` = 26h → el agente está
+en espera), `offline` (>26h sin reportar), `no-key` (nunca reportó) o `error`.
+El semáforo es informativo: **`standby` y `offline` no bloquean** la
+sincronización manual (el agente on-demand se despierta con el click).
 
 ### Relaciones entre colecciones
 
@@ -490,9 +502,9 @@ Ruta: `/dashboard`
 | `src/lib/sync-3c/engine.ts` | Sincroniza items → `inventory_stock` en Firestore (admin SDK) |
 | `src/app/api/sync-3c/route.ts` | Endpoint POST: crea comando en `sync-3c-commands` |
 | `src/app/api/sync-3c/status/route.ts` | Endpoint GET: polling estado del comando |
-| `src/app/api/sync-3c/agent-status/route.ts` | Endpoint GET: heartbeat del agente |
-| `src/components/sync/Sync3CButton.tsx` | Botón UI con indicador de estado y polling |
-| `sync-agent/agent.mjs` | Agente local: escucha comandos, ejecuta AHK, procesa Excel, escribe resultado |
+| `src/app/api/sync-3c/agent-status/route.ts` | Endpoint GET: semáforo del agente (heartbeat efímero + `last-seen`; ver 2.12) |
+| `src/components/sync/Sync3CButton.tsx` | Botón UI con indicador de estado y polling (el semáforo NO bloquea el botón) |
+| `sync-agent/agent.ts` | Agente local on-demand / programado: drena la cola, ejecuta AHK, procesa Excel, escribe resultado + heartbeat |
 | `automation/sync_3c.ahk` | Script AHK: automatiza exportación desde 3C |
 | `scripts/install-auto-sync-tasks.ps1` | Registra el auto-sync programado (10/12/15/17) en el Programador de tareas de Windows |
 | `sync-agent/start-agent-auto.vbs` | Lanzador oculto del modo `--auto` (lo invoca la tarea programada) |

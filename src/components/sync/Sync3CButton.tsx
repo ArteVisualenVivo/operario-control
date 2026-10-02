@@ -10,7 +10,7 @@ import {
 } from "@/lib/sync-3c/syncConfig"
 
 type SyncState = "idle" | "pending" | "running" | "completed" | "error"
-type AgentStatus = "unknown" | "online" | "running" | "offline" | "error"
+type AgentStatus = "unknown" | "online" | "running" | "standby" | "offline" | "error"
 type SyncModule = "stock" | "reparaciones" | "reparaciones_facturadas" | "articulos" | "alquileres" | "todo"
 
 interface Sync3CResult {
@@ -34,8 +34,10 @@ interface CommandStatus {
 
 interface AgentStatusData {
   /** Estado explícito que calcula /api/sync-3c/agent-status. */
-  state?: "online" | "running" | "offline" | "no-key" | "error"
+  state?: "online" | "running" | "standby" | "offline" | "no-key" | "error"
   online: boolean
+  /** El agente puede atender una sync (online/running/en espera). */
+  available?: boolean
   status: string
   machineName: string | null
   lastHeartbeat: string | null
@@ -79,11 +81,15 @@ function formatLastHeartbeat(timestamp: string | null): string {
 function agentIndicator(status: AgentStatus): { dot: string; label: string } {
   switch (status) {
     case "online":
-      return { dot: "\u{1F7E2}", label: "Online" }
+      return { dot: "\u{1F7E2}", label: "Online (corrida reciente)" }
     case "running":
       return { dot: "\u{1F7E1}", label: "Ejecutando" }
+    // On-demand: sin heartbeat efímero (TTL 120s) el agente está DORMIDO,
+    // no caído. Se distingue de "offline" para no bloquear la sincronización.
+    case "standby":
+      return { dot: "\u{1F7E2}", label: "En espera (sin corrida activa)" }
     case "offline":
-      return { dot: "\u{1F534}", label: "Offline" }
+      return { dot: "\u{1F534}", label: "Offline (sin actividad reciente)" }
     // Error al CONSULTAR el indicador (fetch/HTTP/Redis/formato): no significa
     // que el agente esté detenido, por eso se distingue de "offline".
     case "error":
@@ -159,9 +165,16 @@ export default function Sync3CButton({
       setAgentData(data)
       setAgentIssue(data.reason ?? data.error ?? null)
 
-      // El endpoint devuelve `state` explícito (online | running | offline | no-key | error).
+      // El endpoint devuelve `state` explícito (online | running | standby |
+      // offline | no-key | error). "standby" = el agente on-demand duerme entre
+      // corridas: cuenta como disponible, NO como offline.
       if (data.state) {
-        if (data.state === "online" || data.state === "running") setAgentStatus(data.state)
+        if (
+          data.state === "online" ||
+          data.state === "running" ||
+          data.state === "standby"
+        )
+          setAgentStatus(data.state)
         else if (data.state === "offline" || data.state === "no-key") setAgentStatus("offline")
         else setAgentStatus("error")
         return
@@ -316,6 +329,10 @@ export default function Sync3CButton({
           console.log("[SYNC] Agent started:", startData.message)
         } else {
           console.warn("[SYNC] Agent start failed:", startData.error)
+          // El agente solo lo puede despertar la PC de 3C (spawn local). Si la
+          // web corre en un host remoto (Vercel) el comando queda en cola: se
+          // avisa en vez de esperar en silencio a que venza el timeout.
+          if (startData.error) toast.warning(startData.error)
         }
       } catch (startErr) {
         console.warn("[SYNC] Could not start agent (may be running):", startErr)
@@ -412,10 +429,14 @@ export default function Sync3CButton({
 
   const agentInfo = agentIndicator(agentStatus)
   const isBusy = state === "pending" || state === "running"
-  // Solo se bloquea si el agente está confirmadamente offline. Un ERROR al
-  // consultar el indicador no debe inutilizar el botón de sincronización.
+  // El semáforo es INFORMATIVO, nunca un candado. El agente es on-demand:
+  // entre corridas no hay heartbeat fresco, y deshabilitar el botón por eso
+  // dejaba la web sin salida (no se podía sincronizar nunca justo cuando el
+  // agente está dormido). Si el agente no está disponible se AVISA abajo y el
+  // comando queda en cola para la próxima corrida programada (10/12/15/17).
+  const agentAvailable = agentStatus !== "offline" && agentStatus !== "error"
   const hasSelection = selectedModules.length > 0
-  const disabled = isBusy || agentStatus === "offline" || !configLoaded || !hasSelection
+  const disabled = isBusy || !configLoaded || !hasSelection
   const selectionLabel = !configLoaded
     ? "Cargando módulos…"
     : hasSelection
@@ -485,6 +506,13 @@ export default function Sync3CButton({
         <Button variant="outline" size={size} onClick={retry}>
           Reintentar
         </Button>
+      )}
+
+      {state === "idle" && !agentAvailable && (
+        <span className="text-xs text-muted-foreground">
+          El agente no está disponible ahora: la sincronización quedará en cola hasta la próxima
+          corrida programada (10/12/15/17).
+        </span>
       )}
     </div>
   )

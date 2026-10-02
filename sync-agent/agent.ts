@@ -85,6 +85,52 @@ function isUndefinedValueError(err: unknown): boolean {
 
 const LOCK_FILE = "C:\\Users\\Cesar\\Desktop\\operario-control\\sync-agent\\.agent.lock"
 
+// ================================================================
+// HEARTBEAT DEL AGENTE (semaforo de la web)
+// ================================================================
+// El agente es on-demand: vive solo durante una corrida. Por eso se escriben
+// DOS keys en cada heartbeat:
+//   1) `sync-3c:agent:production`  (TTL 120s) -> "hay una corrida AHORA":
+//      la web muestra "Ejecutando" / "Online".
+//   2) `sync-3c:agent:last-seen`   (SIN TTL)  -> ultima actividad conocida:
+//      entre corridas la web muestra "En espera" en vez de un falso
+//      "Offline" (el agente DUERME, no esta caido). Sin esta key la web
+//      bloqueaba el boton de sincronizar todo el tiempo entre corridas.
+const HEARTBEAT_KEY = "sync-3c:agent:production"
+const LAST_SEEN_KEY = "sync-3c:agent:last-seen"
+/** TTL del heartbeat efimero: sin renovacion en 120s no hay corrida activa. */
+const HEARTBEAT_TTL_SECONDS = 120
+
+/** Estados que el agente reporta al escribir el heartbeat. */
+type HeartbeatStatus = "running" | "idle" | "listening"
+
+/**
+ * Escribe el heartbeat efimero + el registro persistente de ultima actividad.
+ * Nunca lanza: un fallo de heartbeat no debe tumbar una corrida.
+ */
+async function writeHeartbeat(redis: Redis, status: HeartbeatStatus): Promise<void> {
+    const payload = JSON.stringify({
+        status,
+        lastHeartbeat: Date.now(),
+        machineName: MACHINE_NAME,
+    })
+    try {
+        await redis.set(HEARTBEAT_KEY, payload, { ex: HEARTBEAT_TTL_SECONDS })
+    } catch {
+        /* ignore */
+    }
+    try {
+        await redis.set(LAST_SEEN_KEY, payload)
+    } catch {
+        /* ignore */
+    }
+}
+
+/** Variante fire-and-forget (intervalos periodicos: no se espera la respuesta). */
+function writeHeartbeatAsync(redis: Redis, status: HeartbeatStatus): void {
+    void writeHeartbeat(redis, status)
+}
+
 // ============================================================================
 // CONTROL DE CUOTA FIREBASE (plan Spark gratis) + CACHÉ DE ÍNDICE COMPARTIDO
 // ============================================================================
@@ -1102,12 +1148,8 @@ async function runModule(
             agent: MACHINE_NAME,
         })
 
-        // Heartbeat running
-        await redis.set("sync-3c:agent:production", JSON.stringify({
-            status: "running",
-            lastHeartbeat: Date.now(),
-            machineName: MACHINE_NAME,
-        }), { ex: 120 })
+        // Heartbeat running (+ registro persistente de ultima actividad)
+        await writeHeartbeat(redis, "running")
 
         console.log(`[AGENT] Processing command ${commandId} [module: ${module}]`)
 
@@ -1839,16 +1881,8 @@ async function startAgentListener() {
         running = false
         console.log(`[AGENT] Shutting down listener...`)
 
-        // Heartbeat idle antes de salir
-        try {
-            redis.set("sync-3c:agent:production", JSON.stringify({
-                status: "idle",
-                lastHeartbeat: Date.now(),
-                machineName: MACHINE_NAME,
-            }), { ex: 120 }).catch(() => {})
-        } catch {
-            // ignore
-        }
+        // Heartbeat idle antes de salir (efimero + persistente)
+        writeHeartbeatAsync(redis, "idle")
 
         releaseSingletonLock()
         logStream.end()
@@ -1865,11 +1899,7 @@ async function startAgentListener() {
     setInterval(async () => {
         if (!running) return
         try {
-            await redis.set("sync-3c:agent:production", JSON.stringify({
-                status: "listening",
-                lastHeartbeat: Date.now(),
-                machineName: MACHINE_NAME,
-            }), { ex: 120 })
+            await writeHeartbeat(redis, "listening")
         } catch (err) {
             console.error(`[AGENT] Heartbeat error:`, err)
         }
@@ -1982,20 +2012,12 @@ async function runScheduledAutoSync(): Promise<void> {
     acquireSingletonLock()
 
     const heartbeat = setInterval(() => {
-        redis.set("sync-3c:agent:production", JSON.stringify({
-            status: "running",
-            lastHeartbeat: Date.now(),
-            machineName: MACHINE_NAME,
-        }), { ex: 120 }).catch(() => { /* ignore */ })
+        writeHeartbeatAsync(redis, "running")
     }, HEARTBEAT_INTERVAL_MS)
     heartbeat.unref()
 
     try {
-        await redis.set("sync-3c:agent:production", JSON.stringify({
-            status: "running",
-            lastHeartbeat: Date.now(),
-            machineName: MACHINE_NAME,
-        }), { ex: 120 })
+        await writeHeartbeat(redis, "running")
 
         if (!(await waitFor3C())) {
             console.log("[AGENT] Auto-sync descartado: 3C no está abierto.")
@@ -2012,13 +2034,7 @@ async function runScheduledAutoSync(): Promise<void> {
         console.error("[AGENT] Auto-sync error:", err)
     } finally {
         clearInterval(heartbeat)
-        try {
-            await redis.set("sync-3c:agent:production", JSON.stringify({
-                status: "idle",
-                lastHeartbeat: Date.now(),
-                machineName: MACHINE_NAME,
-            }), { ex: 120 })
-        } catch { /* ignore */ }
+        await writeHeartbeat(redis, "idle")
         releaseSingletonLock()
         console.log("[AGENT] AUTO-SYNC: corrida programada finalizada, saliendo")
         process.exit(0)
@@ -2075,11 +2091,7 @@ async function main() {
     // la web (TTL 120s) durante corridas largas (AHK ~100s × N módulos). Se
     // limpia en el `finally` del pipeline.
     const heartbeat = setInterval(() => {
-        redis.set("sync-3c:agent:production", JSON.stringify({
-            status: "running",
-            lastHeartbeat: Date.now(),
-            machineName: MACHINE_NAME,
-        }), { ex: 120 }).catch(() => { /* ignore */ })
+        writeHeartbeatAsync(redis, "running")
     }, 30_000)
     heartbeat.unref()
 
@@ -2160,12 +2172,8 @@ async function main() {
     }
     
     try {
-        // Heartbeat inicial
-        await redis.set("sync-3c:agent:production", JSON.stringify({
-            status: "running",
-            lastHeartbeat: Date.now(),
-            machineName: MACHINE_NAME,
-        }), { ex: 120 })
+        // Heartbeat inicial (efimero + persistente)
+        await writeHeartbeat(redis, "running")
 
         // Procesar cada módulo del pipeline
         // Cada módulo carga su propio inventoryIndex optimizado con los códigos del Excel
@@ -2188,12 +2196,8 @@ async function main() {
         // ============================================================
         await drainQueue(redis)
 
-        // Heartbeat final (idle)
-        await redis.set("sync-3c:agent:production", JSON.stringify({
-            status: "idle",
-            lastHeartbeat: Date.now(),
-            machineName: MACHINE_NAME,
-        }), { ex: 120 })
+        // Heartbeat final (idle: efimero + persistente)
+        await writeHeartbeat(redis, "idle")
 
         console.log(`[AGENT] ON-DEMAND: Pipeline completed, exiting`)
     } catch (err) {

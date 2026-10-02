@@ -112,6 +112,25 @@ export async function POST(request: Request) {
             return NextResponse.json({ success: false, error: "commandId es requerido" }, { status: 400 })
         }
 
+        // =========================================================
+        // SOLO LA PC DE 3C PUEDE DESPERTAR AL AGENTE
+        // ---------------------------------------------------------
+        // `spawn("npx", ...)` lanza un proceso LOCAL. En Vercel (o en
+        // cualquier host remoto) eso no puede funcionar: no existe el repo ni
+        // tsx. Se avisa explícito en vez de fallar en silencio, así la web
+        // puede decirle al usuario que el comando quedó en cola para la
+        // próxima corrida programada (10/12/15/17).
+        // =========================================================
+        if (process.env.VERCEL) {
+            return NextResponse.json({
+                success: false,
+                remote: true,
+                error:
+                    "El agente no se puede iniciar desde este sitio (host remoto): solo la PC de 3C puede lanzarlo. " +
+                    "La sincronización quedó en cola y se ejecutará en la próxima corrida programada.",
+            })
+        }
+
         // ============================================================
         // HARD STOP DE INSTANCIAS VIEJAS
         // ------------------------------------------------------------

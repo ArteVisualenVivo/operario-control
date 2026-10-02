@@ -9,8 +9,14 @@ export const runtime = "nodejs"
 // La ruta consulta Redis en cada request: nunca debe servir una respuesta cacheada.
 export const dynamic = "force-dynamic"
 
-/** Key del heartbeat del agente (la escribe sync-agent/agent.ts). NO cambiar. */
+/** Key del heartbeat EFÍMERO del agente (TTL 120s). La escribe sync-agent/agent.ts. NO cambiar. */
 const HEARTBEAT_KEY = "sync-3c:agent:production"
+
+/**
+ * Key PERSISTENTE (SIN TTL): última actividad del agente. Permite distinguir
+ * "el agente duerme entre corridas" (on-demand) de "la PC está apagada".
+ */
+const LAST_SEEN_KEY = "sync-3c:agent:last-seen"
 
 function getRedis() {
   return new Redis({
@@ -35,7 +41,10 @@ export async function GET() {
   try {
     const redis = getRedis()
     const raw = await redis.get(HEARTBEAT_KEY)
-    const health = evaluateAgentHealth(raw)
+    // Reporte persistente (sin TTL): distingue "agente dormido" (on-demand)
+    // de "PC apagada" sin convertir el semáforo en un falso rojo.
+    const lastSeenRaw = await redis.get(LAST_SEEN_KEY)
+    const health = evaluateAgentHealth(raw, Date.now(), lastSeenRaw)
 
     if (health.state === "no-key" || health.state === "error") {
       console.error(
@@ -53,6 +62,7 @@ export async function GET() {
     return NextResponse.json({
       state: "error" as AgentHealthState,
       online: false,
+      available: false,
       status: "error",
       machineName: null,
       lastHeartbeat: null,

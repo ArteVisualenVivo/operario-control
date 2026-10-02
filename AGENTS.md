@@ -218,8 +218,15 @@ el instalador con `-Hours`**; NO basta con editar `AUTO_SYNC_HOURS` en `agent.ts
    La corrida programada ESPERA el carril (`waitForSingletonLock`) en vez de pisar.
 4. **Drena la cola antes de salir.** Todo comando `pending` se procesa aunque no
    venga en argv (la web encola TODOS los commandIds).
-5. **Heartbeat durante la corrida.** Intervalo 30s, TTL 120s (`sync-3c:agent:production`),
-   limpiado en el `finally` (el indicador de la web no se cae en corridas largas).
+5. **Heartbeat en DOS keys.** Durante la corrida, cada 30s:
+   - `sync-3c:agent:production` (TTL 120s) = "hay corrida AHORA" → 🟢/🟡 en la web.
+     Se renueva en el `finally` (el indicador no se cae en corridas largas).
+   - `sync-3c:agent:last-seen` (SIN TTL) = última actividad conocida → entre
+     corridas la web muestra 🟢 "En espera" (`standby`), no un falso 🔴 Offline.
+   El semáforo es **informativo y NUNCA deshabilita** el botón de sincronizar
+   (con el agente on-demand, bloquear por "offline" dejaba la web sin salida).
+   Solo con >26h sin reportar (`LAST_SEEN_MAX_AGE_MS`) se muestra "Offline" y el
+   aviso de que el comando esperará a la próxima corrida programada.
 6. **`start-agent-windows.vbs` es un no-op.** El arranque al iniciar sesión se
    eliminó: la agenda la manda la tarea programada de Windows.
 
