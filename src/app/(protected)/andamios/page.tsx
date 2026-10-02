@@ -15,8 +15,10 @@ import { loadScaffoldRentalStats, type ScaffoldRentalStats, type PuntalAlquilado
 import { SearchInput } from "@/components/ui/SearchInput"
 import {
   computeScaffoldTotals,
+  estimateScaffoldTotalFromStock,
   SCAFFOLD_ROW_LABELS,
   type ScaffoldRowKey,
+  type ScaffoldStockLike,
 } from "@/lib/scaffoldTotals"
 import { toast } from "sonner"
 
@@ -74,6 +76,10 @@ function normalizeText(value: string): string {
 
 export default function AndamiosPage() {
   const { items: stockItems, loading: stockLoading } = useInventoryStock()
+  // Existencia de 3C leída EN VIVO desde la fuente primaria (Redis), para no
+  // depender de la cuota de Firestore. Se usa para AUTOCARGAR el total físico.
+  const [stock3C, setStock3C] = useState<ScaffoldStockLike[]>([])
+  const [stock3CLoaded, setStock3CLoaded] = useState(false)
   const router = useRouter()
   const appliedQueryParam = useRef(false)
 
@@ -151,30 +157,47 @@ export default function AndamiosPage() {
     return () => { cancelled = true }
   }, [])
 
-  // Estimación inicial del total físico con el stock disponible de 3C (solo si
-  // todavía no se cargó ningún total). El usuario la corrige con el conteo real.
-  const totals3C = useMemo(() => {
-    const estructuras = stockItems
-      .filter((item) => ["A03", "A04", "A07", "28501", "28601"].includes((item.codigo ?? "").trim()))
-      .reduce((sum, item) => sum + item.stockAvailable, 0)
-    const riendasLargas = stockItems
-      .filter((item) => ["R02", "R04"].includes((item.codigo ?? "").trim()))
-      .reduce((sum, item) => sum + item.stockAvailable, 0)
-    const riendasCortas = stockItems
-      .filter((item) => ["R01", "R03"].includes((item.codigo ?? "").trim()))
-      .reduce((sum, item) => sum + item.stockAvailable, 0)
-    const tablones = stockItems.filter((item) => item.name === "Tablones").reduce((sum, item) => sum + item.stockAvailable, 0)
-    return { estructuras, riendasLargas, riendasCortas, tablones }
-  }, [stockItems])
+  // Existencia de 3C (fuente primaria Redis). Permite estimar el total físico
+  // automáticamente. Si Redis no responde, se cae al inventario de Firestore.
+  useEffect(() => {
+    let cancelled = false
+    fetch("/api/sync-3c/data/stock", { cache: "no-store" })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((body) => {
+        if (cancelled) return
+        if (body?.available && Array.isArray(body.data)) {
+          setStock3C(body.data as ScaffoldStockLike[])
+        }
+        setStock3CLoaded(true)
+      })
+      .catch(() => { if (!cancelled) setStock3CLoaded(true) })
+    return () => { cancelled = true }
+  }, [])
+
+  // Fuente para la estimación: preferimos la existencia viva de 3C (Redis).
+  const estimateSource = useMemo<ScaffoldStockLike[]>(
+    () => (stock3C.length > 0 ? stock3C : (stockItems as ScaffoldStockLike[])),
+    [stock3C, stockItems],
+  )
+
+  // TOTAL FÍSICO auto-estimado. La existencia de 3C YA VIENE NETA de alquileres
+  // (los alquilados se registran como negativo en el depósito principal), por eso
+  // el físico propio = existencia + alquilados. Así el disponible calculado
+  // (max(0, total − alquilados)) coincide con la existencia real de 3C.
+  const totalEstimate = useMemo(
+    () => estimateScaffoldTotalFromStock(estimateSource, alquiladosResumen),
+    [estimateSource, alquiladosResumen],
+  )
 
   // Ref: la carga del total físico corre una sola vez.
   const totalInitDone = useRef(false)
 
-  // Carga del TOTAL FÍSICO. Espera a tener el stock y los alquilados para poder
-  // migrar el depósito viejo: total = depósito viejo + alquilados actuales.
+  // Carga del TOTAL FÍSICO. Espera a tener la existencia de 3C y los alquilados
+  // para poder auto-estimar el físico propio. Si ya hay un total guardado
+  // (manual), se respeta; si no, se AUTOCARGA desde 3C.
   useEffect(() => {
     if (totalInitDone.current) return
-    if (stockLoading || !alquiladosLoaded) return
+    if (stockLoading || !alquiladosLoaded || !stock3CLoaded) return
     totalInitDone.current = true
     let cancelled = false
     fetch("/api/andamios/deposito", { cache: "no-store" })
@@ -203,13 +226,10 @@ export default function AndamiosPage() {
             setTotalSource("saved")
           }
         } else {
-          // Sin total cargado: se usa el stock de 3C como estimación inicial.
-          setTotalFisico({
-            modulos: totals3C.estructuras,
-            riendasLargas: totals3C.riendasLargas,
-            riendasCortas: totals3C.riendasCortas,
-            tablones: totals3C.tablones,
-          })
+          // Sin total cargado: AUTOCARGA del total físico desde la existencia de
+          // 3C (todas las filas). La existencia ya viene neta de alquileres, así
+          // que el total físico propio = existencia + alquilados.
+          setTotalFisico({ ...totalEstimate })
           setTotalSource("estimate")
           setTotalDirty(true)
         }
@@ -218,7 +238,7 @@ export default function AndamiosPage() {
       .catch(() => { if (!cancelled) setTotalLoaded(true) })
     return () => { cancelled = true }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stockLoading, alquiladosLoaded])
+  }, [stockLoading, alquiladosLoaded, stock3CLoaded])
 
   const controlRows = useMemo(
     () => computeScaffoldTotals(alquiladosResumen, totalFisico),
@@ -261,6 +281,16 @@ export default function AndamiosPage() {
     }
   }
   // ---- fin control de stock ----
+
+  // Recalcula el TOTAL FÍSICO desde la existencia actual de 3C. Útil cuando ya
+  // había un total guardado o cuando se sincronizó stock nuevo. No guarda en el
+  // servidor: deja los valores en pantalla y marca "dirty" para revisar/guardar.
+  const handleRecalcFrom3C = () => {
+    setTotalFisico({ ...totalEstimate })
+    setTotalSource("estimate")
+    setTotalDirty(true)
+    toast.success("Físico recalculado desde 3C (revisá y guardá)")
+  }
 
   // Catálogo visible: solo andamios y accesorios (sin máquinas).
   // El buscador de esta página opera sobre remitos 3C (clienteSearch);
@@ -516,15 +546,26 @@ export default function AndamiosPage() {
       <section className="rounded-lg border p-4 bg-card space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div>
-            <h2 className="text-lg font-semibold">Total físico (carga única)</h2>
+            <h2 className="text-lg font-semibold">Total físico (autocompletado desde 3C)</h2>
             <p className="text-sm text-muted-foreground">
-              Cargá cuánto stock físico real tenés de cada artículo. El disponible se
-              calcula solo: <span className="font-medium">disponible = total − alquilados</span>.
+              Se autocompleta con la existencia de 3C (existencia + alquilados = físico
+              propio). Corregí con el conteo real si hace falta. El disponible se calcula
+              solo: <span className="font-medium">disponible = max(0, total − alquilados)</span>.
             </p>
           </div>
-          <Button onClick={handleSaveTotal} disabled={savingTotal || !totalLoaded}>
-            {savingTotal ? "Guardando..." : "Guardar total"}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleRecalcFrom3C}
+              disabled={!totalLoaded || !stock3CLoaded}
+              title="Vuelve a tomar la existencia actual de 3C y recalcula el físico propio (existencia + alquilados)"
+            >
+              Recalcular desde 3C
+            </Button>
+            <Button onClick={handleSaveTotal} disabled={savingTotal || !totalLoaded}>
+              {savingTotal ? "Guardando..." : "Guardar total"}
+            </Button>
+          </div>
         </div>
 
         {totalSource === "migrated" && (
@@ -535,8 +576,9 @@ export default function AndamiosPage() {
         )}
         {totalSource === "estimate" && (
           <p className="text-xs rounded-md border border-amber-300 bg-amber-50 text-amber-700 px-3 py-2">
-            ⚠ Todavía no hay total físico cargado: se usó el stock disponible de 3C como
-            estimación inicial. Revisá con el conteo físico y guardá.
+            ⚠ No había total físico cargado: se AUTOCARGÓ desde la existencia de 3C
+            (existencia + alquilados = físico propio). Revisá con el conteo físico y guardá
+            para fijarlo. Usá &quot;Recalcular desde 3C&quot; para volver a tomarlo.
           </p>
         )}
 

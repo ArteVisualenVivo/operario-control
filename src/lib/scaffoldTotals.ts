@@ -137,3 +137,112 @@ export function computeScaffoldTotals(
 
   return { rows, juegos }
 }
+
+// =============================================================================
+// ESTIMACIÓN AUTOMÁTICA DEL TOTAL FÍSICO A PARTIR DE LA EXISTENCIA DE 3C
+// -----------------------------------------------------------------------------
+// HALLAZGO VERIFICADO contra los Excel reales de 3C (Existencias por depósito,
+// 2026-10): las unidades ALQUILADAS no aparecen como una cantidad positiva
+// propia. 3C las registra como NEGATIVO en el depósito principal (1) y POSITIVO
+// en el depósito de alquileres (3), de modo que al SUMAR todos los depósitos
+// (lo que ya hace parser.ts) la existencia queda NETA de alquileres.
+//   Ejemplos reales tomados del export:
+//     28501 ANDAMIOS PASILLEROS  → dep1 −20 + dep3 +20 = 0
+//     28601 ANDAMIOS 1,3 X 3     → dep1 −41 + dep3 +41 = 0
+//     a03/a04 Juego de andamio   → dep1 25          = 25 (sin alquilar)
+// Por lo tanto:
+//   existencia3C (= stockTotal/stockAvailable) = físico en depósito = DISPONIBLE
+//   TOTAL FÍSICO PROPIO = existencia3C + alquilados3C
+// Esto permite AUTOCARGAR el total físico: ya no hace falta contar a mano.
+// =============================================================================
+
+export interface ScaffoldStockLike {
+  /** Código 3C del artículo (columna ARTICULO del Excel de existencias). */
+  codigo?: string
+  /** Descripción del artículo. */
+  name: string
+  /** Existencia neta (ya descuenta alquileres). Si falta, se usa stockTotal. */
+  stockAvailable?: number
+  stockTotal?: number
+}
+
+// Códigos 3C usados por la clasificación (mismos que scaffoldRentals.ts).
+const MODULE_CODES = ["A03", "A04", "A07", "28601"]
+const PASILLERO_CODES = ["28501"]
+const PLANK_CODES = ["TA02", "TA03", "28901", "29001", "29101", "29201"]
+const WHEEL_SET_CODES = ["29601"]
+const WHEEL_BRAKE_CODES = ["29501"]
+const WHEEL_NOBRAKE_CODES = ["N7-1", "N71"]
+
+const PUNTAL_BY_CODE: Record<string, ScaffoldRowKey> = {
+  "28510": "puntalBarovo",
+  "28318": "puntalMarron",
+  "28511": "puntalNaranja",
+  "28512": "puntalLargo380",
+  PH305: "puntalMmq",
+}
+
+/** Clasifica un artículo de 3C en una fila de andamios (o null si no aplica). */
+function classifyStockRow(codigo: string, name: string): ScaffoldRowKey | null {
+  const c = (codigo ?? "").trim().toUpperCase()
+  const d = (name ?? "").toUpperCase()
+  const has = (list: string[]) => list.includes(c)
+
+  // Puntales (por código).
+  if (PUNTAL_BY_CODE[c]) return PUNTAL_BY_CODE[c]
+
+  // Ruedas.
+  if (has(WHEEL_SET_CODES)) return "juegosRuedas"
+  if (has(WHEEL_BRAKE_CODES) || d.includes("C/FRENO") || d.includes("CON FRENO")) return "ruedasConFreno"
+  if (has(WHEEL_NOBRAKE_CODES) || (d.includes("RUEDA") && !d.includes("FRENO"))) return "ruedasSinFreno"
+
+  // Tablones.
+  if (has(PLANK_CODES) || d.includes("TABLON")) return "tablones"
+
+  // Riendas.
+  if (c === "R02" || c === "R04") return "riendasLargas"
+  if (c === "R01" || c === "R03") return "riendasCortas"
+
+  // Paños (módulos) comunes y pasilleros.
+  if (has(PASILLERO_CODES) || d.includes("PASILLERO") || d.includes("PASILLO")) return "pasilleros"
+  if (has(MODULE_CODES) || d.includes("ANDAMIO")) return "modulos"
+
+  return null
+}
+
+/**
+ * Suma la existencia de 3C por fila de andamios. La existencia ya viene neta de
+ * alquileres (ver nota de arriba), por lo que representa el DISPONIBLE.
+ */
+export function estimateScaffoldExistenciaFromStock(
+  items: ScaffoldStockLike[] | null | undefined,
+): Partial<Record<ScaffoldRowKey, number>> {
+  const out: Partial<Record<ScaffoldRowKey, number>> = {}
+  for (const item of items ?? []) {
+    if (!item) continue
+    const key = classifyStockRow(item.codigo ?? "", item.name ?? "")
+    if (!key) continue
+    const qty = num(item.stockAvailable ?? item.stockTotal ?? 0)
+    out[key] = (out[key] ?? 0) + qty
+  }
+  return out
+}
+
+/**
+ * Estima el TOTAL FÍSICO propio por fila usando la existencia de 3C como base.
+ * Como la existencia de 3C ya descuenta los alquilados, se les vuelve a sumar:
+ *   totalFisico = existencia3C + alquilados3C
+ * Así el disponible calculado (max(0, total − alquilados)) coincide con la
+ * existencia real que informa 3C.
+ */
+export function estimateScaffoldTotalFromStock(
+  items: ScaffoldStockLike[] | null | undefined,
+  alquilados?: Partial<Record<ScaffoldRowKey, number>> | null,
+): Partial<Record<ScaffoldRowKey, number>> {
+  const out: Partial<Record<ScaffoldRowKey, number>> = { ...estimateScaffoldExistenciaFromStock(items) }
+  for (const key of Object.keys(SCAFFOLD_ROW_LABELS) as ScaffoldRowKey[]) {
+    const a = num(alquilados?.[key])
+    if (a > 0) out[key] = (out[key] ?? 0) + a
+  }
+  return out
+}
