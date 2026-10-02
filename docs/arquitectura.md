@@ -48,8 +48,8 @@ operario-control/
 ├── automation/
 │   └── sync_3c.ahk          # Script AutoHotkey que automatiza 3C
 ├── automation-watcher/      # Archivos exportados por 3C
-├── scripts/                 # CLI scripts (seed, audit, cleanup)
-├── start-agent.vbs          # Inicia agente oculto en Windows
+├── scripts/                 # CLI scripts (seed, audit, cleanup) + install-auto-sync-tasks.ps1
+├── start-agent-windows.vbs  # NO-OP: el agente no se auto-inicia con Windows
 ├── set-time.ps1             # Script de sincronización horaria
 ├── docs/                    # Documentación
 └── package.json             # Dependencias y scripts
@@ -494,7 +494,9 @@ Ruta: `/dashboard`
 | `src/components/sync/Sync3CButton.tsx` | Botón UI con indicador de estado y polling |
 | `sync-agent/agent.mjs` | Agente local: escucha comandos, ejecuta AHK, procesa Excel, escribe resultado |
 | `automation/sync_3c.ahk` | Script AHK: automatiza exportación desde 3C |
-| `start-agent.vbs` | Lanzador oculto del agente en Windows |
+| `scripts/install-auto-sync-tasks.ps1` | Registra el auto-sync programado (10/12/15/17) en el Programador de tareas de Windows |
+| `sync-agent/start-agent-auto.vbs` | Lanzador oculto del modo `--auto` (lo invoca la tarea programada) |
+| `start-agent-windows.vbs` | NO-OP: no se auto-inicia con Windows; el manual va on-demand desde la web y el automático por la tarea programada |
 
 ### Endpoints involucrados
 

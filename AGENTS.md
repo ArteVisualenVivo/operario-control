@@ -160,3 +160,76 @@ Nuevo: módulo REMITOS
   → UI lee rentals desde Redis o Firestore
 ```
 <!-- END:auditoria-migracion-redis -->
+
+<!-- BEGIN:ciclo-agente-on-demand -->
+# Ciclo de vida del agente 3C: MANUAL (on-demand) + AUTOMÁTICO (programado)
+
+**Regla:** `sync-agent/agent.ts` NUNCA corre como servicio permanente. Se
+**despierta** de dos formas y SIEMPRE termina solo:
+
+| Modo | Quién lo lanza | Comando |
+|---|---|---|
+| **manual** | Click en "Sincronizar" (web) | `npx tsx sync-agent/agent.ts <commandId> <module> [autoEnqueued...]` |
+| **auto** | Programador de tareas de Windows (10/12/15/17) | `npx tsx sync-agent/agent.ts --auto` |
+| listener | Manual, solo debug | `npx tsx sync-agent/agent.ts --listener` (no lo usa nadie automáticamente) |
+
+## Manual
+
+```
+UI (click "Sincronizar")
+  → POST /api/sync-3c            → HSET sync-3c:command:{id} + LPUSH sync-3c:queue
+  → POST /api/sync-3c/start-agent
+        1. lista procesos node cuyo command line contiene `sync-agent/agent.ts`
+        2. si hay un agente vivo DUEÑO del lock (.agent.lock) → alreadyRunning (no lo toca)
+        3. procesos huérfanos (vivos, sin lock válido) → taskkill /PID <pid> /T /F  (hard stop)
+        4. elimina el lock stale
+        5. spawn detached: npx tsx sync-agent/agent.ts <commandId> <module> [autoEnqueued...]
+  → agente: acquireSingletonLock → pipeline(argv) → DRENA la cola FIFO → process.exit(0)
+```
+
+El mismo endpoint acepta `{ "mode": "auto" }` para pedir a mano una corrida
+programada (no requiere `commandId`).
+
+## Automático (horario programado)
+
+```
+Programador de tareas de Windows (10/12/15/17 → tarea `operario-control-auto-sync`)
+  → scripts/install-auto-sync-tasks.ps1      (instala/actualiza; idempotente)
+  → wscript sync-agent/start-agent-auto.vbs  (oculto)
+  → sync-agent/start-agent-auto.bat
+  → npx tsx sync-agent/agent.ts --auto
+  → espera el carril libre (hasta 45 min) → espera a 3C (hasta 5 min)
+  → drena la cola manual → corre el pipeline de `sync-3c:sync-config`
+  → drena otra vez → process.exit(0)
+```
+
+`-StartWhenAvailable` (corre al encenderse si la PC estaba apagada) y
+`-WakeToRun` (despierta la PC del suspenso). **Cambiar el horario = re-ejecutar
+el instalador con `-Hours`**; NO basta con editar `AUTO_SYNC_HOURS` en `agent.ts`
+(esa constante solo la usa el modo `--listener`).
+
+## Invariantes (no romper)
+
+1. **Nunca hay servicio permanente.** Solo se vuelve a servicio con `--listener` explícito.
+2. **El agente siempre termina.** Manual: drena la cola (2 chequeos de 3s) y sale.
+   Auto: corre el pipeline, drena y sale.
+3. **Un solo agente.** Lock por PID + hard stop de huérfanos en cada arranque. No
+   deben quedar procesos `node.exe` con `sync-agent/agent.ts` después de una corrida.
+   La corrida programada ESPERA el carril (`waitForSingletonLock`) en vez de pisar.
+4. **Drena la cola antes de salir.** Todo comando `pending` se procesa aunque no
+   venga en argv (la web encola TODOS los commandIds).
+5. **Heartbeat durante la corrida.** Intervalo 30s, TTL 120s (`sync-3c:agent:production`),
+   limpiado en el `finally` (el indicador de la web no se cae en corridas largas).
+6. **`start-agent-windows.vbs` es un no-op.** El arranque al iniciar sesión se
+   eliminó: la agenda la manda la tarea programada de Windows.
+
+## Verificación manual
+
+```powershell
+npx tsx sync-agent/agent.ts            # debe salir solo (~8s) con exit 0
+npx tsx sync-agent/agent.ts --auto     # corrida programada a mano (requiere 3C abierto)
+Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'sync-agent[\\/]agent\.ts' }
+Test-Path sync-agent/.agent.lock       # False
+Get-ScheduledTask -TaskName operario-control-auto-sync | Select-Object TaskName, State
+```
+<!-- END:ciclo-agente-on-demand -->

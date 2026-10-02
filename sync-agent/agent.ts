@@ -97,6 +97,11 @@ const DAILY_READ_LIMIT = 45000               // margen bajo el tope Spark (50K)
 
 // Horario de sincronización automática (hora local). Fuera de estas horas
 // el agente NO corre sync automático (solo heartbeat / cola manual).
+//
+// ⚠️ Esta lista la usa SOLO el modo `--listener` (debug). La agenda REAL del
+// modo automático es la tarea programada de Windows (10/12/15/17 por defecto):
+// ver `scripts/install-auto-sync-tasks.ps1`. Si se cambian las horas hay que
+// actualizar la tarea (parámetro -Hours), no solo esta constante.
 const AUTO_SYNC_HOURS = [10, 12, 15, 17]
 
 let sharedInventoryIndex: Map<string, { id: string; data: Record<string, unknown> }> | null = null
@@ -443,6 +448,42 @@ function releaseSingletonLock() {
         const message = err instanceof Error ? err.message : String(err)
         console.error("[AGENT] Failed to release singleton lock:", message)
     }
+}
+
+/**
+ * PID dueño del lock (o null si no existe / está corrupto / sin PID válido).
+ * El timestamp NO se usa: un lock "viejo" puede ser el de una corrida larga viva.
+ */
+function readLockPid(): number | null {
+    try {
+        if (!fs.existsSync(LOCK_FILE)) return null
+        const raw = JSON.parse(fs.readFileSync(LOCK_FILE, "utf-8")) as { pid?: unknown }
+        const pid = Number(raw?.pid)
+        return Number.isInteger(pid) && pid > 0 ? pid : null
+    } catch {
+        return null
+    }
+}
+
+/**
+ * Espera (máx. `maxWaitMs`) a que el carril esté libre para una corrida
+ * PROGRAMADA: si hay otro agente en curso NO se descarta la sincronización, se
+ * espera el turno ("un solo carril"). Devuelve true si el lock quedó libre o
+ * quedó stale (lo limpia `acquireSingletonLock`); false si se agotó la espera.
+ */
+async function waitForSingletonLock(maxWaitMs: number): Promise<boolean> {
+    const deadline = Date.now() + maxWaitMs
+    let warned = false
+    while (Date.now() < deadline) {
+        const pid = readLockPid()
+        if (pid === null || !isPidAlive(pid)) return true
+        if (!warned) {
+            console.log(`[AGENT] Auto-sync esperando su turno (agente PID ${pid} en curso)`)
+            warned = true
+        }
+        await new Promise((resolve) => setTimeout(resolve, 30_000))
+    }
+    return readLockPid() === null
 }
 
 // ============================================================================
@@ -1579,6 +1620,43 @@ async function processOutbox(redis: Redis): Promise<void> {
     }
 }
 
+// ============================================================================
+// DRENAJE DE LA COLA FIFO
+// ----------------------------------------------------------------------------
+// La web encola TODOS los commandIds al pedir una sincronización. Acá se procesa
+// lo que siga `pending` (los del pipeline ya quedaron "completed" y se descartan
+// solos). Se exige una ventana de quietud (2 chequeos vacíos seguidos) para no
+// perder comandos que llegan justo en el instante de la salida.
+// ============================================================================
+const QUEUE_IDLE_MS = 3_000
+
+async function drainQueue(redis: Redis): Promise<number> {
+    let idleChecks = 0
+    let drained = 0
+    while (idleChecks < 2) {
+        const nextId = await redis.rpop<string>("sync-3c:queue")
+        if (!nextId) {
+            idleChecks++
+            await new Promise((resolve) => setTimeout(resolve, QUEUE_IDLE_MS))
+            continue
+        }
+        idleChecks = 0
+        const data = await redis.hgetall<Record<string, unknown>>(`sync-3c:command:${nextId}`)
+        if (!data || data.status !== "pending") continue
+        const mod = (data.module as string) || "stock"
+        console.log(`[AGENT] === Drenando cola: ${nextId} [module: ${mod}] ===`)
+        try {
+            await processModule(redis, nextId, mod as ModuleName)
+            drained++
+        } catch (err) {
+            console.error(`[AGENT] Drenado ${nextId} falló:`, err)
+        }
+    }
+    console.log(`[AGENT] Cola drenada: ${drained} comando(s) extra procesado(s)`)
+    return drained
+}
+
+// ============================================================================
 // AUTO-SYNC PROGRAMADO — corre el pipeline a horas fijas (10, 12, 15, 17)
 // reutilizando el índice compartido para cuidar la cuota de Firestore.
 // ============================================================================
@@ -1656,14 +1734,24 @@ async function runAutoSync(redis: Redis) {
         return
     }
 
-    // UN SOLO CARRIL: si hay una sincronización en curso o comandos manuales
-    // esperando en la cola, el auto-sync ESPERA su turno. No hay límite de
-    // tiempo y no se descarta nada: cuando termina la anterior, arranca esta.
+    lastAutoSyncHour = hour
+    await runAutoSyncPipeline(redis, `${hour}:00`)
+}
+
+/**
+ * Ejecuta el pipeline de los módulos seleccionados y devuelve true si corrió.
+ *
+ * Compartido por el listener (auto-sync por hora) y por el modo `--auto`
+ * (corrida programada por el Programador de tareas de Windows). Un solo carril:
+ * si hay una sincronización en curso o comandos manuales en cola, ESPERA su
+ * turno. No hay límite de tiempo y no se descarta nada.
+ */
+async function runAutoSyncPipeline(redis: Redis, label: string): Promise<boolean> {
     let waitedForTurn = false
     while (syncBusy || (await redis.llen("sync-3c:queue")) > 0) {
         if (!waitedForTurn) {
             console.log(
-                `[AGENT] Auto-sync ${hour}:00 esperando su turno (en curso: ${syncBusyLabel || "cola manual"})`,
+                `[AGENT] Auto-sync ${label} esperando su turno (en curso: ${syncBusyLabel || "cola manual"})`,
             )
             waitedForTurn = true
         }
@@ -1671,9 +1759,8 @@ async function runAutoSync(redis: Redis) {
     }
 
     if (!(await canSyncToday(redis))) {
-        console.log(`[AGENT] Auto-sync saltado: cuota del día casi agotada (${hour}:00)`)
-        lastAutoSyncHour = hour
-        return
+        console.log(`[AGENT] Auto-sync saltado: cuota del día casi agotada (${label})`)
+        return false
     }
 
     // Selección ÚNICA compartida con la sincronización manual (web).
@@ -1685,15 +1772,12 @@ async function runAutoSync(redis: Redis) {
     const modules = SYNC_MODULES.filter((m) => selected.has(m)) as ModuleName[]
 
     if (modules.length === 0) {
-        console.log(`[AGENT] Auto-sync ${hour}:00 omitido: ningún módulo seleccionado (ver /api/sync-3c/config)`)
-        lastAutoSyncHour = hour
-        return
+        console.log(`[AGENT] Auto-sync ${label} omitido: ningún módulo seleccionado (ver /api/sync-3c/config)`)
+        return false
     }
 
-    lastAutoSyncHour = hour
-
     console.log(`[AGENT] ════════════════════════════════════════`)
-    console.log(`[AGENT] AUTO-SYNC programado ${hour}:00 (módulos: ${modules.join(", ")})`)
+    console.log(`[AGENT] AUTO-SYNC ${label} (módulos: ${modules.join(", ")})`)
     console.log(`[AGENT] ════════════════════════════════════════`)
 
     // Pipeline de los módulos seleccionados (cada processModule usa el caché compartido)
@@ -1725,7 +1809,8 @@ async function runAutoSync(redis: Redis) {
         }
     }
 
-    console.log(`[AGENT] AUTO-SYNC ${hour}:00 completado`)
+    console.log(`[AGENT] AUTO-SYNC ${label} completado`)
+    return true
 }
 
 // ============================================================================
@@ -1821,16 +1906,16 @@ async function startAgentListener() {
                      const data = await redis.hgetall<Record<string, unknown>>(`sync-3c:command:${commandId}`)
 
                      if (data && data.status === "pending") {
-                         const module = (data.module as string) || "stock"
+                         const queueModule = (data.module as string) || "stock"
                          // Re-chequeo inmediato (sin await en el medio): si el
                          // auto-sync tomó el carril en este instante, el comando
                          // vuelve a la cola y NO se pierde.
                          if (syncBusy) {
                              await redis.lpush("sync-3c:queue", commandId)
                          } else {
-                             console.log(`[AGENT] === Processing command from queue: ${commandId} [module: ${module}] ===`)
+                             console.log(`[AGENT] === Processing command from queue: ${commandId} [module: ${queueModule}] ===`)
                              try {
-                                 await processModule(redis, commandId, module as ModuleName)
+                                 await processModule(redis, commandId, queueModule as ModuleName)
                                  console.log(`[AGENT] Command ${commandId} processed successfully`)
                              } catch (err) {
                                  console.error(`[AGENT] Command ${commandId} failed:`, err)
@@ -1851,39 +1936,163 @@ async function startAgentListener() {
 }
 
 // ============================================================================
-// MAIN - ON-DEMAND (PIPELINE) o LISTENER (SERVICE)
+// AUTO-SYNC PROGRAMADO (--auto) — UNA PASADA, SIN SERVICIO PERMANENTE
+// ----------------------------------------------------------------------------
+// Lo lanza el Programador de tareas de Windows a las 10/12/15/17 (ver
+// `scripts/install-auto-sync-tasks.ps1`). Se DESPIERTA, corre el pipeline de
+// los módulos seleccionados, drena la cola manual y SALE. Así el agente sigue
+// siendo "automático" sin quedar como proceso permanente.
+// ============================================================================
+/** Máximo esperando el carril libre antes de abortar la corrida programada. */
+const AUTO_SYNC_LOCK_MAX_WAIT_MS = 45 * 60 * 1000
+/** Máximo esperando a que 3C esté abierto (la PC puede estar despertando). */
+const AUTO_SYNC_3C_MAX_WAIT_MS = 5 * 60 * 1000
+
+/** Espera (hasta 5 min) a que exista la ventana principal de 3C. */
+async function waitFor3C(): Promise<boolean> {
+    if (is3CRunning()) return true
+    console.log("[AGENT] Auto-sync: 3C no está abierto, esperando hasta 5 min…")
+    const deadline = Date.now() + AUTO_SYNC_3C_MAX_WAIT_MS
+    while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 30_000))
+        if (is3CRunning()) return true
+    }
+    return is3CRunning()
+}
+
+/**
+ * Corrida programada: el reloj ya lo decidió el Programador de tareas, así que
+ * NO se aplica la ventana de tolerancia ni el control de "hora ya ejecutada".
+ * Sí se respetan la cuota, la selección de módulos y el carril único.
+ */
+async function runScheduledAutoSync(): Promise<void> {
+    const redis = getRedis()
+    console.log(`[AGENT] ════════════════════════════════════════`)
+    console.log(`[AGENT] AUTO-SYNC PROGRAMADO (${new Date().toLocaleString("es-AR")})`)
+    console.log(`[AGENT] ════════════════════════════════════════`)
+
+    // Un solo carril: si hay otro agente en curso se ESPERA el turno (la corrida
+    // programada no se descarta), hasta 45 min.
+    if (!(await waitForSingletonLock(AUTO_SYNC_LOCK_MAX_WAIT_MS))) {
+        console.error(
+            `[AGENT] Auto-sync abortado: otro agente sigue en curso tras ${AUTO_SYNC_LOCK_MAX_WAIT_MS / 60_000} min`,
+        )
+        process.exit(0)
+    }
+    acquireSingletonLock()
+
+    const heartbeat = setInterval(() => {
+        redis.set("sync-3c:agent:production", JSON.stringify({
+            status: "running",
+            lastHeartbeat: Date.now(),
+            machineName: MACHINE_NAME,
+        }), { ex: 120 }).catch(() => { /* ignore */ })
+    }, HEARTBEAT_INTERVAL_MS)
+    heartbeat.unref()
+
+    try {
+        await redis.set("sync-3c:agent:production", JSON.stringify({
+            status: "running",
+            lastHeartbeat: Date.now(),
+            machineName: MACHINE_NAME,
+        }), { ex: 120 })
+
+        if (!(await waitFor3C())) {
+            console.log("[AGENT] Auto-sync descartado: 3C no está abierto.")
+            return
+        }
+
+        // Primero los pedidos manuales pendientes: si no, el carril único del
+        // pipeline esperaría para siempre una cola que nadie drena (no hay listener).
+        await drainQueue(redis)
+
+        const ran = await runAutoSyncPipeline(redis, "programado")
+        if (ran) await drainQueue(redis)
+    } catch (err) {
+        console.error("[AGENT] Auto-sync error:", err)
+    } finally {
+        clearInterval(heartbeat)
+        try {
+            await redis.set("sync-3c:agent:production", JSON.stringify({
+                status: "idle",
+                lastHeartbeat: Date.now(),
+                machineName: MACHINE_NAME,
+            }), { ex: 120 })
+        } catch { /* ignore */ }
+        releaseSingletonLock()
+        console.log("[AGENT] AUTO-SYNC: corrida programada finalizada, saliendo")
+        process.exit(0)
+    }
+}
+
+// ============================================================================
+// MAIN — ON-DEMAND (por defecto), --auto (programado) o --listener (manual)
 // ============================================================================
 async function main() {
-    const commandId = process.argv[2]
+    const firstArg = process.argv[2]
 
-    // Si no hay commandId → modo listener (servicio permanente)
-    if (!commandId) {
+    // ------------------------------------------------------------------
+    // MODO AUTO PROGRAMADO (--auto) — lo lanza el Programador de tareas de
+    // Windows a las 10/12/15/17. Es el modo AUTOMÁTICO: se despierta solo,
+    // sincroniza los módulos seleccionados y TERMINA.
+    // ------------------------------------------------------------------
+    if (firstArg === "--auto") {
+        await runScheduledAutoSync()
+        return
+    }
+
+    // ------------------------------------------------------------------
+    // MODO LISTENER (servicio permanente) — SOLO manual y explícito
+    // (`npx tsx sync-agent/agent.ts --listener`). No lo usa ni la web ni el
+    // Programador de tareas: la web arranca on-demand y el programador --auto.
+    // ------------------------------------------------------------------
+    if (firstArg === "--listener") {
         await startAgentListener()
         return
     }
 
     // ============================================================
-    // MODO ON-DEMAND (compatibilidad hacia atrás)
+    // MODO ON-DEMAND
+    // ------------------------------------------------------------
+    // - Con commandId (click en Sincronizar): procesa el pipeline y drena
+    //   el resto de la cola FIFO antes de salir.
+    // - Sin argumentos: solo drena la cola pendiente y sale.
+    // En ambos casos el proceso TERMINA: no queda ningún servicio vivo.
     // ============================================================
-    const module = process.argv[3] || "stock"
-    const autoEnqueued: string[] = process.argv.slice(4)
+    const commandId = firstArg || null
+    const mainModule = process.argv[3] || "stock"
+    const autoEnqueued: string[] = commandId ? process.argv.slice(4) : []
 
     acquireSingletonLock()
 
-    console.log(`[AGENT] ON-DEMAND MODE: commandId=${commandId}, module=${module}`)
+    console.log(`[AGENT] ON-DEMAND MODE: commandId=${commandId ?? "(drenar cola)"}, module=${mainModule}`)
     console.log(`[AGENT] Auto-enqueued commands: ${autoEnqueued.length}`)
     console.log(`[AGENT] Machine: ${MACHINE_NAME}`)
 
     const redis = getRedis()
 
+    // Heartbeat mientras el agente vive: mantiene el indicador "Ejecutando" en
+    // la web (TTL 120s) durante corridas largas (AHK ~100s × N módulos). Se
+    // limpia en el `finally` del pipeline.
+    const heartbeat = setInterval(() => {
+        redis.set("sync-3c:agent:production", JSON.stringify({
+            status: "running",
+            lastHeartbeat: Date.now(),
+            machineName: MACHINE_NAME,
+        }), { ex: 120 }).catch(() => { /* ignore */ })
+    }, 30_000)
+    heartbeat.unref()
+
     // Pipeline: primer commandId con su módulo, luego los auto-enqueued
-    const pipeline: { commandId: string; module: ModuleName }[] = [
-        { commandId, module: module as ModuleName },
-        ...autoEnqueued.map((cid, idx) => ({
-            commandId: cid,
-            module: (["articulos", "alquileres", "reparaciones"][idx] || "stock") as ModuleName
-        }))
-    ]
+    const pipeline: { commandId: string; module: ModuleName }[] = commandId
+        ? [
+            { commandId, module: mainModule as ModuleName },
+            ...autoEnqueued.map((cid, idx) => ({
+                commandId: cid,
+                module: (["articulos", "alquileres", "reparaciones"][idx] || "stock") as ModuleName
+            }))
+          ]
+        : []
 
     // ═══════════════════════════════════════════════
     // MODO DIAGNÓSTICO (activar con SYNC_DIAGNOSTIC=true)
@@ -1942,6 +2151,10 @@ async function main() {
         
         console.log(`\n[AGENT] Reporte guardado en: ${reportPath}`)
         console.log(`[AGENT] Diagnóstico completado.`)
+
+        // El modo diagnóstico también es on-demand: sin servicio permanente.
+        clearInterval(heartbeat)
+        releaseSingletonLock()
         
         return
     }
@@ -1967,6 +2180,14 @@ async function main() {
             })
         }
 
+        // ============================================================
+        // DRENAR LA COLA FIFO ANTES DE SALIR
+        // ------------------------------------------------------------
+        // Ver `drainQueue()`: procesa lo que siga `pending` y sale cuando la
+        // cola queda quieta.
+        // ============================================================
+        await drainQueue(redis)
+
         // Heartbeat final (idle)
         await redis.set("sync-3c:agent:production", JSON.stringify({
             status: "idle",
@@ -1978,6 +2199,7 @@ async function main() {
     } catch (err) {
         console.error("[AGENT] Fatal error:", err)
     } finally {
+        clearInterval(heartbeat)
         releaseSingletonLock()
         process.exit(0)
     }

@@ -7,7 +7,6 @@ import { auth } from "@/lib/firebase"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
-import { AgentAutoStart } from "@/components/sync/AgentAutoStart"
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
@@ -56,7 +55,6 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen flex-col print:block print:h-auto">
-      <AgentAutoStart />
       <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b px-6 py-3 print:hidden">
         <Link href="/dashboard" className="text-lg font-bold tracking-tight">
           OPERARIO CONTROL
