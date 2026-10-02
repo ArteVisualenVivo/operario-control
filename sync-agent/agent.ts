@@ -184,6 +184,31 @@ async function canSyncToday(redis: Redis, approxReads = 0): Promise<boolean> {
 }
 
 // ============================================================================
+// CORTE RÁPIDO A FIRESTORE — la web vive de Redis, Firebase es copia secundaria
+// ----------------------------------------------------------------------------
+// Cuando la cuota está agotada el SDK no falla rápido: reintenta ~10 min
+// ("Total timeout of API ... exceeded 600000ms") y como el agente es UN SOLO
+// CARRIL, toda la cola queda parada. Este helper corta a los 20s: si Firestore
+// no responde, se sigue igual (Excel leído + Redis guardado) y queda marcado
+// como pendiente/degraded para reescribir en la próxima corrida.
+// ============================================================================
+const FIRESTORE_OP_TIMEOUT_MS = 20_000
+
+async function withFirestoreTimeout<T>(label: string, promise: Promise<T>, timeoutMs = FIRESTORE_OP_TIMEOUT_MS): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+        return await Promise.race([
+            promise,
+            new Promise<T>((_, reject) => {
+                timer = setTimeout(() => reject(new Error(`[FIRESTORE-TIMEOUT] ${label} sin respuesta en ${timeoutMs}ms — se sigue con Redis`)), timeoutMs)
+            }),
+        ])
+    } finally {
+        if (timer) clearTimeout(timer)
+    }
+}
+
+// ============================================================================
 // DIAGNOSTIC MODE - Pure analysis function (no side effects)
 // ============================================================================
 interface DiagnosticContext {
@@ -931,7 +956,7 @@ async function consolidateMaintenanceFromExports(
             )
 
             if (changed.size > 0) {
-                await writeMaintenanceStatusesIdempotent(changed)
+                await withFirestoreTimeout("writeMaintenanceStatuses", writeMaintenanceStatusesIdempotent(changed))
             }
             // Se llega acá sólo si el commit salió bien: la línea base refleja
             // siempre lo que realmente tiene Firestore.
@@ -1150,7 +1175,7 @@ async function runModule(
 
                 // —— FIRESTORE (copi secundaria) + OUTBOX ——
                 try {
-                    await saveScaffoldRentalStats(stats)
+                    await withFirestoreTimeout("saveScaffoldRentalStats", saveScaffoldRentalStats(stats))
                     // marcar como sincronizado
                     await saveModuleData(redis, {
                         module: "alquileres",
@@ -1206,9 +1231,12 @@ async function runModule(
                 // Línea base de firmas: no reescribe filas idénticas a la última
                 // corrida exitosa (ahorra cuota; sin línea base escribe todo).
                 const rowBaseline = await readRowBaseline(redis)
-                const maintenanceResult = await syncRepairsToMaintenance(buffer, {
-                    signatureBaseline: rowBaseline,
-                })
+                const maintenanceResult = await withFirestoreTimeout(
+                    "syncRepairsToMaintenance",
+                    syncRepairsToMaintenance(buffer, {
+                        signatureBaseline: rowBaseline,
+                    }),
+                )
                 console.log("[AGENT] MAINTENANCE SYNC RESULT", maintenanceResult)
                 console.log(`[AGENT] Resultado mantenimiento: created=${maintenanceResult.created}, updated=${maintenanceResult.updated}, skipped=${maintenanceResult.skipped}, unchanged=${maintenanceResult.unchanged}`)
                 console.log(`[AGENT] Maintenance sync: ${maintenanceResult.created} created, ${maintenanceResult.updated} updated, ${maintenanceResult.skipped} skipped, ${maintenanceResult.unchanged} sin cambios`)
@@ -1377,11 +1405,16 @@ async function runModule(
                 }
             } else {
                 // Construir inventoryIndex con caché compartido (leer 1 vez / 10 min)
+                // CORTE RÁPIDO: con cuota agotada esto tardaba ~10 min. Con timeout
+                // se corta a los 20s y se sigue con Redis (la web no se queda colgada).
                 if (!inventoryIndex) {
                     const codes = items.map((i) => i.codigo).filter(Boolean) as string[]
                     console.log(`[AGENT] Building shared inventoryIndex from ${codes.length} codes in Excel`)
                     try {
-                        inventoryIndex = await getSharedInventoryIndex(redis, codes)
+                        inventoryIndex = await withFirestoreTimeout(
+                            "getSharedInventoryIndex",
+                            getSharedInventoryIndex(redis, codes),
+                        )
                     } catch (indexErr) {
                         // Si Firestore falla (p. ej. RESOURCE_EXHAUSTED/UNAUTHENTICATED)
                         // al leer el índice, NO debemos marcar el comando como "failed":
@@ -1391,7 +1424,10 @@ async function runModule(
                     }
                 }
                 try {
-                    result = await syncItems(items, undefined, inventoryIndex)
+                    // CORTE RÁPIDO: syncItems escribe en Firestore; con cuota agotada
+                    // el SDK reintenta ~10 min y la cola queda parada. A los 20s se
+                    // corta y se sigue con Redis (la web muestra el dato igual).
+                    result = await withFirestoreTimeout("syncItems", syncItems(items, undefined, inventoryIndex))
                     // Firestore OK → fuente primaria sincronizada
                     await saveModuleData(redis, {
                         module: module as PrimaryModuleId,
