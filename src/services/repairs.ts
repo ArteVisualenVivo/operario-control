@@ -4,6 +4,7 @@ import {
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 import { LOCAL_MODE } from "@/lib/runtimeMode"
+import { extractRepairNotes, repairNotesText } from "@/lib/repairNotes"
 import { createAuditLog } from "./audit"
 import { getMaintenanceRecords } from "./maintenance"
 import { getMaintenanceSettings } from "./maintenanceSettings"
@@ -121,16 +122,6 @@ function calculateAutoDates(
   }
 }
 
-// Estado de 3C "A la Espera Repuestos": es un ESTADO, no una reparación realizada.
-function isEstadoNoReparacion(status: unknown): boolean {
-  const t = String(status ?? "")
-    .trim()
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-  return t.includes("espera") && t.includes("repuesto")
-}
-
 function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRecords>>[number]): MachineRepair {
   const originalReturn = asDate(findDateLikeValue(record.originalData, ["entrega", "egreso", "salida", "retiro", "return"]))
   const originalRepair = asDate(findDateLikeValue(record.originalData, ["reparacion", "reparaciÃ³n", "taller", "repair"]))
@@ -145,6 +136,10 @@ function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRec
   const modelo = articleIdClean && !/^reparacion$/i.test(articleIdClean) ? articleIdClean : undefined
   // Máquina: quitar el prefijo "REPARACION:" que agrega 3C al texto
   const maquina = (record.machineName ?? "").replace(/^reparaci[oó]n:\s*/i, "").trim()
+  // Falla/reparación: SOLO desde OBSERVACIONES de 3C (ver @/lib/repairNotes).
+  // `issue` es el duplicado legacy de `reportedIssue`: se sincroniza con el
+  // mismo valor para no dejar datos viejos inconsistentes.
+  const notes = extractRepairNotes(repairNotesText(record))
   return {
     id: `maintenance:${record.id}`,
     exitDateReal,
@@ -155,11 +150,10 @@ function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRec
     clientId: record.clientCode,
     clientName: record.clientName,
     clientNumber: record.clientCode,
-    reportedIssue: record.originalData?.texto ? String(record.originalData.texto) : record.machineName,
+    // Falla/reparación: SOLO desde OBSERVACIONES de 3C (ver @/lib/repairNotes).
+    // Nunca el nombre de la máquina ni el estado de 3C.
+    ...notes,
     diagnosis: undefined,
-    // "Reparación realizada" = trabajos reales, NO el nombre del estado de 3C.
-    // "A la Espera Repuestos" es un ESTADO (visible en Estados de mantenimiento).
-    repairPerformed: isEstadoNoReparacion(record.status) ? "" : record.status,
     technician: "",
     entryDate: record.entryDate,
     exitDate,
@@ -175,7 +169,7 @@ function maintenanceToRepair(record: Awaited<ReturnType<typeof getMaintenanceRec
     externalId: record.orderNumber,
     status3c: record.status ?? undefined,
     status: hasExitDate ? "FINALIZADO" : "EN_TALLER",
-    issue: record.machineName,
+    issue: notes.reportedIssue,
     estimatedReturn: record.returnDate ?? (originalReturn instanceof Date ? originalReturn : null),
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,

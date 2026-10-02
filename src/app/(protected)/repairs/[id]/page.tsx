@@ -182,7 +182,7 @@ export default function RepairDetailPage() {
 
           <div className="border-t pt-3 space-y-2">
             <p className="text-sm font-medium">Falla reportada</p>
-            <p className="text-sm whitespace-pre-wrap rounded-lg bg-muted/30 p-3">{repair.reportedIssue}</p>
+            <p className="text-sm whitespace-pre-wrap rounded-lg bg-muted/30 p-3">{repair.reportedIssue || "—"}</p>
           </div>
 
           {repair.diagnosis && (
@@ -194,7 +194,7 @@ export default function RepairDetailPage() {
 
           <div className="space-y-2">
             <p className="text-sm font-medium">Reparación realizada</p>
-            <p className="text-sm whitespace-pre-wrap rounded-lg bg-muted/30 p-3">{repair.repairPerformed}</p>
+            <p className="text-sm whitespace-pre-wrap rounded-lg bg-muted/30 p-3">{repair.repairPerformed || "—"}</p>
           </div>
 
           {repair.partsUsed && repair.partsUsed.length > 0 && (

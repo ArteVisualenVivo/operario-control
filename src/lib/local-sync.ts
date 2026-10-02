@@ -17,6 +17,7 @@
 // - NODE (agente): backend servidor inyectado (Excel local / Admin SDK).
 import type { MachineRepair } from "@/types"
 import type { MaintenanceRecord } from "@/services/maintenance"
+import { extractRepairNotes, repairNotesText } from "@/lib/repairNotes"
 
 /**
  * Backend SERVIDOR (Node) de las lecturas: Excel local de 3C (fs/xlsx) y
@@ -203,6 +204,10 @@ export async function loadLocalRepairs()
       record.returnDate ??
       record.repairDate ??
       record.entryDate
+    // Falla/reparación: SOLO desde OBSERVACIONES de 3C (ver @/lib/repairNotes).
+    // `issue` es el duplicado legacy de `reportedIssue`: se sincroniza con el
+    // mismo valor para no dejar datos viejos inconsistentes.
+    const notes = extractRepairNotes(repairNotesText(record))
     return {
       id: `local:${record.id}`,
       machineId: record.orderNumber,
@@ -212,9 +217,10 @@ export async function loadLocalRepairs()
       clientId: record.clientCode,
       clientName: record.clientName,
       clientNumber: record.clientCode,
-      reportedIssue: record.machineName,
+      // Falla/reparación: SOLO desde OBSERVACIONES de 3C (ver @/lib/repairNotes).
+      // Nunca el nombre de la máquina ni el estado de 3C.
+      ...notes,
       diagnosis: undefined,
-      repairPerformed: record.status,
       technician: "",
       entryDate: record.entryDate,
       exitDate,
@@ -233,7 +239,7 @@ export async function loadLocalRepairs()
       status: hasExitDate
         ? "FINALIZADO"
         : "EN_TALLER",
-      issue: record.machineName,
+      issue: notes.reportedIssue,
       estimatedReturn: record.returnDate ?? null,
       createdAt: record.createdAt,
       updatedAt: record.updatedAt,
