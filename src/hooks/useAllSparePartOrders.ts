@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from "react"
 import type { SparePartOrder } from "@/types"
-import { getAllOrders, markOrdered, markReceived, markUsed, deleteOrders, updateOrderDates, updateOrderCode } from "@/services/sparePartOrders"
+import { getAllOrders, markOrdered, markOrderedMany, markReceived, markUsed, deleteOrders, updateOrderDates, updateOrderCode } from "@/services/sparePartOrders"
 import type { MarkOrderedInput, SparePartOrderDatesInput } from "@/types"
 
 export function useAllSparePartOrders() {
@@ -27,6 +27,34 @@ export function useAllSparePartOrders() {
     await markOrdered(id, input)
     await load()
   }, [load])
+
+  /**
+   * Encargo en LOTE: marca ENCARGADOS varios repuestos con LA MISMA fecha de
+   * encargo (el caso real: una orden = una máquina con 5-6 repuestos que el dueño
+   * se lleva todos juntos).
+   *
+   * SIN recargar la lista, igual que `updateDates`: se aplica en memoria SÓLO lo
+   * que quedó guardado (`orderedIds`) y con la misma forma que muestra la tabla.
+   * Una recarga completa mostraría "Cargando pedidos…", vaciaría la tabla y
+   * perdería el scroll justo después de encargar (que es la acción más seguida de
+   * la ronda de compra). Devuelve el resumen (`skipped` = ya no estaban
+   * pendientes, `failed` = no se pudieron guardar) para que la pantalla lo cuente.
+   */
+  const markAsOrderedMany = useCallback(async (ids: string[], input: MarkOrderedInput) => {
+    const result = await markOrderedMany(ids, input)
+    if (result.orderedIds.length > 0) {
+      const written: Partial<SparePartOrder> = {
+        status: "ENCARGADO",
+        ownerRequestedAt: input.orderedAt,
+        expectedAt: input.expectedAt ?? undefined,
+        updatedAt: new Date(),
+      }
+      if (input.notes !== undefined) written.notes = input.notes
+      const writtenIds = new Set(result.orderedIds)
+      setOrders((prev) => prev.map((o) => (writtenIds.has(o.id) ? { ...o, ...written } : o)))
+    }
+    return result
+  }, [])
 
   const remove = useCallback(async (ids: string[]) => {
     await deleteOrders(ids)
@@ -69,5 +97,5 @@ export function useAllSparePartOrders() {
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, ...written } : o)))
   }, [])
 
-  return { orders, loading, reload: load, markAsOrdered, remove, markAsReceived, markAsUsed, updateDates, updateCode }
+  return { orders, loading, reload: load, markAsOrdered, markAsOrderedMany, remove, markAsReceived, markAsUsed, updateDates, updateCode }
 }

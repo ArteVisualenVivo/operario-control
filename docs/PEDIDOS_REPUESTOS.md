@@ -446,3 +446,53 @@ pantalla) no la refleja, porque el publicador lee del espejo local y no hay ning
 op encolada que la aplique. Para verla al instante hubo que corregir también el
 espejo (caché en disco + snapshot), que es lo que hace `applyPendingOrderOps()`
 cuando la escritura queda encolada.
+
+## 21. Encargar en LOTE: una sola fecha para todos los repuestos de la orden (2026-10-03)
+
+**Pedido del dueño:** *"¿cómo me recomendás colocar para evitar poner encargar 1 por 1
+cada repuesto, ya que todos esos repuestos se los encarga el mismo día?"*
+
+**El problema:** una orden (= una máquina) trae 5-6 repuestos y **todos se le encargan al
+dueño el mismo día**, pero el circuito era un botón **Encargar** por repuesto: 6 diálogos
+y la misma fecha cargada a mano 6 veces.
+
+**Qué se agregó:** el botón **Encargar seleccionadas (N)** en la barra de selección de
+"Pedidos Rep." (al lado de *Limpiar* y *Eliminar órdenes seleccionadas*). Marca
+`ENCARGADOS` todos los repuestos **pendientes** (`SOLICITADO` / `PEDIDO`) de las órdenes
+tildadas, con **una única fecha de encargo**.
+
+Cómo se usa (2 clics para toda la orden):
+
+1. Tildar la orden — el tilde de la fila marca **todos** sus repuestos; el tilde del
+   encabezado marca **todas** las órdenes que se están viendo (la ronda de compra entera).
+2. **Encargar seleccionadas (N)** → *fecha de encargo* (por defecto hoy) + *retiro
+   estimado* (opcional) + *observaciones* (opcional) → se aplican a todos.
+
+El texto de la barra avisa cuántos **repuestos pendientes de encargar** hay en lo tildado,
+y el botón queda deshabilitado si no hay ninguno (nada que encargar).
+
+| Archivo | Cambio |
+|---|---|
+| `services/sparePartOrders.ts` | Nuevo `markOrderedMany(ids, input)`: mismo criterio que `markOrdered`, pero por lote. Devuelve `{ ordered, skipped, failed }`. |
+| `hooks/useAllSparePartOrders.ts` | Nuevo `markAsOrderedMany(ids, input)`: aplica en memoria **sólo lo guardado** (sin recargar la lista, como `updateDates`) y devuelve el resumen. |
+| `components/repairs/SparePartOrderOrderedDialog.tsx` | Acepta `orders` (varios) además de `order` (uno): el texto avisa cuántos repuestos y cuántas órdenes, y que la fecha es la misma para todos. |
+| `app/(protected)/spare-part-orders/page.tsx` | Botón **Encargar seleccionadas (N)**, contador de pendientes de lo tildado y `handleMarkOrdered` en lote. |
+
+**Reglas (las MISMAS del encargo de a uno, no hay circuito nuevo):**
+
+- Escribe `ownerRequestedAt` (el día en que **el operario** le pidió el repuesto al
+  dueño), **NO** `orderedAt` (calendario "P. repuestero" = el día en que **el dueño** lo
+  pidió en la casa): siguen siendo dos hechos distintos.
+- Los repuestos que **ya no están pendientes** (encargados / recibidos / utilizados /
+  cancelados) se **saltean**: no se les reescribe ni la fecha ni el estado, y se informa
+  en el aviso (*"N ya no estaba(n) pendiente(s): sin cambios"*). Antes esto sólo era
+  posible porque cada fila se apretaba por separado.
+- **NO toca cantidades ni stock** (eso es de *Recibir* / *Utilizar*).
+- *Retiro estimado* y *observaciones* son **opcionales**: si se dejan vacíos, cada pedido
+  conserva los suyos (una nota vacía no borra la que tenía).
+- Un pedido que falla (Firestore caído / cuota agotada) **no cancela el lote**: se cuenta
+  en el resumen (*"N con error"*) y el resto queda guardado. Si **nada** se pudo guardar,
+  el diálogo no se cierra y muestra el error para reintentar.
+- El botón **Encargar** de cada fila **sigue existiendo** (un repuesto suelto), con el
+  mismo diálogo y la misma fecha por defecto.
+

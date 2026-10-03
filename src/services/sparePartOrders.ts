@@ -946,6 +946,89 @@ export async function markOrdered(
   await invalidatePrimarySparePartOrders()
 }
 
+/**
+ * Marca como ENCARGADOS VARIOS pedidos con LA MISMA fecha de encargo.
+ *
+ * POR QUÉ EXISTE (pedido del dueño, 2026-10-03): una orden (= una máquina) trae
+ * 5-6 repuestos y TODOS se le encargan al dueño el MISMO día, pero el circuito
+ * era un botón "Encargar" por repuesto: 6 diálogos y 6 veces la misma fecha a
+ * mano. Con esto, el botón "Encargar seleccionadas" de "Pedidos Rep." marca de
+ * una sola vez todos los pendientes de las órdenes tildadas, con una única fecha
+ * de encargo (y, si se cargaron, la misma fecha estimada de retiro y la misma
+ * nota).
+ *
+ * REGLAS (espejo de `markOrdered`, pedido por pedido):
+ * - Escribe `ownerRequestedAt` (el día en que el OPERARIO le pidió el repuesto al
+ *   DUEÑO), NO `orderedAt`, que es otro hecho distinto: el día en que el DUEÑO lo
+ *   pidió en la casa de repuestos (calendario "P. repuestero").
+ * - Sólo pasa a ENCARGADO un pedido `SOLICITADO` / `PEDIDO`. Cualquier otro estado
+ *   se SALTEAN y se informa en `skipped`: en una misma orden puede haber repuestos
+ *   ya encargados, recibidos o utilizados y eso NO debe romper el lote.
+ * - NUNCA toca cantidades ni stock (eso es de `markReceived()` / `markUsed()`).
+ * - Ni las fechas ni la nota se inventan: `expectedAt`/`notes` sólo se escriben si
+ *   vienen (una nota vacía deja la que ya tenía cada pedido).
+ * - Un pedido que falla (Firestore caído / cuota agotada) NO cancela a los demás:
+ *   se cuenta en `failed` y el resto queda guardado. En Node la escritura usa
+ *   `updateOrderDoc`, que encola el cambio si Firestore rechaza.
+ *
+ * Devuelve el resumen del lote: `{ ordered, skipped, failed, orderedIds }`.
+ * `orderedIds` son los que SÍ quedaron ENCARGADOS: es lo que usa la pantalla para
+ * aplicar el cambio en memoria sin releer la lista entera (mismo criterio que
+ * `updateOrderDates`, que evita el "Cargando pedidos…" después de guardar).
+ */
+export async function markOrderedMany(
+  ids: string[],
+  input: MarkOrderedInput,
+): Promise<{ ordered: number; skipped: number; failed: number; orderedIds: string[] }> {
+  const unique = Array.from(new Set(ids)).filter(Boolean)
+  if (unique.length === 0) return { ordered: 0, skipped: 0, failed: 0, orderedIds: [] }
+  if (!(input.orderedAt instanceof Date) || Number.isNaN(input.orderedAt.getTime())) {
+    throw new Error("La fecha de encargo es inválida")
+  }
+  if (input.expectedAt && Number.isNaN(input.expectedAt.getTime())) {
+    throw new Error("La fecha estimada de retiro es inválida")
+  }
+
+  // Lo que se escribe es IDÉNTICO para todos: la fecha es la misma (por eso el
+  // lote) y las cantidades no se tocan.
+  const updates: Record<string, unknown> = {
+    status: "ENCARGADO",
+    ownerRequestedAt: input.orderedAt,
+    expectedAt: input.expectedAt ?? null,
+    updatedAt: new Date(),
+  }
+  if (input.notes !== undefined) updates.notes = input.notes
+
+  const results = await Promise.all(
+    unique.map(async (id) => {
+      try {
+        const { before } = await loadOrder(id)
+        const status = before.status as SparePartOrderStatus
+        if (status !== "SOLICITADO" && status !== "PEDIDO") return { id, result: "skipped" as const }
+        await updateOrderDoc(id, updates)
+        await createAuditLog("update", "spare_part_order", id, before, { ...before, ...updates })
+        return { id, result: "ordered" as const }
+      } catch (err) {
+        console.error(`[sparePartOrders] No se pudo marcar como encargado el pedido ${id}:`, err)
+        return { id, result: "failed" as const }
+      }
+    }),
+  )
+
+  const kind = (k: "ordered" | "skipped" | "failed") => results.filter((r) => r.result === k)
+  const orderedIds = kind("ordered").map((r) => r.id)
+  // Sin escrituras no se invalida el snapshot: no hay nada nuevo que mostrar.
+  if (orderedIds.length > 0) await invalidatePrimarySparePartOrders()
+  return {
+    ordered: orderedIds.length,
+    skipped: kind("skipped").length,
+    failed: kind("failed").length,
+    // ids que SÍ quedaron ENCARGADOS: la pantalla aplica sólo ésos en memoria, sin
+    // releer la lista entera (mismo criterio que `updateOrderDates`).
+    orderedIds,
+  }
+}
+
 export async function markReceived(
   id: string,
   quantity: number,

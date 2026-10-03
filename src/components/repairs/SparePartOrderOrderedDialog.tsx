@@ -13,7 +13,18 @@ import { displaySparePartCode } from "@/services/sparePartOrders"
 interface Props {
   open: boolean
   onOpenChange: (open: boolean) => void
-  order: SparePartOrder | null
+  /**
+   * Pedido SUELTO: botón "Encargar" de la fila (lista de Pedidos Rep.) y de la
+   * ficha de la reparación.
+   */
+  order?: SparePartOrder | null
+  /**
+   * VARIOS pedidos con LA MISMA fecha de encargo: es el botón "Encargar
+   * seleccionadas" de "Pedidos Rep.", pensado para el caso real de una orden
+   * (= una máquina) con 5-6 repuestos que se le encargan al dueño el mismo día.
+   * Si viene con datos, MANDA sobre `order`.
+   */
+  orders?: SparePartOrder[] | null
   onConfirm: (orderedAt: Date, expectedAt: Date | null, notes?: string) => Promise<void>
 }
 
@@ -25,11 +36,19 @@ function toDateInputValue(d: Date | undefined): string {
   return `${y}-${m}-${day}`
 }
 
-export function SparePartOrderOrderedDialog({ open, onOpenChange, order, onConfirm }: Props) {
+export function SparePartOrderOrderedDialog({ open, onOpenChange, order, orders, onConfirm }: Props) {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  if (!order) return null
+  // A quién se le escribe la fecha: uno (flujo de siempre, `order`) o varios con
+  // la misma fecha (`orders`, encargo en lote desde la lista).
+  const targets = orders && orders.length > 0 ? orders : order ? [order] : []
+  if (targets.length === 0) return null
+
+  const isBulk = targets.length > 1
+  // ÓRDENES distintas del lote: un mismo N° de orden puede traer varios repuestos,
+  // así que se avisa cuántas máquinas se están encargando, no cuántas filas.
+  const orderNumbers = [...new Set(targets.map((o) => o.orderNumber).filter(Boolean))]
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -61,14 +80,20 @@ export function SparePartOrderOrderedDialog({ open, onOpenChange, order, onConfi
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Marcar encargado</DialogTitle>
+          <DialogTitle>
+            {isBulk ? `Marcar ${targets.length} repuesto(s) como encargados` : "Marcar encargado"}
+          </DialogTitle>
           <DialogDescription>
-            {order.description} ({displaySparePartCode(order.code)}) — cantidad solicitada: {order.quantityRequested}
+            {isBulk
+              ? `${targets.length} repuesto(s) de ${orderNumbers.length || 1} orden(es)${orderNumbers.length > 0 ? ` (${orderNumbers.slice(0, 3).join(", ")}${orderNumbers.length > 3 ? "…" : ""})` : ""} con la MISMA fecha de encargo.`
+              : `${targets[0].description} (${displaySparePartCode(targets[0].code)}) — cantidad solicitada: ${targets[0].quantityRequested}`}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="orderedAt">Fecha en que se encargó *</Label>
+            <Label htmlFor="orderedAt">
+              {isBulk ? "Fecha en que se encargaron (la misma para todos) *" : "Fecha en que se encargó *"}
+            </Label>
             <Input id="orderedAt" name="orderedAt" type="date" defaultValue={toDateInputValue(new Date())} required />
           </div>
           <div className="space-y-2">
@@ -76,13 +101,17 @@ export function SparePartOrderOrderedDialog({ open, onOpenChange, order, onConfi
             <Input id="expectedAt" name="expectedAt" type="date" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="notes">Observaciones</Label>
+            <Label htmlFor="notes">{isBulk ? "Observaciones (se guardan en todos)" : "Observaciones"}</Label>
             <Input id="notes" name="notes" placeholder="Ej: casa Bosch, avisó por WhatsApp..." />
           </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-            <Button type="submit" disabled={saving}>{saving ? "Guardando..." : "Guardar"}</Button>
+            <Button type="submit" disabled={saving}>
+              {saving
+                ? "Guardando..."
+                : isBulk ? `Marcar ${targets.length} como encargados` : "Guardar"}
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>

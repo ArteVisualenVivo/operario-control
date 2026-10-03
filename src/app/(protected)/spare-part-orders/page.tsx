@@ -42,14 +42,26 @@ function normQuery(value: string | null | undefined): string {
     .replace(/[̀-ͯ]/g, "")
 }
 
+/** ¿El pedido todavía ESPERA el encargo? (los dos estados del botón "Encargar") */
+function isPendingOrder(o: SparePartOrder): boolean {
+  return o.status === "SOLICITADO" || o.status === "PEDIDO"
+}
+
 export default function SparePartOrdersPage() {
   const router = useRouter()
-  const { orders, loading, reload, markAsOrdered, remove, markAsReceived, markAsUsed, updateDates, updateCode } = useAllSparePartOrders()
+  const { orders, loading, reload, markAsOrdered, markAsOrderedMany, remove, markAsReceived, markAsUsed, updateDates, updateCode } = useAllSparePartOrders()
   const [filter, setFilter] = useState<Filter>("todos")
   const [query, setQuery] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
-  const [orderedTarget, setOrderedTarget] = useState<SparePartOrder | null>(null)
+  // Marcar como ENCARGADO: un pedido suelto (botón "Encargar" de la fila) o TODOS
+  // los pendientes de las órdenes tildadas (botón "Encargar seleccionadas" de la
+  // barra). En el caso real, una orden = una máquina con 5-6 repuestos que se le
+  // encargan al dueño el MISMO día: se cargan todos de una sola vez, con una única
+  // fecha de encargo, en vez de repetir el diálogo repuesto por repuesto.
+  // `fromSelection` = el lote salió de la selección → al terminar se destilda.
+  const [orderedTargets, setOrderedTargets] = useState<{ orders: SparePartOrder[]; fromSelection: boolean } | null>(null)
+  const [ordering, setOrdering] = useState(false)
   // Entrega/uso con cantidad directamente desde esta pantalla (mismo diálogo
   // que usa la ficha de la reparación).
   const [action, setAction] = useState<{ type: "receive" | "use"; order: SparePartOrder } | null>(null)
@@ -78,9 +90,35 @@ export default function SparePartOrdersPage() {
   }
 
   const handleMarkOrdered = async (orderedAt: Date, expectedAt: Date | null, notes?: string) => {
-    if (!orderedTarget) return
-    await markAsOrdered(orderedTarget.id, { orderedAt, expectedAt, notes })
-    setOrderedTarget(null)
+    const target = orderedTargets
+    if (!target || target.orders.length === 0) return
+    const ids = target.orders.map((o) => o.id)
+    setOrdering(true)
+    try {
+      // De a uno (botón de la fila): se guarda y la lista se recarga como siempre.
+      // En lote (órdenes tildadas): UNA fecha de encargo para todos y, si alguno ya
+      // no estaba pendiente, se informa en vez de abortar el lote entero.
+      const written = ids.length === 1
+        ? await markAsOrdered(ids[0], { orderedAt, expectedAt, notes })
+          .then(() => ({ ordered: 1, skipped: 0, failed: 0 }))
+        : await markAsOrderedMany(ids, { orderedAt, expectedAt, notes })
+
+      if (ids.length > 1) {
+        const resumen = [`${written.ordered} repuesto(s) encargado(s)`]
+        if (written.skipped > 0) resumen.push(`${written.skipped} ya no estaba(n) pendiente(s): sin cambios`)
+        if (written.failed > 0) resumen.push(`${written.failed} con error`)
+        if (written.failed > 0) toast.error(resumen.join(" · "))
+        else toast.success(resumen.join(" · "))
+      }
+      // No se guardó NADA: se avisa dentro del diálogo (que queda abierto para
+      // reintentar) en lugar de cerrarlo como si hubiera funcionado.
+      if (written.ordered === 0 && written.failed > 0) {
+        throw new Error(`No se pudo encargar ningún repuesto (${written.failed} con error). Reintentá.`)
+      }
+      if (target.fromSelection) setSelectedOrders(new Set())
+    } finally {
+      setOrdering(false)
+    }
   }
 
   const handleAction = async (orderId: string, quantity: number, date: Date, notes?: string) => {
@@ -302,6 +340,28 @@ export default function SparePartOrdersPage() {
   )
 
   /**
+   * Repuestos PENDIENTES DE ENCARGAR (Solicitado / Pedido) de las órdenes
+   * tildadas: es lo que marca el botón "Encargar seleccionadas".
+   *
+   * Sólo se cuentan los pendientes: en una misma orden conviven repuestos ya
+   * encargados, recibidos o utilizados y ésos NO se tocan (no se les reescribe la
+   * fecha ni el estado). Sin nada pendiente, el botón queda deshabilitado.
+   */
+  const pendingSelectedParts = useMemo(
+    () => groups
+      .filter((g) => selectedOrders.has(g.key))
+      .flatMap((g) => g.parts.map((p) => p.order))
+      .filter(isPendingOrder),
+    [groups, selectedOrders],
+  )
+
+  /** Abre el diálogo de encargo para TODOS los pendientes de las órdenes tildadas. */
+  const handleOpenSelectedOrdered = () => {
+    if (pendingSelectedParts.length === 0) return
+    setOrderedTargets({ orders: pendingSelectedParts, fromSelection: true })
+  }
+
+  /**
    * Abre la hoja de compra con los pedidos de `printTargets`, identificados por su
    * id de documento (uno por repuesto). La hoja vuelve a agrupar por N° de orden,
    * así que muestra exactamente los mismos repuestos que esta tabla.
@@ -422,6 +482,11 @@ export default function SparePartOrdersPage() {
           {/* La hoja de compra sale SÓLO con lo que se está viendo (o con lo
               tildado, si hay algo tildado). Se avisa acá porque el botón está
               arriba: sin este dato parecía que imprimía todo el sistema. */}
+          {pendingSelectedParts.length > 0 && (
+            <span className="block text-xs text-muted-foreground">
+              {pendingSelectedParts.length} repuesto(s) pendiente(s) de encargar en lo tildado.
+            </span>
+          )}
           {printTargets.length < groups.length && (
             <span className="block text-xs text-amber-700">
               La lista de compra saldrá sólo con {printTargets.length} de {groups.length} orden(es): lo que se ve en pantalla.
@@ -429,6 +494,18 @@ export default function SparePartOrdersPage() {
           )}
         </p>
         <div className="flex gap-2">
+          {/* Encargo en LOTE: la misma fecha para todos los pendientes de las
+              órdenes tildadas. Es el caso normal (una máquina con 5-6 repuestos
+              que el dueño se lleva todos juntos), no una excepción. */}
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleOpenSelectedOrdered}
+            disabled={pendingSelectedParts.length === 0 || ordering}
+            title="Marca ENCARGADOS todos los repuestos pendientes (Solicitado / Pedido) de las órdenes tildadas, con la MISMA fecha de encargo."
+          >
+            {ordering ? "Encargando..." : `Encargar seleccionadas (${pendingSelectedParts.length})`}
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setSelectedOrders(new Set())} disabled={selectedOrders.size === 0}>
             Limpiar
           </Button>
@@ -555,7 +632,7 @@ export default function SparePartOrdersPage() {
                     <td className="py-2 px-3 text-right align-top">
                       <div className="flex items-center justify-end gap-1 flex-wrap">
                         {(o.status === "SOLICITADO" || o.status === "PEDIDO") && (
-                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setOrderedTarget(o)}>Encargar</Button>
+                          <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setOrderedTargets({ orders: [o], fromSelection: false })}>Encargar</Button>
                         )}
                         {o.status !== "UTILIZADO" && o.status !== "CANCELADO" && (
                           <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => setAction({ type: "receive", order: o })}>Recibir</Button>
@@ -578,9 +655,12 @@ export default function SparePartOrdersPage() {
       )}
 
       <SparePartOrderOrderedDialog
-        open={orderedTarget !== null}
-        onOpenChange={(o) => { if (!o) setOrderedTarget(null) }}
-        order={orderedTarget}
+        // Se remonta al abrir (como el diálogo de recibir/usar): así el error y el
+        // "guardando" de un intento anterior no quedan pegados al próximo encargo.
+        key={orderedTargets ? orderedTargets.orders.map((o) => o.id).join(",") : "closed"}
+        open={orderedTargets !== null}
+        onOpenChange={(o) => { if (!o) setOrderedTargets(null) }}
+        orders={orderedTargets?.orders ?? null}
         onConfirm={handleMarkOrdered}
       />
 
