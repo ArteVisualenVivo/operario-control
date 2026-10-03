@@ -65,6 +65,7 @@ param(
     [string] $ProjectRoot = "C:\Users\Cesar\Desktop\operario-control",
     [int]    $WakeIntervalMinutes = 1,
     [string] $WakeTaskName = "operario-control-agent-wake",
+    [string] $BridgeTaskName = "operario-control-agent-bridge",
     [switch] $NoWaker,
     [switch] $Uninstall
 )
@@ -72,7 +73,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 if ($Uninstall) {
-    foreach ($name in @($TaskName, $WakeTaskName)) {
+    foreach ($name in @($TaskName, $WakeTaskName, $BridgeTaskName)) {
         if (Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue) {
             Unregister-ScheduledTask -TaskName $name -Confirm:$false
             Write-Host "Tarea '$name' eliminada." -ForegroundColor Yellow
@@ -134,7 +135,27 @@ Write-Host "Para probarla ya mismo (sin esperar la hora):" -ForegroundColor Cyan
 Write-Host ("  Start-ScheduledTask -TaskName {0}" -f $TaskName)
 
 # ---------------------------------------------------------------------------
-# DESPERTADOR (`operario-control-agent-wake`)
+# PUENTE LOCAL (operario-control-agent-bridge)
+# ---------------------------------------------------------------------------
+# La web de Vercel NO puede hacer spawn en la PC: el click queda en cola y el
+# despertador tarda hasta 1 min. Este puente escucha SOLO en 127.0.0.1:3033 y
+# despierta al agente AL INSTANTE cuando el navegador esta en la PC de 3C.
+# Corre al iniciar sesion (el 3C necesita escritorio) y se auto-reinicia si
+# se cae. Solo despierta si hay trabajo real en Redis: no sincroniza solo.
+# ---------------------------------------------------------------------------
+$bridgeVbs = Join-Path $ProjectRoot "sync-agent\start-bridge.vbs"
+if (-not (Test-Path $bridgeVbs)) { throw "No existe el lanzador del puente: $bridgeVbs" }
+
+$bridgeAction = New-ScheduledTaskAction -Execute $wscript -Argument "`"$bridgeVbs`"" -WorkingDirectory $ProjectRoot
+$bridgeTrigger = New-ScheduledTaskTrigger -AtLogOn -User $userId
+$bridgeSettings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Days 3) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+
+Register-ScheduledTask -TaskName $BridgeTaskName -Action $bridgeAction -Trigger $bridgeTrigger `
+    -Settings $bridgeSettings -Principal $principal -Force | Out-Null
+# Lo levanta ya mismo (sin esperar el proximo inicio de sesion).
+Start-ScheduledTask -TaskName $BridgeTaskName -ErrorAction SilentlyContinue
+
+$bridgeTask = Get-ScheduledTask -TaskName $BridgeTaskName
 # ---------------------------------------------------------------------------
 # La web (Vercel) NO puede hacer `spawn` en la PC: solo encola el comando en
 # Redis. El despertador mira esa cola cada N minutos y arranca el agente SOLO si
@@ -174,10 +195,15 @@ $wakeInfo = Get-ScheduledTaskInfo -TaskName $WakeTaskName
 Write-Host ""
 Write-Host "OK - tarea '$($wakeTask.TaskName)' registrada (DESPERTADOR)." -ForegroundColor Green
 Write-Host ("  Estado    : {0}" -f $wakeTask.State)
-Write-Host ("  Frecuencia: cada {0} min (solo arranca el agente si hay cola)" -f $WakeIntervalMinutes)
+Write-Host ("  Frecuencia: cada {0} min (respaldo si el puente esta caido)" -f $WakeIntervalMinutes)
 Write-Host ("  Lanzador  : {0}" -f $wakeVbs)
 Write-Host ("  Proxima   : {0}" -f $wakeInfo.NextRunTime)
 Write-Host ""
-Write-Host "Prueba del despertador (no arranca nada si la cola esta vacia):" -ForegroundColor Cyan
-Write-Host "  powershell -ExecutionPolicy Bypass -File scripts\wake-agent-if-pending.ps1 -DryRun"
-Write-Host "  Start-ScheduledTask -TaskName $WakeTaskName"
+Write-Host "OK - tarea '$($bridgeTask.TaskName)' registrada (PUENTE LOCAL)." -ForegroundColor Green
+Write-Host ("  Estado    : {0}" -f $bridgeTask.State)
+Write-Host "  Inicio    : al iniciar sesion (despierta al agente al instante)"
+Write-Host ("  Lanzador  : {0}" -f $bridgeVbs)
+Write-Host ("  Escucha   : http://127.0.0.1:3033 (solo esta PC)")
+Write-Host ""
+Write-Host "Prueba del puente (el navegador de ESTA pc lo usa al sincronizar):" -ForegroundColor Cyan
+Write-Host "  curl.exe -s http://127.0.0.1:3033/health"

@@ -99,7 +99,7 @@ function agentIndicator(status: AgentStatus): { dot: string; label: string } {
   }
 }
 
-const MODULE_LABELS: Record<SyncModule, string> = {
+const MODULE_LABELS: Record<string, string> = {
   todo: "Todo",
   stock: "Stock",
   reparaciones: "Reparaciones",
@@ -207,7 +207,7 @@ export default function Sync3CButton({
       if (data.status === "completed") {
         const currentIdx = currentIndexRef.current
         const currentModule = pipeline[currentIdx]
-        const moduleLabel = MODULE_LABELS[currentModule as SyncModule] || currentModule
+        const moduleLabel = MODULE_LABELS[String(currentModule)] || String(currentModule)
         
         // Mostrar toast de progreso
         const r = data.result
@@ -236,7 +236,7 @@ export default function Sync3CButton({
           setCurrentPipelineIndex(nextIndex)
           const nextCommandId = commandIdsRef.current[nextIndex]
           
-          toast.info(`Iniciando ${MODULE_LABELS[pipeline[nextIndex] as SyncModule]}...`)
+          toast.info(`Iniciando ${MODULE_LABELS[String(pipeline[nextIndex])]}...`)
           
           // Reiniciar polling para el siguiente comando
           if (pollingRef.current) {
@@ -257,7 +257,7 @@ export default function Sync3CButton({
         stopPolling()
         setState("error")
         const currentIdx = currentIndexRef.current
-        toast.error(data.error ?? `Error en ${MODULE_LABELS[pipeline[currentIdx] as SyncModule] || "sincronización"}`)
+        toast.error(data.error ?? `Error en ${MODULE_LABELS[String(pipeline[currentIdx])] || "sincronización"}`)
       } else if (data.status === "not_found") {
         // El comando ya no está en Redis (expirado o borrado): no se realizó.
         stopPolling()
@@ -330,13 +330,35 @@ export default function Sync3CButton({
         } else {
           console.warn("[SYNC] Agent start failed:", startData.error)
           // El agente solo lo puede despertar la PC de 3C (spawn local). Si la
-          // web corre en un host remoto (Vercel) el comando queda en cola: se
-          // avisa en vez de esperar en silencio a que venza el timeout.
-          if (startData.error) toast.warning(startData.error)
+          // web corre en un host remoto (Vercel) el comando queda en cola.
+          // El puente local (paso 2b) ya intento despertarlo al instante;
+          // solo se informa en consola, sin cartel de error: el polling
+          // confirma cuando arranca, y si no hay puente el despertador
+          // lo levanta en menos de un minuto.
+          if (startData.remote) {
+            console.log("[SYNC] Sitio remoto: el agente lo despierta el puente/despertador local.")
+          } else if (startData.error) toast.warning(startData.error)
         }
       } catch (startErr) {
         console.warn("[SYNC] Could not start agent (may be running):", startErr)
       }
+      // 2b. Puente local (PC de 3C): si el navegador esta en la PC,
+      // despierta al agente AL INSTANTE sin esperar al despertador.
+      // Si esta en otra PC/celular, falla rapido y no hace nada.
+      try {
+        const ctl = new AbortController()
+        const t = setTimeout(() => ctl.abort(), 1500)
+        await fetch("http://127.0.0.1:3033/wake", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ commandId: data.commandId }),
+          signal: ctl.signal,
+        }).catch(() => null)
+        clearTimeout(t)
+      } catch {
+        /* sin puente local: lo levanta el despertador (menos de 1 min) */
+      }
+
 
       setState("running")
 
@@ -444,7 +466,7 @@ export default function Sync3CButton({
       : "Sin módulos seleccionados"
   const currentPipelineModule = pipeline[currentPipelineIndex]
   const progressText = pipeline.length > 1
-    ? `${MODULE_LABELS[currentPipelineModule as SyncModule] || currentPipelineModule} (${currentPipelineIndex + 1}/${pipeline.length})`
+    ? `${MODULE_LABELS[String(currentPipelineModule)] || currentPipelineModule} (${currentPipelineIndex + 1}/${pipeline.length})`
     : selectionLabel
 
   return (
