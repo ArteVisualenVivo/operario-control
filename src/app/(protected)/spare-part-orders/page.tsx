@@ -14,7 +14,7 @@ import { SparePartOrderReceiveUseDialog } from "@/components/repairs/SparePartOr
 import { SparePartOrderDatesEditor } from "@/components/repairs/SparePartOrderDatesEditor"
 import { SparePartOrderCodeInput } from "@/components/repairs/SparePartOrderCodeInput"
 import { formatDate } from "@/lib/ui"
-import { groupOrdersByRealNumber, type SparePartOrderGroup } from "@/lib/sparePartOrderGroups"
+import { groupOrdersByRealNumber, fullMachineIdentification, type SparePartOrderGroup } from "@/lib/sparePartOrderGroups"
 import { buildMaintenanceByOrder, getOrderClosure, normOrderKey } from "@/lib/orderClosure"
 import type { MaintenanceRecord } from "@/services/maintenance"
 import { toast } from "sonner"
@@ -485,7 +485,10 @@ export default function SparePartOrdersPage() {
                     )}
                     {idx === 0 && (
                       <td className="py-2 px-3 align-top" rowSpan={g.parts.length}>
-                        {g.machineName}
+                        {/* Identificación COMPLETA de la máquina: el nombre solo no
+                            alcanza (3C corta a 30 caracteres y al importar el resto
+                            queda en el Modelo). Ver fullMachineIdentification(). */}
+                        {fullMachineIdentification(g.machineName, g.machineModel)}
                         {(() => {
                           const rec = maintenanceByOrder.get(normOrderKey(g.orderNumber))
                           const client = rec?.clientName?.trim()

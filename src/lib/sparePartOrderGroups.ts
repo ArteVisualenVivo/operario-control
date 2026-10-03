@@ -44,6 +44,14 @@ export interface SparePartOrderGroup {
   orderNumber: string
   /** Máquina tal cual la reporta la fuente. */
   machineName: string
+  /**
+   * MODELO de 3C para esa máquina (columna DENOMINACION del informe de
+   * Reparaciones), tal como lo guarda el pedido auto-importado. Suele ser la
+   * identificación COMPLETA (con el prefijo "REPARACION:") y por eso es la
+   * fuente para mostrar el nombre entero: ver fullMachineIdentification().
+   * `null`/vacío = 3C no informó ese dato para esa orden.
+   */
+  machineModel: string | null
   /** Repuestos de la orden, en el mismo orden en que llegaron. */
   parts: SparePartOrderGroupPart[]
   /** ids de los registros agrupados (para selección/eliminación). */
@@ -102,6 +110,50 @@ export function groupOrdersByRealNumber(orders: SparePartOrder[]): SparePartOrde
   })
 }
 
+/** Normaliza para comparar textos: sin espacios ni mayúsculas. */
+function compactIdentification(value: string | null | undefined): string {
+  return String(value ?? "").replace(/\s+/g, "").toUpperCase()
+}
+
+/** Prefijo con el que 3C encabeza la columna DENOMINACION (marca de la fuente). */
+const REPARACION_PREFIX = /^reparaci[oó]n:\s*/i
+
+/**
+ * TEXTO de la máquina para MOSTRAR: la identificación COMPLETA de 3C
+ * (nombre + modelo), no sólo el nombre suelto.
+ *
+ * POR QUÉ: 3C corta la identificación a 30 caracteres y sigue en la celda de al
+ * lado; al importar, el pedido la parte en dos campos —
+ *   machineName  = "Martillo demoledor"
+ *   machineModel = "Martillo demoledor TE-DH 12 11029"   (DENOMINACION de 3C)
+ * — y la lista mostraba sólo `machineName`: el modelo quedaba invisible en la
+ * pantalla (aunque sí se imprimía en la hoja de compra y se ve en Reparaciones).
+ * Con esto la celda muestra el nombre entero, igual que las órdenes donde 3C no
+ * pudo partirse el texto (ahí la identificación entera quedó en `machineName`).
+ *
+ * Reglas (nunca inventa ni degrada el dato):
+ *  - Sin modelo de 3C            → lo guardado como nombre.
+ *  - El modelo ES el mismo dato  → lo guardado como nombre (3C lo escribe
+ *    distinto al exportarlo: "…1300WGKS130" vs "…1300W GKS130").
+ *  - El modelo CONTINÚA el nombre (mismo prefijo: es el nombre + el resto que
+ *    3C había cortado) → el modelo completo, sin el prefijo "REPARACION:".
+ *  - Textos distintos (otra fuente/otra máquina) → lo guardado como nombre.
+ */
+export function fullMachineIdentification(
+  machineName: string | null | undefined,
+  machineModel: string | null | undefined,
+): string {
+  const name = String(machineName ?? "").trim()
+  const model = String(machineModel ?? "").replace(REPARACION_PREFIX, "").trim()
+  if (!model) return name
+  if (!name) return model
+  const a = compactIdentification(name)
+  const b = compactIdentification(model)
+  if (a === b) return name
+  if (b.startsWith(a)) return model
+  return name
+}
+
 /**
  * Agrupa los pedidos por número de orden conservando el orden de entrada.
  *
@@ -126,6 +178,7 @@ export function buildSparePartOrderGroups(orders: SparePartOrder[]): SparePartOr
         key,
         orderNumber: order.orderNumber,
         machineName: order.machineName,
+        machineModel: order.machineModel ?? null,
         parts: [],
         ids: [],
         totalParts: 0,
