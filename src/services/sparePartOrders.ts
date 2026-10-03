@@ -2395,11 +2395,39 @@ function isCodeToken(token: string): boolean {
 }
 
 /**
+ * ¿Este token es un SUFIJO del código? 3C lo escribe en la misma línea, separado
+ * por un espacio:
+ *   "A44" (perfil de correa) → true
+ *   "ORING", "BALERO"        → false (son palabras de la descripción)
+ * Es corto (2–4), trae dígitos Y letras, y no forma una palabra.
+ */
+function isCodeSuffix(token: string): boolean {
+  const t = token.replace(/^[(\"'[]+/, "").replace(/[)\"'\],;:.]+$/, "")
+  if (t.length < 2 || t.length > 4) return false
+  if (!/^[A-Za-z0-9][A-Za-z0-9\-./]*$/.test(t)) return false
+  if (!/\d/.test(t) || !/[A-Za-z]/.test(t)) return false
+  // "A44" deja UNA letra; 3 letras seguidas ("ISO") ya son una palabra.
+  if (/[A-Za-z]{3,}/.test(t)) return false
+  return true
+}
+
+/**
  * Separa descripción y código DENTRO de una línea, sin cruzar códigos entre
  * repuestos (el código pertenece EXCLUSIVAMENTE al repuesto de esa línea).
- *   "JUEGO DE CARBONES 160432115T"        → "JUEGO DE CARBONES"     + 160432115T
- *   "R99939910 ORING 13 p/9993931"        → "ORING 13 p/9993931"    + R99939910
- *   "inducido 1619P15184 ( VENTILADOR )"  → "inducido (VENTILADOR)" + 1619P15184
+ *
+ * REGLA: la descripción conserva TODO lo escrito en la línea MENOS el código
+ * (lo que va antes Y lo que va después). Antes se descartaba el texto posterior
+ * al código ("RODAMIENTO 210042-8 BALERO 629LLB P/1600…" quedaba como
+ * "RODAMIENTO"): la línea se lee completa, como se pide en la casa de repuestos.
+ *
+ *   "JUEGO DE CARBONES 160432115T"        → "JUEGO DE CARBONES"        + 160432115T
+ *   "R99939910 ORING 13 p/9993931"        → "ORING 13 p/9993931"       + R99939910
+ *   "RODAMIENTO 210042-8 BALERO 629LLB…"  → "RODAMIENTO BALERO 629LLB…" + 210042-8
+ *   "inducido 1619P15184 ( VENTILADOR )"  → "inducido (VENTILADOR)"    + 1619P15184
+ *   "correas x3 13x1118LI  A44"           → "correas x3"              + 13X1118LI A44
+ *
+ * El código es el primer token que parece código MÁS sus sufijos cortos pegados
+ * con espacio ("13x1118LI  A44"): sin el sufijo el código quedaba incompleto.
  */
 function splitDescriptionAndCode(line: string): { code: string | null; description: string } {
   const tokens = line.split(/\s+/)
@@ -2410,11 +2438,20 @@ function splitDescriptionAndCode(line: string): { code: string | null; descripti
   if (idxs.length === 0) return { code: null, description: line.trim() }
   const i = idxs[0]
   const code = tokens[i].replace(/^[("'[]+/, "").replace(/[)"'\],;:.]+$/, "").toUpperCase()
-  const before = tokens.slice(0, i).join(" ").trim()
-  const after = tokens.slice(i + 1).join(" ").trim()
+  // El código absorbe sus sufijos cortos pegados con espacio ("13x1118LI  A44"):
+  // sin el sufijo el código quedaba incompleto para pedirlo en la casa de repuestos.
+  const rest = tokens.slice(i + 1)
+  let nSuffix = 0
+  while (nSuffix < rest.length && isCodeSuffix(rest[nSuffix])) nSuffix++
+  const suffix = rest.slice(0, nSuffix).map((t) => t.toUpperCase()).join(" ")
+  const fullCode = suffix ? `${code} ${suffix}` : code
+  // La descripción conserva TODO lo demás: lo que va ANTES y lo que va DESPUÉS
+  // del código (antes se perdía el texto posterior al código).
+  const after = rest.slice(nSuffix).join(" ").trim()
   const nota = after.match(/^\(\s*([^)]+?)\s*\)$/)
-  if (before) return { code, description: nota ? `${before} (${nota[1]})` : before }
-  return { code, description: after }
+  const before = tokens.slice(0, i).join(" ").trim()
+  const description = [before, nota ? `(${nota[1]})` : after].filter(Boolean).join(" ").trim()
+  return { code: fullCode, description }
 }
 
 /**
@@ -2858,6 +2895,30 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
     if (!codeN) byDescription.set(`${orderKey}||${descN}`, o)
   }
 
+  /**
+   * ¿`base` es el MISMO código que `full` con un sufijo menos?
+   * 3C escribe el sufijo separado por un espacio ("13X1118LI  A44"), así que el
+   * pedido puede estar guardado con el código base ("13X1118LI").
+   */
+  const isCodeBaseOf = (base: string, full: string): boolean =>
+    Boolean(base) && base !== full && full.startsWith(base) && full.length - base.length <= 6
+
+  /**
+   * Pedido EXISTENTE cuyo código guardado es el BASE del detectado ahora. Se usa
+   * para ACTUALIZARLE el código en lugar de crear un duplicado: el mismo repuesto
+   * con dos códigos distintos NO se fusiona después (ver mergeDuplicateOrders).
+   */
+  const findByCodePrefix = (orderKey: string, codeN: string): SparePartOrder | undefined => {
+    if (!codeN) return undefined
+    for (const o of existing) {
+      if (!isAutoImportedOrder(o)) continue
+      if (normOrderKey(o.orderNumber) !== orderKey) continue
+      const base = sparePartCodeKey(o.code)
+      if (isCodeBaseOf(base, codeN)) return o
+    }
+    return undefined
+  }
+
   const createdOrders: { orderNumber: string; code: string | null; description: string }[] = []
   let updated = 0
   let skippedAdmin = 0
@@ -2908,7 +2969,10 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
       // Fallback: pedido guardado SIN código real para esa orden y descripción
       // (importación vieja con el voltaje "220V" como código) → se reconoce y se
       // le corrige el código, en lugar de crear un pedido duplicado al lado.
-      const existingOrder = seen.get(dedupKey) ?? byDescription.get(`${orderKey}||${descNorm}`)
+      const existingOrder =
+        seen.get(dedupKey) ??
+        byDescription.get(`${orderKey}||${descNorm}`) ??
+        findByCodePrefix(orderKey, codeNorm)
       if (existingOrder) {
         // Actualizar existente si cambió algo relevante
         const updates: Record<string, unknown> = {}
@@ -2917,10 +2981,23 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
         // (puede haber sido corregido a mano en la pantalla).
         const storedCode = String(existingOrder.code ?? "").trim()
         const storedKey = sparePartCodeKey(existingOrder.code)
-        if (codeNorm && !storedKey) {
+        // Se copia el código de 3C si el guardado NO es un código real (vacío o
+        // "220V"), o si el guardado es el MISMO código con un sufijo menos
+        // ("13X1118LI" → "13X1118LI A44", que 3C escribe con espacio). Si el
+        // guardado es un código real DISTINTO, no se pisa (puede haberse corregido
+        // a mano en la pantalla).
+        if (codeNorm && (!storedKey || isCodeBaseOf(storedKey, codeNorm))) {
           updates.code = normalizePartCode(part.code)
         } else if (!codeNorm && storedCode && !storedKey) {
           updates.code = ""
+        }
+        // DESCRIPCIÓN: se COMPLETA con el texto ÍNTEGRO de la línea de 3C cuando la
+        // guardada había quedado recortada (el parser viejo perdía lo que venía
+        // después del código). Solo pedidos auto-importados y solo si AGREGA texto:
+        // nunca se acorta ni se pisa una descripción cargada a mano.
+        const storedDesc = String(existingOrder.description ?? "")
+        if (isAutoImportedOrder(existingOrder) && part.description.length > storedDesc.length) {
+          updates.description = part.description
         }
         // FECHA DEL PEDIDO: se corrige sólo si el día cambió y NUNCA hacia
         // adelante (el sync no puede "rejuvenecer" un pedido; ver
