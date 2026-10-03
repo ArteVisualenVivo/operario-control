@@ -80,6 +80,7 @@ service-account.json
 /sync-agent/.agent.lock
 /sync-agent/agent.log
 /sync-agent/agent-wake.log
+/sync-agent/bridge.log
 /sync-agent/agent-autostart.log
 /sync-agent/agent-stderr.log
 /sync-agent/agent-stdout.log
