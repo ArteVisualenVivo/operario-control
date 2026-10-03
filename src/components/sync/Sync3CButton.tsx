@@ -510,8 +510,8 @@ export default function Sync3CButton({
 
       {state === "idle" && !agentAvailable && (
         <span className="text-xs text-muted-foreground">
-          El agente no está disponible ahora: la sincronización quedará en cola hasta la próxima
-          corrida programada (10/12/15/17).
+          El agente no está disponible ahora: la sincronización quedará en cola y el despertador de
+          la PC de 3C la toma en menos de un minuto (revisa la cola cada minuto).
         </span>
       )}
     </div>

@@ -1379,7 +1379,10 @@ async function runModule(
             // importan los válidos.
             try {
               const { reconcileSpareOrdersFromWaitingStatus, cleanupInvalidSpareOrders } = await import("../src/services/sparePartOrders")
-              const reconciled = await reconcileSpareOrdersFromWaitingStatus()
+              const reconciled = await withFirestoreTimeout(
+                "reconcileSpareOrdersFromWaitingStatus",
+                reconcileSpareOrdersFromWaitingStatus(),
+              )
               console.log(`[AGENT] Spare parts reconcile: deleted=${reconciled.deleted}`)
               if (reconciled.deletedOrders.length > 0) {
                 console.log(`[AGENT] Spare parts reconciled out:`, reconciled.deletedOrders)
@@ -1387,13 +1390,19 @@ async function runModule(
               // Limpieza de pedidos auto-importados que NO son repuestos reales
               // (código S/C/vacío, mano de obra, fallas/diagnósticos). NO toca
               // pedidos manuales ni maintenance.
-              const cleaned = await cleanupInvalidSpareOrders()
+              const cleaned = await withFirestoreTimeout(
+                "cleanupInvalidSpareOrders",
+                cleanupInvalidSpareOrders(),
+              )
               if (cleaned.deleted > 0) {
                 console.log(`[AGENT] Spare parts cleanup: delete=${cleaned.deleted}, kept=${cleaned.kept} (invalidos eliminados)`)
               }
               // Se importan los repuestos desde los MISMOS registros consolidados que el
               // agente ya tiene en memoria (sin fetch relativo, que falla en Node).
-              const sparePartsResult = await importSparePartsFromRecords(consolidatedRecords ?? maintenanceRecords)
+              const sparePartsResult = await withFirestoreTimeout(
+                "importSparePartsFromRecords",
+                importSparePartsFromRecords(consolidatedRecords ?? maintenanceRecords),
+              )
               console.log(`[AGENT] Spare parts from MOTIVO_ESTADO_REP: created=${sparePartsResult.created}, updated=${sparePartsResult.updated}, skippedAdmin=${sparePartsResult.skippedAdmin}, modelsFromDenominacion=${sparePartsResult.modelsUpdated}, duplicadosConsolidados=${sparePartsResult.duplicatesMerged}, fechasReparadas=${sparePartsResult.datesRepaired}`)
               if (sparePartsResult.createdOrders.length > 0) {
                 console.log(`[AGENT] Spare parts detail:`, sparePartsResult.createdOrders)
@@ -1419,7 +1428,10 @@ async function runModule(
             // responde, conserva el snapshot anterior (no publica vacío).
             try {
               const { publishSparePartOrdersSnapshot } = await import("../src/services/sparePartOrders")
-              const published = await publishSparePartOrdersSnapshot()
+              const published = await withFirestoreTimeout(
+                "publishSparePartOrdersSnapshot",
+                publishSparePartOrdersSnapshot(),
+              )
               console.log(`[AGENT] Spare parts snapshot -> Redis: ${published} pedido(s)`)
             } catch (snapErr) {
               console.error(
@@ -1442,7 +1454,25 @@ async function runModule(
                 result.warnings.push("No se pudo interpretar el export de estados de reparaciones: " + sMsg)
             }
             const statusBuffer = Buffer.from(buffer)
-            const consolidatedRecords = await consolidateMaintenanceFromExports(redis, exportInfo, runStart, statusBuffer)
+            // CORTE RÁPIDO: si Firestore está bloqueado por cuota, esta escritura
+            // podía quedarse ~10 min reintentando (el agente es un solo carril, así
+            // que toda la cola quedaba parada). Se corta a los 20s y se sigue: el
+            // consolidado completo se reescribe en la próxima corrida.
+            let consolidatedRecords: Awaited<ReturnType<typeof consolidateMaintenanceFromExports>> | null = null
+            try {
+                consolidatedRecords = await withFirestoreTimeout(
+                    "consolidateMaintenanceFromExports",
+                    consolidateMaintenanceFromExports(redis, exportInfo, runStart, statusBuffer),
+                )
+            } catch (consErr) {
+                console.warn(
+                    `[AGENT] Consolidado NO persistido (se reescribe en la próxima corrida):`,
+                    consErr instanceof Error ? consErr.message : String(consErr),
+                )
+                result.warnings.push(
+                    "Consolidado de reparaciones no persistido (Firestore sin respuesta): se reescribe en la próxima corrida",
+                )
+            }
             if (consolidatedRecords) {
                 result.updated = consolidatedRecords.length
                 const withStatus = consolidatedRecords.filter((r) => r.status).length
@@ -1456,7 +1486,10 @@ async function runModule(
             // de reparaciones, sin depender de la cuota de Firestore.
             try {
               const { publishSparePartOrdersSnapshot } = await import("../src/services/sparePartOrders")
-              const published = await publishSparePartOrdersSnapshot()
+              const published = await withFirestoreTimeout(
+                "publishSparePartOrdersSnapshot",
+                publishSparePartOrdersSnapshot(),
+              )
               console.log(`[AGENT] Spare parts snapshot -> Redis: ${published} pedido(s)`)
             } catch (snapErr) {
               console.error(
@@ -1696,6 +1729,47 @@ async function drainQueue(redis: Redis): Promise<number> {
     }
     console.log(`[AGENT] Cola drenada: ${drained} comando(s) extra procesado(s)`)
     return drained
+}
+
+// ============================================================================
+// RECUPERACIÓN DE COMANDOS COLGADOS (status `running` sin agente vivo)
+// ----------------------------------------------------------------------------
+// Un comando que quedó en `running` cuando su agente murió (hard-stop, corte de
+// luz, AHK colgado) NUNCA vuelve a cambiar de estado: la web que lo poléea se
+// queda en "Sincronizando…" hasta el timeout (25 min) y el usuario ve el agente
+// "colgado".
+//
+// Esta función corre con el LOCK TOMADO (o sea: no hay ningún otro agente vivo),
+// así que cualquier `running` más viejo que este margen es basura. Se marca
+// `failed` con un motivo explícito para que la web corte el polling, avise y el
+// usuario pueda reintentar.
+// ============================================================================
+const STALE_RUNNING_MS = 5 * 60 * 1000
+
+async function recoverStaleCommands(redis: Redis): Promise<number> {
+    const now = Date.now()
+    let cursor = "0"
+    let recovered = 0
+    do {
+        const result = await redis.scan(cursor, { match: "sync-3c:command:*", count: 100 })
+        cursor = result[0]
+        const keys = (result[1] as string[]) ?? []
+        for (const key of keys) {
+            const data = await redis.hgetall<Record<string, unknown>>(key)
+            if (!data || data.status !== "running") continue
+            const startedAt = Number(data.startedAt) || Number(data.createdAt) || 0
+            if (!startedAt || now - startedAt < STALE_RUNNING_MS) continue
+            await redis.hset(key, {
+                status: "failed",
+                completedAt: now,
+                error: "Agente interrumpido: la corrida quedó sin proceso activo (recuperado al arrancar el agente).",
+            })
+            console.log(`[AGENT] Comando colgado recuperado → failed: ${key}`)
+            recovered++
+        }
+    } while (cursor !== "0")
+    if (recovered > 0) console.log(`[AGENT] ${recovered} comando(s) colgado(s) marcados como failed`)
+    return recovered
 }
 
 // ============================================================================
@@ -2011,6 +2085,13 @@ async function runScheduledAutoSync(): Promise<void> {
     }
     acquireSingletonLock()
 
+    // Mismo saneamiento que el modo on-demand: `running` sin agente vivo → failed.
+    try {
+        await recoverStaleCommands(redis)
+    } catch (err) {
+        console.error("[AGENT] No se pudieron recuperar comandos colgados:", err)
+    }
+
     const heartbeat = setInterval(() => {
         writeHeartbeatAsync(redis, "running")
     }, HEARTBEAT_INTERVAL_MS)
@@ -2086,6 +2167,15 @@ async function main() {
     console.log(`[AGENT] Machine: ${MACHINE_NAME}`)
 
     const redis = getRedis()
+
+    // Saneamiento previo: comandos que quedaron en `running` sin agente vivo
+    // (corrida interrumpida) se marcan `failed` para que la web no los pollee
+    // para siempre ("Sincronizando…" eterno).
+    try {
+        await recoverStaleCommands(redis)
+    } catch (err) {
+        console.error("[AGENT] No se pudieron recuperar comandos colgados:", err)
+    }
 
     // Heartbeat mientras el agente vive: mantiene el indicador "Ejecutando" en
     // la web (TTL 120s) durante corridas largas (AHK ~100s × N módulos). Se

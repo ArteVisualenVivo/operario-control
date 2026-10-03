@@ -506,15 +506,18 @@ Ruta: `/dashboard`
 | `src/components/sync/Sync3CButton.tsx` | Botón UI con indicador de estado y polling (el semáforo NO bloquea el botón) |
 | `sync-agent/agent.ts` | Agente local on-demand / programado: drena la cola, ejecuta AHK, procesa Excel, escribe resultado + heartbeat |
 | `automation/sync_3c.ahk` | Script AHK: automatiza exportación desde 3C |
-| `scripts/install-auto-sync-tasks.ps1` | Registra el auto-sync programado (10/12/15/17) en el Programador de tareas de Windows |
+| `scripts/install-auto-sync-tasks.ps1` | Registra el auto-sync programado (10/12/15/17) y el despertador (cada 1 min) en el Programador de tareas de Windows |
 | `sync-agent/start-agent-auto.vbs` | Lanzador oculto del modo `--auto` (lo invoca la tarea programada) |
+| `scripts/wake-agent-if-pending.ps1` | Despertador: mira `sync-3c:queue` (1 request `LLEN`) y, si hay comandos, lanza el agente on-demand (tarea `operario-control-agent-wake`) |
+| `sync-agent/wake-agent.vbs` | Lanzador oculto del despertador (lo invoca la tarea programada cada minuto) |
 | `start-agent-windows.vbs` | NO-OP: no se auto-inicia con Windows; el manual va on-demand desde la web y el automático por la tarea programada |
 
 ### Endpoints involucrados
 
 1. **`POST /api/sync-3c`** — Crea `sync-3c-commands/{uuid}` con `status: "pending"`
 2. **`GET /api/sync-3c/status?commandId=x`** — Lee el documento y devuelve su estado
-3. **`GET /api/sync-3c/agent-status`** — Lee `sync-3c-agent/production` y determina online/offline (heartbeat < 90s)
+3. **`GET /api/sync-3c/agent-status`** — Lee `sync-3c:agent:production` (TTL 120s) + `sync-3c:agent:last-seen` (sin TTL) y resuelve `online`/`running`/`standby`/`offline` (ver 2.12)
+4. **`POST /api/sync-3c/start-agent`** — Solo funciona en la PC de 3C (`spawn` local). En un host remoto responde `remote: true` y el comando lo levanta el despertador local (`operario-control-agent-wake`, cada 1 min)
 
 ### Colecciones Firestore involucradas
 

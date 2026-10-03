@@ -190,6 +190,11 @@ UI (click "Sincronizar")
 El mismo endpoint acepta `{ "mode": "auto" }` para pedir a mano una corrida
 programada (no requiere `commandId`).
 
+**Si la web NO corre en la PC** (p. ej. el sitio de Vercel, abierto desde el
+celular o desde otra máquina), el `spawn` es imposible: el endpoint responde
+`remote: true` y el comando queda `pending` en la cola. Lo levanta el
+**despertador** (sección siguiente) en menos de un minuto.
+
 ## Automático (horario programado)
 
 ```
@@ -207,6 +212,23 @@ Programador de tareas de Windows (10/12/15/17 → tarea `operario-control-auto-s
 `-WakeToRun` (despierta la PC del suspenso). **Cambiar el horario = re-ejecutar
 el instalador con `-Hours`**; NO basta con editar `AUTO_SYNC_HOURS` en `agent.ts`
 (esa constante solo la usa el modo `--listener`).
+
+## Despertador (click desde la web remota) — tarea `operario-control-agent-wake`
+
+```
+Programador de tareas (cada 1 min → tarea `operario-control-agent-wake`)
+  → wscript sync-agent/wake-agent.vbs              (oculto)
+  → scripts/wake-agent-if-pending.ps1              (1 request: LLEN sync-3c:queue)
+        · cola vacía            → sale (no arranca nada)
+        · agente vivo (lock OK) → sale (ese agente drena la cola)
+        · hay comandos          → lanza OCULTO: npx tsx sync-agent/agent.ts
+  → el agente drena la cola FIFO y SALE solo
+```
+
+Sin despertador, un click en el sitio remoto quedaba `pending` hasta la próxima
+corrida programada (10/12/15/17). Con el despertador, el click llega a la PC en
+≤1 min. Frecuencia: `-WakeIntervalMinutes` del instalador (1-60; default 1).
+Log: `sync-agent/agent-wake.log` (solo escribe cuando lanza el agente).
 
 ## Invariantes (no romper)
 
@@ -226,9 +248,19 @@ el instalador con `-Hours`**; NO basta con editar `AUTO_SYNC_HOURS` en `agent.ts
    El semáforo es **informativo y NUNCA deshabilita** el botón de sincronizar
    (con el agente on-demand, bloquear por "offline" dejaba la web sin salida).
    Solo con >26h sin reportar (`LAST_SEEN_MAX_AGE_MS`) se muestra "Offline" y el
-   aviso de que el comando esperará a la próxima corrida programada.
+   aviso de que el comando esperará al despertador (≤1 min) o a la próxima
+   corrida programada.
 6. **`start-agent-windows.vbs` es un no-op.** El arranque al iniciar sesión se
    eliminó: la agenda la manda la tarea programada de Windows.
+7. **El despertador no es un servicio.** Cada tick es un proceso corto
+   (`wake-agent-if-pending.ps1`) que hace UNA request (`LLEN`) y termina; solo
+   lanza al agente cuando hay comandos en cola. Quien sincroniza (y sale) sigue
+   siendo el agente on-demand. Sin el despertador, el click remoto vuelve a
+   quedar en cola hasta la corrida programada.
+8. **Ningún comando queda colgado.** Al arrancar (con el lock ya tomado, o sea
+   sin otro agente vivo) corre `recoverStaleCommands()`: todo comando `running`
+   de más de 5 min se marca `failed` con motivo. Sin esto, un agente muerto a
+   mitad de corrida dejaba la web en "Sincronizando…" hasta el timeout de 25 min.
 
 ## Verificación manual
 
@@ -238,5 +270,9 @@ npx tsx sync-agent/agent.ts --auto     # corrida programada a mano (requiere 3C 
 Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -match 'sync-agent[\\/]agent\.ts' }
 Test-Path sync-agent/.agent.lock       # False
 Get-ScheduledTask -TaskName operario-control-auto-sync | Select-Object TaskName, State
+Get-ScheduledTask -TaskName operario-control-agent-wake | Select-Object TaskName, State
+Get-ScheduledTaskInfo -TaskName operario-control-agent-wake | Select-Object LastRunTime, NextRunTime
+powershell -ExecutionPolicy Bypass -File scripts\wake-agent-if-pending.ps1 -DryRun   # cola vacía → no lanza nada
+powershell -ExecutionPolicy Bypass -File scripts\wake-agent-if-pending.ps1 -DryRun -QueueKey sync-3c:queue   # cola con 2 → "lanzaría"
 ```
 <!-- END:ciclo-agente-on-demand -->
