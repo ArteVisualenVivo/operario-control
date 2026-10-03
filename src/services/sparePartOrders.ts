@@ -1483,6 +1483,64 @@ export function sparePartCodeKey(code: unknown): string {
 }
 
 /**
+ * ¿`base` es el MISMO código que `full` con un sufijo menos (≤6 caracteres)?
+ *
+ * 3C escribe el sufijo del código separado por un espacio ("13x1118LI  A44"), así
+ * que un pedido importado por una versión vieja del parser puede estar guardado
+ * con el código BASE ("13X1118LI"). Con esto se le ACTUALIZA el código en lugar
+ * de crear un pedido duplicado al lado (dos códigos distintos del mismo repuesto
+ * no se fusionan después; ver mergeDuplicateOrders).
+ */
+function isCodeBaseOf(base: string, full: string): boolean {
+  return Boolean(base) && base !== full && full.startsWith(base) && full.length - base.length <= 6
+}
+
+/**
+ * CORRECCIONES que le corresponden a un pedido que YA EXISTE cuando el mismo
+ * repuesto vuelve a aparecer en la línea de 3C (orden + descripción = identidad
+ * del pedido; el código es un atributo que 3C puede traer mal o incompleto).
+ *
+ * Devuelve qué campos hay que escribir (`{}` = nada que corregir):
+ * - CÓDIGO: se copia el de 3C cuando el guardado NO es un código real (vacío o el
+ *   voltaje "220V" de una importación vieja) o cuando es el MISMO código con un
+ *   sufijo menos (`"13X1118LI"` → `"13X1118LI A44"`, que 3C escribe con un espacio:
+ *   `"correas x3 13x1118LI  A44"`). Un código real DISTINTO no se pisa: puede
+ *   haberse corregido a mano en la pantalla.
+ * - DESCRIPCIÓN: se COMPLETA con el texto ÍNTEGRO de la línea de 3C cuando la
+ *   guardada había quedado recortada (el parser viejo perdía lo que venía después
+ *   del código: `"RODAMIENTO 210042-8 BALERO 629LLB…"` quedaba `"RODAMIENTO"`).
+ *   Solo pedidos auto-importados y solo si AGREGA texto: nunca se acorta ni se
+ *   pisa una descripción cargada a mano.
+ *
+ * POR QUÉ ES UNA FUNCIÓN COMPARTIDA: la usan los DOS importadores
+ * (`importPendingPartsFromMaintenance`, el de la pantalla, y
+ * `importSparePartsFromRecords`, el del agente). Cuando cada uno tenía su propia
+ * copia, el de la pantalla —que corre al abrir "Pedidos Rep."— volvía a dejar el
+ * código recortado que el otro acababa de completar.
+ */
+export function backfillOrderFromDetectedPart(
+  existing: Pick<SparePartOrder, "code" | "description" | "notes">,
+  detected: { code: string | null; description: string },
+): { code?: string; description?: string } {
+  const fixes: { code?: string; description?: string } = {}
+  const codeNorm = sparePartCodeKey(detected.code)
+  const storedCode = String(existing.code ?? "").trim()
+  const storedKey = sparePartCodeKey(existing.code)
+  if (codeNorm && (!storedKey || isCodeBaseOf(storedKey, codeNorm))) {
+    fixes.code = normalizePartCode(detected.code)
+  } else if (!codeNorm && storedCode && !storedKey) {
+    fixes.code = ""
+  }
+  if (
+    isAutoImportedOrder(existing) &&
+    detected.description.length > String(existing.description ?? "").length
+  ) {
+    fixes.description = detected.description
+  }
+  return fixes
+}
+
+/**
  * Descripción normalizada de un repuesto: es la IDENTIDAD del pedido junto al
  * nº de orden (el código es un atributo que 3C puede traer mal o vacío).
  */
@@ -1977,10 +2035,18 @@ export async function importPendingPartsFromMaintenance(): Promise<{
       const model = modelFromDenominacion(rec.machineDenominacion) ?? modelFromIdentification
       const previously = seen.get(key)
       if (previously) {
-        // El pedido ya existe: se respeta (idempotencia). La única corrección es
-        // la FECHA DEL PEDIDO, y sólo si el día cambió y NUNCA hacia adelante
-        // (ver requestedAtToStore: el sync no puede "rejuvenecer" un pedido).
+        // El pedido ya existe: se respeta (idempotencia). Se corrigen SÓLO los
+        // datos que quedaron INCOMPLETOS en importaciones viejas, con las MISMAS
+        // reglas que `importSparePartsFromRecords()` (el importador del agente):
+        // si los dos importadores divergen, esta pantalla —que auto-importa al
+        // abrirse— vuelve a dejar el código recortado aunque el otro lo arregle.
         const updates: Record<string, unknown> = {}
+        // CÓDIGO y DESCRIPCIÓN: mismas correcciones que el importador del agente
+        // (función compartida; ver por qué en `backfillOrderFromDetectedPart`).
+        Object.assign(updates, backfillOrderFromDetectedPart(previously, { code, description: name }))
+        // FECHA DEL PEDIDO: se corrige sólo si el día cambió y NUNCA hacia
+        // adelante (ver requestedAtToStore: el sync no puede "rejuvenecer" un
+        // pedido).
         const nextRequestedAt = requestedAtToStore(previously, waitingDate)
         if (nextRequestedAt) updates.requestedAt = nextRequestedAt
         // Completar máquina/modelo cuando 3C había partido la identificación en
@@ -2421,7 +2487,8 @@ function isCodeSuffix(token: string): boolean {
  * "RODAMIENTO"): la línea se lee completa, como se pide en la casa de repuestos.
  *
  *   "JUEGO DE CARBONES 160432115T"        → "JUEGO DE CARBONES"        + 160432115T
- *   "R99939910 ORING 13 p/9993931"        → "ORING 13 p/9993931"       + R99939910
+ *   "R99939910 ORING 13 p/9993931"        → "ORING 13" (la ref. de máquina
+ *     "p/9993931" se quita en cleanPartDescription) + R99939910
  *   "RODAMIENTO 210042-8 BALERO 629LLB…"  → "RODAMIENTO BALERO 629LLB…" + 210042-8
  *   "inducido 1619P15184 ( VENTILADOR )"  → "inducido (VENTILADOR)"    + 1619P15184
  *   "correas x3 13x1118LI  A44"           → "correas x3"              + 13X1118LI A44
@@ -2896,14 +2963,6 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
   }
 
   /**
-   * ¿`base` es el MISMO código que `full` con un sufijo menos?
-   * 3C escribe el sufijo separado por un espacio ("13X1118LI  A44"), así que el
-   * pedido puede estar guardado con el código base ("13X1118LI").
-   */
-  const isCodeBaseOf = (base: string, full: string): boolean =>
-    Boolean(base) && base !== full && full.startsWith(base) && full.length - base.length <= 6
-
-  /**
    * Pedido EXISTENTE cuyo código guardado es el BASE del detectado ahora. Se usa
    * para ACTUALIZARLE el código en lugar de crear un duplicado: el mismo repuesto
    * con dos códigos distintos NO se fusiona después (ver mergeDuplicateOrders).
@@ -2974,31 +3033,11 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
         byDescription.get(`${orderKey}||${descNorm}`) ??
         findByCodePrefix(orderKey, codeNorm)
       if (existingOrder) {
-        // Actualizar existente si cambió algo relevante
+        // Actualizar existente si cambió algo relevante. Las correcciones de
+        // código/descripción las define `backfillOrderFromDetectedPart()`, la
+        // MISMA función que usa el importador de la pantalla.
         const updates: Record<string, unknown> = {}
-        // CÓDIGO: si el guardado NO es un código real (vacío o "220V") se copia
-        // el de 3C; si el guardado SÍ es un código real y difiere, no se pisa
-        // (puede haber sido corregido a mano en la pantalla).
-        const storedCode = String(existingOrder.code ?? "").trim()
-        const storedKey = sparePartCodeKey(existingOrder.code)
-        // Se copia el código de 3C si el guardado NO es un código real (vacío o
-        // "220V"), o si el guardado es el MISMO código con un sufijo menos
-        // ("13X1118LI" → "13X1118LI A44", que 3C escribe con espacio). Si el
-        // guardado es un código real DISTINTO, no se pisa (puede haberse corregido
-        // a mano en la pantalla).
-        if (codeNorm && (!storedKey || isCodeBaseOf(storedKey, codeNorm))) {
-          updates.code = normalizePartCode(part.code)
-        } else if (!codeNorm && storedCode && !storedKey) {
-          updates.code = ""
-        }
-        // DESCRIPCIÓN: se COMPLETA con el texto ÍNTEGRO de la línea de 3C cuando la
-        // guardada había quedado recortada (el parser viejo perdía lo que venía
-        // después del código). Solo pedidos auto-importados y solo si AGREGA texto:
-        // nunca se acorta ni se pisa una descripción cargada a mano.
-        const storedDesc = String(existingOrder.description ?? "")
-        if (isAutoImportedOrder(existingOrder) && part.description.length > storedDesc.length) {
-          updates.description = part.description
-        }
+        Object.assign(updates, backfillOrderFromDetectedPart(existingOrder, part))
         // FECHA DEL PEDIDO: se corrige sólo si el día cambió y NUNCA hacia
         // adelante (el sync no puede "rejuvenecer" un pedido; ver
         // requestedAtToStore). Repara además las fechas ya pisadas por corridas

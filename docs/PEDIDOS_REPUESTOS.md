@@ -496,3 +496,42 @@ y el botón queda deshabilitado si no hay ninguno (nada que encargar).
 - El botón **Encargar** de cada fila **sigue existiendo** (un repuesto suelto), con el
   mismo diálogo y la misma fecha por defecto.
 
+## 22. El importador de la pantalla también completa códigos y descripciones (2026-10-03)
+
+**Qué pasaba:** después del fix del parser (`01abbe1`, tomar TODO el texto de la línea
+de 3C), la pantalla seguía mostrando el código recortado (ej. `13X1118LI` en vez de
+`13X1118LI A44` en la orden `X 0001-00011296` · CORREAS X3).
+
+**Causa (una sola):** hay DOS importadores y cada uno tenía SU copia de la lógica de
+actualización de pedidos existentes:
+- `importSparePartsFromRecords()` (el del agente): SÍ completaba código y descripción.
+- `importPendingPartsFromMaintenance()` (el de la pantalla, que auto-importa al abrir
+  "Pedidos Rep." y republica el snapshot en Redis con `publishSnapshotFromBrowser()`):
+  al encontrar el pedido por orden + descripción lo daba por "ya existente" (`skippedExisting`)
+  y sólo le tocaba fecha/máquina. Resultado: la pantalla abría, "re-importaba" y
+  republicaba el snapshot con el código viejo — el arreglo del agente nunca se veía en la web.
+
+Verificado con datos reales: el Excel de 3C trae `correas x3 13x1118LI  A44` (línea completa),
+el parser devuelve `13X1118LI A44`, pero el snapshot `sync-3c:data:spare_part_orders`
+publicado después del fix (`spare-part-orders-manual-…`, o sea desde la pantalla)
+seguía con `13X1118LI`.
+
+**Qué se cambió:**
+
+| Archivo | Cambio |
+|---|---|
+| `services/sparePartOrders.ts` | Nueva función compartida `backfillOrderFromDetectedPart(existing, detected)`: devuelve las correcciones de código/descripción que le corresponden a un pedido YA existente. La usan los DOS importadores (`Object.assign(updates, …)`), así que ya no pueden divergir. `isCodeBaseOf()` subió a nivel de módulo para compartirla. |
+| `services/sparePartOrders.ts` | `splitDescriptionAndCode()`: el ejemplo del comentario de `R99939910` se corrigió (la ref. de máquina `p/9993931` se quita después, en `cleanPartDescription`; el código SÍ queda asignado). |
+
+**Reglas (las MISMAS en los dos importadores, sin circuito nuevo):**
+- CÓDIGO: se copia el de 3C si el guardado NO es un código real (vacío / voltaje `220V`)
+  o si es el MISMO código con un sufijo menos (`13X1118LI` → `13X1118LI A44`). Un código
+  real DISTINTO no se pisa (puede haberse corregido a mano).
+- DESCRIPCIÓN: se completa sólo en pedidos auto-importados y sólo si AGREGA texto
+  (nunca se acorta ni se pisa una edición manual).
+- `PARTE INFERIOR DE PROTEC` (`X 0001-00011174`) NO es un recorte nuestro: es literalmente
+  lo que dice 3C (verificado en el Excel).
+
+**Cómo se aplica:** al abrir "Pedidos Rep." el auto-import corre solo y completa los códigos
+viejos (el snapshot se republica porque `updated > 0`). No hace falta re-sincronizar el agente.
+
