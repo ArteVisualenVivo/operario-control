@@ -81,7 +81,7 @@ export function SparePartOrderCodeInput({ order, onSave, className }: Props) {
           e.currentTarget.blur()
         }
       }}
-      className={`h-7 w-[132px] font-mono text-xs ${saving ? "opacity-60" : ""} ${className ?? ""}`}
+      className={`h-7 w-full min-w-[132px] max-w-[260px] font-mono text-xs ${saving ? "opacity-60" : ""} ${className ?? ""}`}
     />
   )
 }

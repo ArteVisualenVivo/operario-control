@@ -519,7 +519,14 @@ export default function SparePartOrdersPage() {
         <p className="text-sm text-muted-foreground">No hay pedidos que coincidan con el filtro.</p>
       ) : (
         <div className="rounded-md border overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[1180px] text-sm table-auto">
+            <colgroup>
+              <col className="w-10" />
+              <col className="min-w-[120px]" />
+              <col className="min-w-[230px]" />
+              <col className="min-w-[250px]" />
+              <col className="min-w-[190px]" />
+            </colgroup>
             <thead>
               <tr className="border-b bg-muted/30">
                 <th className="w-10 py-2 px-3"><input type="checkbox" checked={groups.length > 0 && selectedOrders.size === groups.length} onChange={(e) => { if (e.target.checked) setSelectedOrders(new Set(groups.map((g) => g.key))); else setSelectedOrders(new Set()); }} aria-label="Seleccionar todas las órdenes" /></th>
@@ -558,7 +565,7 @@ export default function SparePartOrdersPage() {
                       </td>
                     )}
                     {idx === 0 && (
-                      <td className="py-2 px-3 font-medium align-top" rowSpan={g.parts.length}>{g.orderNumber || "—"}</td>
+                      <td className="py-2 px-3 font-medium align-top whitespace-nowrap" rowSpan={g.parts.length}>{g.orderNumber || "—"}</td>
                     )}
                     {idx === 0 && (
                       <td className="py-2 px-3 align-top" rowSpan={g.parts.length}>
@@ -575,8 +582,8 @@ export default function SparePartOrdersPage() {
                         })()}
                       </td>
                     )}
-                    <td className="py-2 px-3 align-top">{part.description}{part.partial && <span className="ml-1 text-xs text-violet-600 font-semibold">parcial</span>}</td>
-                    <td className="py-2 px-3 text-xs align-top">
+                    <td className="py-2 px-3 align-top whitespace-normal break-words min-w-[220px]">{part.description}{part.partial && <span className="ml-1 text-xs text-violet-600 font-semibold">parcial</span>}</td>
+                    <td className="py-2 px-3 text-xs align-top min-w-[170px]">
                       <SparePartOrderCodeInput order={o} onSave={updateCode} />
                     </td>
                     <td className="py-2 px-3 text-right align-top">{o.quantityRequested}</td>
