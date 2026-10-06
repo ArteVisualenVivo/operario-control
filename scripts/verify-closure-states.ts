@@ -62,11 +62,11 @@ async function readModule(module: string) {
 
 /**
  * Misma identidad que stateIdentity() de src/lib/sync-3c/consolidated.ts:
- * estado + descripción + usuario + motivo. NO incluye la fecha (es cuándo lo
- * vimos) ni el archivo (es el mismo estado repetido en otro Excel).
+ * estado + descripción + usuario + motivo + máquina + denominación.
+ * NO incluye la fecha (es cuándo lo vimos) ni el archivo.
  */
 function identity(state: Record<string, unknown>): string {
-  return [state.status, state.statusDescription, state.statusUser, state.motivoEstadoRep].join('\u0001')
+  return [state.status, state.statusDescription, state.statusUser, state.motivoEstadoRep, state.machineName, state.denominacion].join('\u0001')
 }
 
 function collapse<T extends Record<string, unknown>>(records: T[]): T[] {

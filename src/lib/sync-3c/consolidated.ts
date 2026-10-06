@@ -30,6 +30,17 @@ export interface ConsolidatedState {
   statusDescription?: string
   statusUser?: string
   /**
+   * Identificación de la máquina TAL COMO VENÍA EN ESA FILA del Excel de 3C.
+   * Necesaria porque distintas filas/exports de la misma orden traen textos
+   * distintos (ej. "MARTILLO MAKITA DE 30 KG Nº2" vs
+   * "MARTILLO MAKITA HM 1812 30 KG Nº2"): para mostrar el modelo completo hay
+   * que tomar la identificación del ÚLTIMO "A la Espera Repuestos" por fecha,
+   * no el primero que llegó.
+   */
+  machineName?: string
+  /** DENOMINACION de esa misma fila, copiada TAL CUAL. */
+  denominacion?: string
+  /**
    * MOTIVO_ESTADO_REP de esa fila del informe de 3C: los repuestos pedidos
    * cuando el estado es "A la Espera Repuestos". Única fuente de Pedidos Rep.
    */
@@ -303,6 +314,12 @@ export function extractStatusesExcel(rows: unknown[][], fileName: string, observ
         statusDate: iso(fechaEstado),
         statusDescription: clean(row[cObs]) || undefined,
         statusUser: clean(row[cUsuario]) || undefined,
+        // Identificación TAL COMO VENÍA EN ESTA FILA: distintas filas de la
+        // misma orden pueden traer textos distintos (ej. con/sin "HM 1812").
+        // Se elige el ÚLTIMO "A la Espera Repuestos" por fecha al resolver la
+        // identidad de la orden (ver latestWaitingIdentity()).
+        machineName: machineName || undefined,
+        denominacion,
         sourceFile: fileName,
         // Repuestos del motivo de ese estado (solo "A la Espera Repuestos"
         // genera Pedidos Rep.). Se conserva por estado, sin pisar otros estados.
@@ -440,6 +457,45 @@ export function currentState(consolidated: OrderConsolidated): ConsolidatedState
   return best.s
 }
 
+/** ¿Este estado es "A la Espera Repuestos"? (misma regla que el importador). */
+function isWaitingState(status: unknown): boolean {
+  const t = String(status ?? "")
+    .trim()
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+  return t.includes("espera") && t.includes("repuesto")
+}
+
+/**
+ * Identificación (máquina + denominación) del ÚLTIMO "A la Espera Repuestos"
+ * por fecha de estado; empate → el último registrado. Distintas filas de la
+ * misma orden traen textos distintos porque 3C los cargó en momentos distintos
+ * (los viejos, sin el modelo completo: ej. "MARTILLO MAKITA DE 30 KG Nº2" vs
+ * el nuevo "MARTILLO MAKITA HM 1812 30 KG Nº2"). Vale el último: es el dato
+ * corregido, no el primero que llegó.
+ */
+export function latestWaitingIdentity(
+  states: ConsolidatedState[] | undefined | null,
+): { machineName?: string; denominacion?: string } {
+  if (!states || states.length === 0) return {}
+  const waiting = states
+    .map((s, i) => ({ s, i }))
+    .filter(({ s }) => isWaitingState(s.status))
+  if (waiting.length === 0) return {}
+  waiting.sort((a, b) => {
+    const ta = a.s.statusDate ? Date.parse(a.s.statusDate) : Number.NEGATIVE_INFINITY
+    const tb = b.s.statusDate ? Date.parse(b.s.statusDate) : Number.NEGATIVE_INFINITY
+    if (tb !== ta) return tb - ta
+    return b.i - a.i
+  })
+  const best = waiting[0].s
+  return {
+    machineName: best.machineName || undefined,
+    denominacion: best.denominacion || undefined,
+  }
+}
+
 /**
  * Convierte los registros consolidados en MaintenanceRecord[] para la fuente
  * primaria (Redis) y la web. Conserva TODO: último estado + línea de tiempo
@@ -471,8 +527,11 @@ function collectMotivosByStatus(
 
 /**
  * Identidad de un estado OBSERVADO: estado + descripción + usuario + motivo de
- * repuestos. NO incluye la fecha: `statusDate` es cuándo lo vimos (ver NOTA DE
- * FECHAS), no parte del estado.
+ * repuestos + identificación de la máquina de esa fila. NO incluye la fecha:
+ * `statusDate` es cuándo lo vimos (ver NOTA DE FECHAS), no parte del estado.
+ * La máquina/denominación SÍ van en la identidad: si 3C corrige la
+ * identificación entre exports (ej. agrega el modelo "HM 1812"), es un dato
+ * nuevo que debe conservarse como entrada propia, no colapsarse.
  */
 function stateIdentity(state: ConsolidatedState): string {
   return [
@@ -480,6 +539,8 @@ function stateIdentity(state: ConsolidatedState): string {
     state.statusDescription ?? "",
     state.statusUser ?? "",
     state.motivoEstadoRep ?? "",
+    state.machineName ?? "",
+    state.denominacion ?? "",
   ].join("\u0001")
 }
 
@@ -577,6 +638,11 @@ export function consolidatedToMaintenanceRecords(
     const motivoEstadoRepText = motivosByStatus.length > 0
       ? [...new Set(motivosByStatus.map((e) => e.motivo))].join("\n")
       : prev?.motivoEstadoRep
+    // Identidad del ÚLTIMO "A la Espera Repuestos" por fecha de estado: 3C
+    // carga la identificación en momentos distintos y los textos viejos vienen
+    // sin el modelo completo. Vale el último, no el primero que llegó.
+    const mergedStates = mergeStatesHistory(prev, rec.states)
+    const latestWaiting = latestWaitingIdentity(mergedStates)
     const merged = {
       ...(prev ?? {}),
       id: prev?.id ?? rec.orderNumber,
@@ -584,16 +650,17 @@ export function consolidatedToMaintenanceRecords(
       entryDate: prev?.entryDate ?? (rec.entryDate ? new Date(rec.entryDate) : new Date()),
       returnDate: rec.returnDate ? new Date(rec.returnDate) : prev?.returnDate,
       repairDate: rec.repairDate ? new Date(rec.repairDate) : prev?.repairDate,
-      // Identidad de la orden (cliente, máquina, modelo): una vez aprendida NO se
-      // degrada con una corrida más "flaca" (la retención de 3C deja 1 Excel por
-      // informe, así que la corrida ve menos archivos). Se conserva lo guardado y
-      // sólo se completa lo que faltaba.
+      // Identidad de la orden (cliente, máquina, modelo): el último
+      // "A la Espera Repuestos" manda (dato corregido de 3C); si no hay
+      // espera en la línea de tiempo, se conserva lo guardado y sólo se
+      // completa lo que faltaba (la retención deja 1 Excel por informe y la
+      // corrida puede venir "flaca").
       clientName: prev?.clientName || rec.clientName || "",
       clientCode: prev?.clientCode || rec.clientCode,
-      machineName: prev?.machineName || rec.machineName || "",
+      machineName: latestWaiting.machineName ?? prev?.machineName ?? rec.machineName ?? "",
       // DENOMINACION del Excel de Reparaciones copiada TAL CUAL: es la fuente del
       // campo Modelo de Pedidos de repuesto. Nunca se completa con otra columna.
-      machineDenominacion: prev?.machineDenominacion ?? rec.denominacion,
+      machineDenominacion: latestWaiting.denominacion ?? prev?.machineDenominacion ?? rec.denominacion,
       status: cur?.status || prev?.status || "",
       statusDate: cur?.statusDate ? new Date(cur.statusDate) : prev?.statusDate,
       statusDescription: cur?.statusDescription || prev?.statusDescription,
@@ -601,7 +668,7 @@ export function consolidatedToMaintenanceRecords(
       observations: rec.observations || prev?.observations,
       createdAt: prev?.createdAt ?? (rec.entryDate ? new Date(rec.entryDate) : new Date()),
       updatedAt: new Date(),
-      states: mergeStatesHistory(prev, rec.states),
+      states: mergedStates,
       workItems: mergeWorkItems(prev, rec.workItems),
       sourceFiles: rec.sourceFiles,
       // Preservar motivo + estado de 3C del parse del Excel de Detalle
