@@ -884,7 +884,7 @@ export async function publishSparePartOrdersSnapshot(
   if (typeof window !== "undefined") return 0
   try {
     // redisPrimary es JS puro (@upstash/redis por REST): NO usa fs.
-    const { getRedis, saveModuleData } = await import("@/lib/sync-3c/redisPrimary")
+    const { getRedis, saveModuleData, readModuleData } = await import("@/lib/sync-3c/redisPrimary")
     const redis = getRedis()
     let orders: SparePartOrder[] | null = null
     let builtFromFresh = false
@@ -902,6 +902,28 @@ export async function publishSparePartOrdersSnapshot(
         }
       } catch {
         orders = null
+      }
+    }
+    if (!builtFromFresh) {
+      // —— REGISTRO CONSOLIDADO EN REDIS (más fresco que Firestore) ——
+      // consolidateMaintenanceFromExports() guarda los registros en Redis ANTES
+      // de la escritura a Firestore. Si esa escritura se corta por cuota
+      // (timeout de 20s), el agente llega acá con freshRecords=null, pero los
+      // registros frescos de ESTA corrida siguen en Redis: con ellos la web se
+      // refresca igual, sin depender de la cuota de Firestore.
+      try {
+        const env = await readModuleData("maintenance", redis)
+        const records = env && Array.isArray(env.data) ? (env.data as MaintenanceRecord[]) : []
+        if (records.length > 0) {
+          const local = await loadOrdersFromLocalSources()
+          const built = buildSparePartOrdersFromRecords(records, local ?? [])
+          if (built.orders.length > 0) {
+            orders = built.orders
+            builtFromFresh = true
+          }
+        }
+      } catch {
+        // sin registro de mantenimiento en Redis: se sigue con Firestore / caché local
       }
     }
     if (!builtFromFresh) {
