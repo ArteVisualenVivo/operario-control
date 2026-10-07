@@ -107,6 +107,33 @@ if ([string]::IsNullOrWhiteSpace($RedisUrl) -or [string]::IsNullOrWhiteSpace($Re
 }
 
 # ---------------------------------------------------------------------------
+# 1.5 Canal carpeta de FACTURAS (Ingresos): automation-watcher\inbox\facturas
+#     Si hay archivos, lanza oculto `npx tsx scripts\inbox-ingest.ts` (tiene
+#     su propio lock; si ya hay una corrida viva, no se pisa). Best-effort:
+#     un fallo del inbox NUNCA debe frenar el despertador del agente 3C.
+# ---------------------------------------------------------------------------
+try {
+    $inboxDir = Join-Path $ProjectRoot "automation-watcher\inbox\facturas"
+    if (Test-Path $inboxDir) {
+        $inboxFiles = @(Get-ChildItem -Path $inboxDir -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Extension -match '^\.(pdf|jpg|jpeg|png)$' })
+        if ($inboxFiles.Count -gt 0) {
+            if ($DryRun) {
+                Write-Trace "[WAKE] DRY-RUN: inbox-ingest procesaria $($inboxFiles.Count) factura(s)."
+            } else {
+                $inboxLog = Join-Path $ProjectRoot "sync-agent\inbox-ingest.log"
+                $inboxCmd = "npx tsx scripts\inbox-ingest.ts >> `"$inboxLog`" 2>&1"
+                Start-Process -FilePath "cmd.exe" -ArgumentList "/c", $inboxCmd `
+                    -WorkingDirectory $ProjectRoot -WindowStyle Hidden | Out-Null
+                Write-WakeLog "[WAKE] LAUNCH inbox-ingest ($($inboxFiles.Count) archivo(s))"
+            }
+        }
+    }
+} catch {
+    Write-WakeLog "[WAKE] ERROR inbox-ingest: $($_.Exception.Message)"
+}
+
+# ---------------------------------------------------------------------------
 # 2. Hay comandos en cola? (una sola request REST: LLEN)
 # ---------------------------------------------------------------------------
 try {

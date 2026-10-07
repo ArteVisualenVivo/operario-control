@@ -86,4 +86,8 @@ service-account.json
 /sync-agent/agent-stdout.log
 /sync-agent/agent.err.log
 /sync-agent/logs/
+/sync-agent/inbox-ingest.log
+
+# ── Canal carpeta de facturas (Ingresos): archivos de usuario + locks ────────
+/automation-watcher/inbox/
 

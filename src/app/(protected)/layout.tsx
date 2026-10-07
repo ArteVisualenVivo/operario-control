@@ -17,6 +17,7 @@ const navItems = [
   { href: "/repairs", label: "Reparaciones" },
   { href: "/spare-part-orders", label: "Pedidos Rep." },
   { href: "/repuestos", label: "Repuestos" },
+  { href: "/ingresos", label: "Ingresos" },
   // { href: "/stock-movements", label: "Mov. Stock" },
   // { href: "/inventory-movements", label: "Mov. Materiales" },
   // "Mantenimiento" (/maintenance) ya no tiene entrada propia: ahora es la
