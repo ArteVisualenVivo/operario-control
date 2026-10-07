@@ -41,7 +41,21 @@ El catálogo sale del módulo Redis `articulos` (informe **Artículos** de 3C).
 Si está vacío, los renglones quedan en **SIN CATÁLOGO** y la pantalla lo
 avisa: correr la sincronización “Artículos” desde el dashboard 3C.
 
-## Canal carpeta (correo / WhatsApp)
+### Variables de entorno
+
+Solo configura las que quieras. El upload desde el navegador es **unsigned**
+(con preset `operario_blueprints`), así que **no necesita claves en el
+cliente** para funcionar:
+
+| Variable | Dónde | Requerida | Valor por defecto |
+|---|---|---|---|
+| `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` | `.env.local` + Vercel | No | `dpcdsorty` |
+| `CLOUDINARY_API_KEY` / `CLOUDINARY_API_SECRET` | `.env.local` + Vercel | No (solo si se borra un archivo por el servidor) | - |
+| `GEMINI_API_KEY` | `.env.local` + Vercel | No (parser opcional, free tier ~60 usos/día) | - |
+
+> El archivo `.env.example` incluye los placeholders de todos estos valores.
+
+
 
 ```
 automation-watcher/inbox/facturas/      ← acá se copian los archivos
