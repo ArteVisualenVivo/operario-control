@@ -24,7 +24,7 @@ import {
     type PrimaryModuleId,
 } from "../src/lib/sync-3c/redisPrimary"
 import { parseMaintenanceBuffer } from "../src/lib/local-sync-excel"
-import { importSparePartsFromRecords, getAllOrders } from "../src/services/sparePartOrders"
+import { importSparePartsFromRecords } from "../src/services/sparePartOrders"
 import { installSparePartOrdersServerStore } from "../src/services/sparePartOrderStore.server"
 import { installLocalSyncServerStore } from "../src/lib/local-sync.server"
 import {
@@ -1423,14 +1423,13 @@ async function runModule(
             }
 
             // —— SNAPSHOT EN REDIS (fuente de la WEB) ——
-            // Deja la última foto COMPLETA de Pedidos Rep. en Redis para que la web
-            // la muestre aunque la cuota de Firestore esté agotada. Si Firestore no
-            // responde, conserva el snapshot anterior (no publica vacío).
+            // Construido desde el Excel FRESCO en memoria (consolidado de esta
+            // corrida): la web se actualiza aunque Firestore esté caído. Solo
+            // como backfill publica desde Firestore (ver función).
             try {
               const { publishSparePartOrdersSnapshot } = await import("../src/services/sparePartOrders")
-              const published = await withFirestoreTimeout(
-                "publishSparePartOrdersSnapshot",
-                publishSparePartOrdersSnapshot(),
+              const published = await publishSparePartOrdersSnapshot(
+                consolidatedRecords ?? maintenanceRecords,
               )
               console.log(`[AGENT] Spare parts snapshot -> Redis: ${published} pedido(s)`)
             } catch (snapErr) {
@@ -1484,11 +1483,11 @@ async function runModule(
             // —— SNAPSHOT EN REDIS (fuente de la WEB) ——
             // Refresca la foto de Pedidos Rep. que muestra la web tras cada sync
             // de reparaciones, sin depender de la cuota de Firestore.
+            // Construido desde el consolidado fresco en memoria (esta corrida).
             try {
               const { publishSparePartOrdersSnapshot } = await import("../src/services/sparePartOrders")
-              const published = await withFirestoreTimeout(
-                "publishSparePartOrdersSnapshot",
-                publishSparePartOrdersSnapshot(),
+              const published = await publishSparePartOrdersSnapshot(
+                consolidatedRecords ?? undefined,
               )
               console.log(`[AGENT] Spare parts snapshot -> Redis: ${published} pedido(s)`)
             } catch (snapErr) {

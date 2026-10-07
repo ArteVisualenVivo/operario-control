@@ -716,6 +716,156 @@ export async function healReceivedWithoutDate(): Promise<number> {
   return healed
 }
 
+export function buildSparePartOrdersFromRecords(
+  records: MaintenanceRecord[],
+  base: SparePartOrder[],
+): { orders: SparePartOrder[]; created: number; updated: number; modelsUpdated: number } {
+  const byId = new Map<string, SparePartOrder>()
+  for (const o of base) if (o?.id) byId.set(o.id, { ...o })
+  const seen = new Map<string, SparePartOrder>()
+  const byDescription = new Map<string, SparePartOrder>()
+  for (const o of byId.values()) {
+    const codeN = sparePartCodeKey(o.code)
+    const descN = String(o.description ?? "").trim().toLowerCase()
+    const orderKey = normOrderKey(o.orderNumber)
+    seen.set(`${orderKey}||${codeN || descN}`, o)
+    if (!codeN) byDescription.set(`${orderKey}||${descN}`, o)
+  }
+  const findByCodePrefix = (orderKey: string, codeN: string): SparePartOrder | undefined => {
+    if (!codeN) return undefined
+    for (const o of byId.values()) {
+      if (!isAutoImportedOrder(o)) continue
+      if (normOrderKey(o.orderNumber) !== orderKey) continue
+      if (isCodeBaseOf(sparePartCodeKey(o.code), codeN)) return o
+    }
+    return undefined
+  };
+  let created = 0
+  let updated = 0
+  const pendingKinds = /espera.*repuesto|repuesto.*espera|esperando.*repuesto/i
+  const waitingMotivosOf = (rec: MaintenanceRecord): string[] => {
+    const withM = rec as MaintenanceRecord & { motivoByStatus?: { status: string; motivo: string }[] }
+    const entries =
+      Array.isArray(withM.motivoByStatus) && withM.motivoByStatus!.length > 0
+        ? withM.motivoByStatus!
+        : rec.motivoEstadoRep?.trim()
+          ? [{ status: rec.status ?? "", motivo: rec.motivoEstadoRep.trim() }]
+          : []
+    const out = new Set<string>()
+    for (const e of entries) {
+      if (isSpareWaitingStatus(e.status) && e.motivo?.trim()) out.add(e.motivo.trim())
+    }
+    return [...out]
+  }
+  const splitItem = (item: string): { code: string; name: string } => {
+    const m = String(item ?? "").match(/^\s*([^—–]+?)\s*[—–]\s*(.+)$/)
+    if (m) {
+      const code = m[1].trim()
+      const name = m[2].trim()
+      if (code && name) return { code, name }
+    }
+    return { code: "", name: String(item ?? "").trim() }
+  }
+  for (const rec of records) {
+    const isWaiting =
+      pendingKinds.test(rec.status ?? "") ||
+      pendingKinds.test(rec.statusDescription ?? "") ||
+      waitingMotivosOf(rec).length > 0
+    if (!isWaiting) continue
+    const waitingDate = resolveWaitingStatusDate(rec)
+    const workItems = (rec.workItems ?? []).filter(Boolean)
+    const detected =
+      workItems.length > 0
+        ? workItems.map(splitItem)
+        : waitingMotivosOf(rec).flatMap((motivo) =>
+            parseSparePartsFromMotivo(motivo).map((p) => ({ code: p.code ?? "", name: p.description })),
+          )
+    const uniqueParts = new Map<string, { code: string; name: string }>()
+    for (const part of detected) {
+      const name = String(part.name ?? "").trim()
+      if (!name) continue
+      const k = name.toLowerCase()
+      if (!uniqueParts.has(k)) uniqueParts.set(k, { code: part.code || "", name })
+    }
+    for (const part of uniqueParts.values()) {
+      const cname = String(part.name ?? "").trim()
+      const code = part.code || ""
+      const codeN = sparePartCodeKey(code)
+      const descN = cname.toLowerCase()
+      const orderKey = normOrderKey(rec.orderNumber)
+      const dedupKey = `${orderKey}||${codeN || descN}`
+      const existingOrder =
+        seen.get(dedupKey) ??
+        byDescription.get(`${orderKey}||${descN}`) ??
+        findByCodePrefix(orderKey, codeN)
+      const split = splitMachineIdentification(rec.machineName)
+      const machine = split.machine
+      const model = modelFromDenominacion(rec.machineDenominacion) ?? split.model
+      if (existingOrder) {
+        const patch: Record<string, unknown> = {}
+        Object.assign(patch, backfillOrderFromDetectedPart(existingOrder, { code, description: cname }))
+        const nextRequestedAt = requestedAtToStore(existingOrder, waitingDate)
+        if (nextRequestedAt) patch.requestedAt = nextRequestedAt
+        if (isAutoImportedOrder(existingOrder)) {
+          Object.assign(patch, machineFieldsToRefresh(existingOrder, rec.machineName, rec.machineDenominacion))
+        }
+        if (Object.keys(patch).length > 0) {
+          const merged = { ...existingOrder, ...patch, updatedAt: new Date() } as SparePartOrder
+          byId.set(existingOrder.id, merged)
+          seen.set(dedupKey, merged)
+          updated++
+        }
+        continue
+      }
+      const now = new Date()
+      const id = `local:${orderKey}|${codeN || descN}|${now.getTime()}`
+      const recWithId = rec as MaintenanceRecord & { id?: string }
+      const createdOrder: SparePartOrder = {
+        id,
+        repairId: recWithId.id ?? rec.orderNumber,
+        orderNumber: rec.orderNumber,
+        machineId: rec.orderNumber,
+        machineName: machine,
+        machineModel: model,
+        code: code ?? "",
+        description: cname,
+        unit: "unidad",
+        quantityRequested: 1,
+        quantityReceived: 0,
+        quantityUsed: 0,
+        status: "SOLICITADO",
+        requestedAt: waitingDate,
+        createdAt: now,
+        updatedAt: now,
+        notes: `Importado desde Órdenes de Reparación (3C): repuesto en espera\nOrden: ${rec.orderNumber}`,
+      }
+      byId.set(id, createdOrder)
+      seen.set(dedupKey, createdOrder)
+      created++
+    }
+  }
+  const denominacionByOrder = new Map<string, string>()
+  for (const rec of records) {
+    const value = modelFromDenominacion((rec as MaintenanceRecord).machineDenominacion)
+    if (!value) continue
+    const key = normOrderKey(rec.orderNumber)
+    if (!key) continue
+    const prev = denominacionByOrder.get(key)
+    if (!prev || value.length > prev.length) denominacionByOrder.set(key, value)
+  }
+  let modelsUpdated = 0
+  for (const o of byId.values()) {
+    const denominacion = denominacionByOrder.get(normOrderKey(o.orderNumber))
+    if (!denominacion) continue
+    if (String(o.machineModel ?? "") === denominacion) continue
+    byId.set(o.id, { ...o, machineModel: denominacion, updatedAt: new Date() })
+    modelsUpdated++
+  }
+  const orders = [...byId.values()]
+    .filter(isIdentifiableOrder)
+    .sort((a, b) => (b.requestedAt?.getTime() ?? 0) - (a.requestedAt?.getTime() ?? 0))
+  return { orders, created, updated, modelsUpdated }
+}
 /**
  * PUBLICACIÓN DEL SNAPSHOT en Redis (solo NODE / agente).
  *
@@ -728,21 +878,42 @@ export async function healReceivedWithoutDate(): Promise<number> {
  * viendo el estado actualizado y, cuando la cuota vuelve, flushPendingOrderWrites
  * sincroniza Firestore.
  */
-export async function publishSparePartOrdersSnapshot(): Promise<number> {
+export async function publishSparePartOrdersSnapshot(
+  freshRecords?: MaintenanceRecord[],
+): Promise<number> {
   if (typeof window !== "undefined") return 0
   try {
     // redisPrimary es JS puro (@upstash/redis por REST): NO usa fs.
     const { getRedis, saveModuleData } = await import("@/lib/sync-3c/redisPrimary")
     const redis = getRedis()
     let orders: SparePartOrder[] | null = null
-    try {
-      orders = await getAllOrdersFromFirestore()
-    } catch {
-      orders = null
+    let builtFromFresh = false
+    if (freshRecords && freshRecords.length > 0) {
+      // Excel FRESCO en memoria: se fusiona sobre la foto local (caché en
+      // disco / snapshot anterior) para preservar estados del operario y
+      // pedidos manuales. NUNCA lee Firestore: la web se actualiza aunque la
+      // cuota esté agotada.
+      try {
+        const local = await loadOrdersFromLocalSources()
+        const built = buildSparePartOrdersFromRecords(freshRecords, local ?? [])
+        if (built.orders.length > 0) {
+          orders = built.orders
+          builtFromFresh = true
+        }
+      } catch {
+        orders = null
+      }
     }
-    if (orders === null || orders.length === 0) {
-      const local = await loadOrdersFromLocalSources()
-      if (local && local.length > 0) orders = local
+    if (!builtFromFresh) {
+      try {
+        orders = await getAllOrdersFromFirestore()
+      } catch {
+        orders = null
+      }
+      if (orders === null || orders.length === 0) {
+        const local = await loadOrdersFromLocalSources()
+        if (local && local.length > 0) orders = local
+      }
     }
     if (!orders || orders.length === 0) return 0
     // Filas fantasma (sin nº de orden NI repuesto): no se publican ni se guardan
