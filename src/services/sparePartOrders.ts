@@ -2017,8 +2017,36 @@ export function machineFieldsToRefresh(
     if (String(existingOrder.machineModel ?? "") !== denominacionModel) {
       updates.machineModel = denominacionModel
     }
-  } else if (isSameOrTruncated(existingOrder.machineModel, model)) {
-    updates.machineModel = model ?? null
+  } else {
+    // Sin DENOMINACION (informe DETALLE de 3C): la identificación completa es
+    // la única fuente del modelo. Si trae la identificación entera (empieza
+    // por la máquina y agrega texto más allá de ella) y es estrictamente más
+    // completa que el modelo guardado (comparando sin el prefijo
+    // "REPARACION:"), se actualiza al texto completo. Cubre correcciones de
+    // 3C como "MARTILLO MAKITA DE 30 KG Nº2" -> "MARTILLO MAKITA HM 1812
+    // 30 KG Nº2", donde el modelo nuevo no es prefijo del viejo ni viceversa
+    // y la regla conservadora anterior lo dejaba sin actualizar.
+    const stripPrefix = (v: string | null | undefined): string =>
+      String(v ?? "").replace(/^reparaci[oó]n:\s*/i, "").replace(/\s+/g, " ").trim()
+    const compact = (v: string): string => v.replace(/\s+/g, "").toUpperCase()
+    const candFull = stripPrefix(identification)
+    const candCompact = compact(candFull)
+    const machCompact = compact(String(machine ?? ""))
+    const storedCompact = compact(stripPrefix(existingOrder.machineModel))
+    const storedStartsWithMachine = storedCompact === "" || storedCompact.startsWith(machCompact)
+    if (
+      candFull &&
+      machCompact &&
+      candCompact.length > machCompact.length &&
+      candCompact.startsWith(machCompact) &&
+      candCompact !== storedCompact &&
+      candCompact.length > storedCompact.length &&
+      storedStartsWithMachine
+    ) {
+      updates.machineModel = candFull
+    } else if (isSameOrTruncated(existingOrder.machineModel, model)) {
+      updates.machineModel = model ?? null
+    }
   }
   return updates
 }
