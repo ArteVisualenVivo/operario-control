@@ -7,7 +7,7 @@ import { toast } from "sonner"
 import { getAllOrders, splitMachineIdentification, displaySparePartCode } from "@/services/sparePartOrders"
 import { buildMaintenanceByOrder, getOrderClosure, normOrderKey } from "@/lib/orderClosure"
 import type { MaintenanceRecord } from "@/services/maintenance"
-import { groupOrdersByRealNumber } from "@/lib/sparePartOrderGroups"
+import { groupOrdersByRealNumber, fullMachineIdentification } from "@/lib/sparePartOrderGroups"
 import { updateOrderSupplier } from "@/services/sparePartOrderSupplier"
 import { getRepairs } from "@/services/repairs"
 import type { SparePartOrder, MachineRepair } from "@/types"
@@ -292,10 +292,15 @@ function PurchaseListScreen() {
   // importación vieja). La base sigue guardando el código vacío y el código real
   // se corrige a mano en "Pedidos Rep.".
   const displayCode = (code: string | null | undefined) => displaySparePartCode(code)
-  // Modelo a mostrar: el guardado; si falta, se deriva con el mismo divisor del
-  // importador (conserva el modelo completo, sin recortar ni duplicar).
+  // Modelo a mostrar: se deriva de la IDENTIFICACIÓN COMPLETA real de la
+  // máquina (nombre + modelo), igual que la pantalla principal, usando
+  // fullMachineIdentification(): descarta el "REPARACION:" y sólo acepta el
+  // modelo guardado cuando realmente CONTINÚA al nombre de la máquina. Así un
+  // machineModel contaminado (una casa de repuesto tipo "MO CES", un nombre de
+  // repuesto como "INDUCIDO P/9557HN") NUNCA se muestra como modelo. Si la
+  // identificación completa no trae bloque de modelo → null → "—".
   const displayModel = (o: SparePartOrder) =>
-    o.machineModel ?? splitMachineIdentification(o.machineName).model
+    splitMachineIdentification(fullMachineIdentification(o.machineName, o.machineModel)).model
 
   // Cada columna de fecha de la hoja es UN hecho distinto del circuito de compra:
   //   "Le pedí al dueño" NO se imprime más (pedido del dueño, 2026-10-01): ese día
