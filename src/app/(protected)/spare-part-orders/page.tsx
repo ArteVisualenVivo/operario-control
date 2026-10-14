@@ -54,6 +54,11 @@ export default function SparePartOrdersPage() {
   const [query, setQuery] = useState("")
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
+  // Orden VISUAL de las órdenes en pantalla (no toca la impresión ni los datos):
+  // "default" = orden de la fuente (como siempre) · "oldest" = pedido más viejo
+  // primero · "newest" = pedido más nuevo primero. Se ordena por la fecha real del
+  // pedido (requestedAt = estado "A la Espera Repuestos" de 3C).
+  const [sortOrder, setSortOrder] = useState<"default" | "oldest" | "newest">("default")
   // Marcar como ENCARGADO: un pedido suelto (botón "Encargar" de la fila) o TODOS
   // los pendientes de las órdenes tildadas (botón "Encargar seleccionadas" de la
   // barra). En el caso real, una orden = una máquina con 5-6 repuestos que se le
@@ -292,6 +297,37 @@ export default function SparePartOrdersPage() {
   // No altera los registros originales ni los datos que vienen de la fuente.
   const groups = useMemo(() => groupOrdersByRealNumber(visible), [visible])
 
+  /**
+   * Orden VISUAL de los grupos (no altera datos ni la impresión). `default`
+   * conserva exactamente el orden de la fuente. `oldest` / `newest` reordenan por
+   * la fecha real del pedido (`requestedAt`): se toma la fecha MÁS ANTIGUA del
+   * grupo (el pedido de la orden) como referencia. Los grupos sin fecha válida
+   * quedan al final en ambos modos, para no inventar ni perder ninguno.
+   */
+  const sortedGroups = useMemo(() => {
+    if (sortOrder === "default") return groups
+    const groupTime = (g: SparePartOrderGroup): number | null => {
+      let min: number | null = null
+      for (const p of g.parts) {
+        const d = p.order.requestedAt
+        if (d) {
+          const t = new Date(d).getTime()
+          if (!Number.isNaN(t) && (min === null || t < min)) min = t
+        }
+      }
+      return min
+    }
+    const withNoDate = (t: number | null) => t === null
+    return [...groups].sort((a, b) => {
+      const ta = groupTime(a)
+      const tb = groupTime(b)
+      if (withNoDate(ta) && withNoDate(tb)) return 0
+      if (withNoDate(ta)) return 1
+      if (withNoDate(tb)) return -1
+      return sortOrder === "oldest" ? ta! - tb! : tb! - ta!
+    })
+  }, [groups, sortOrder])
+
   const toggleSelectOrder = (orderKey: string) => {
     setSelectedOrders((prev) => {
       const next = new Set(prev)
@@ -453,6 +489,13 @@ export default function SparePartOrdersPage() {
           <input type="checkbox" checked={showClosed} onChange={(e) => setShowClosed(e.target.checked)} />
           Ver finalizadas
         </label>
+        {/* Orden visual (solo pantalla). No afecta la lista de compra ni los datos. */}
+        <div className="ml-2 flex items-center gap-1">
+          <span className="text-xs text-muted-foreground">Ordenar</span>
+          <Button size="sm" variant={sortOrder === "default" ? "default" : "outline"} onClick={() => setSortOrder("default")} title="Orden en que llegaron de 3C">Predeterminado</Button>
+          <Button size="sm" variant={sortOrder === "oldest" ? "default" : "outline"} onClick={() => setSortOrder("oldest")} title="Pedido más viejo primero">Más viejo</Button>
+          <Button size="sm" variant={sortOrder === "newest" ? "default" : "outline"} onClick={() => setSortOrder("newest")} title="Pedido más nuevo primero">Más nuevo</Button>
+        </div>
       </div>
 
       {/* Buscador global + fechas.
@@ -543,7 +586,7 @@ export default function SparePartOrdersPage() {
               </tr>
             </thead>
             <tbody>
-              {groups.map((g) => (
+              {sortedGroups.map((g) => (
                 <Fragment key={g.key}>
                   {g.parts.map((part, idx) => {
                     const o = part.order
