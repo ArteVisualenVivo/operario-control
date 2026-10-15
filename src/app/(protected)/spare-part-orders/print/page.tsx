@@ -11,6 +11,7 @@ import { groupOrdersByRealNumber, fullMachineIdentification } from "@/lib/spareP
 import { updateOrderSupplier } from "@/services/sparePartOrderSupplier"
 import { getRepairs } from "@/services/repairs"
 import type { SparePartOrder, MachineRepair } from "@/types"
+import * as XLSX from "xlsx"
 
 /**
  * Lista de "casas de repuesto" ya usadas, para el desplegable de sugerencias.
@@ -335,6 +336,45 @@ function PurchaseListScreen() {
     display: "block",
   }
 
+  // ---------------------------------------------------------------------------
+  // Exportar a Excel: una sola hoja con todos los pedidos (pendientes + encargados)
+  // Columnas vacias para que el repuestero complete Cantidad, Precio unitario, Observaciones
+  // y Fecha estimada de entrega si hay demora.
+  // ---------------------------------------------------------------------------
+  const exportToExcel = () => {
+    if (loading || !hasContent) return;
+    const allGroups = [...pendingGroups, ...encargadosGroups];
+    const headers = ["Nro Orden", "Maquina", "Modelo", "Repuesto", "Codigo repuesto", "Casa de repuesto", "Cantidad", "Precio unitario", "Observaciones", "Fecha estimada de entrega"];
+    const rows = [headers];
+    for (const g of allGroups) {
+      for (const part of g.parts) {
+        const o = part.order;
+        const model = displayModel(o);
+        const code = displayCode(o.code);
+        rows.push([
+          g.orderNumber || "-",
+          g.machineName || "-",
+          model || "-",
+          part.description || "-",
+          code || "-",
+          o.supplier || "",
+          "",
+          "",
+          "",
+          ""
+        ]);
+      }
+    }
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const widths = [
+      { wch: 12 }, { wch: 26 }, { wch: 26 }, { wch: 32 }, { wch: 16 }, { wch: 26 }, { wch: 10 }, { wch: 14 }, { wch: 34 }, { wch: 22 }
+    ];
+    ws["!cols"] = widths;
+    XLSX.utils.book_append_sheet(wb, ws, "Repuestos");
+    const today = new Date().toISOString().slice(0, 10);
+    XLSX.writeFile(wb, "Lista_compra_repuestos_" + today + ".xlsx");
+  };
   return (
     <div className="p-6 space-y-4">
       <div className="print:hidden flex items-center justify-between">
@@ -359,6 +399,12 @@ function PurchaseListScreen() {
             className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground hover:bg-primary/90 disabled:opacity-50"
           >
             Imprimir lista
+          </button>
+          <button
+            onClick={exportToExcel}
+            disabled={loading || !hasContent}
+            className="inline-flex h-9 items-center rounded-md bg-secondary px-4 text-sm font-medium text-secondary-foreground hover:bg-secondary/80 disabled:opacity-50">
+            Exportar a Excel
           </button>
         </div>
       </div>
