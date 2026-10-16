@@ -2184,16 +2184,28 @@ async function main() {
     }, 30_000)
     heartbeat.unref()
 
-    // Pipeline: primer commandId con su módulo, luego los auto-enqueued
+    // Pipeline: primer commandId con su módulo, luego los auto-enqueued.
+    // Los módulos de los auto-enqueued se leen de Redis (cada comando guarda
+    // su `module` al crearse en /api/sync-3c): así corre EXACTO lo tildado en
+    // la web, sea la combinación que sea (2, 3 o los 5). Antes había una lista
+    // fija ["articulos","alquileres","reparaciones"] que asignaba el módulo
+    // equivocado cuando se tildaba otra combinación (ej. Reparaciones + Rep.
+    // Facturadas corría solo Facturadas).
     const pipeline: { commandId: string; module: ModuleName }[] = commandId
-        ? [
-            { commandId, module: mainModule as ModuleName },
-            ...autoEnqueued.map((cid, idx) => ({
-                commandId: cid,
-                module: (["articulos", "alquileres", "reparaciones"][idx] || "stock") as ModuleName
-            }))
-          ]
+        ? [{ commandId, module: mainModule as ModuleName }]
         : []
+    if (commandId && autoEnqueued.length > 0) {
+        for (const cid of autoEnqueued) {
+            let mod: string | null = null
+            try {
+                const data = await redis.hgetall<Record<string, unknown>>(`sync-3c:command:${cid}`)
+                if (data && typeof data.module === "string" && data.module) mod = data.module
+            } catch {
+                mod = null
+            }
+            pipeline.push({ commandId: cid, module: ((mod ?? "stock") as ModuleName) })
+        }
+    }
 
     // ═══════════════════════════════════════════════
     // MODO DIAGNÓSTICO (activar con SYNC_DIAGNOSTIC=true)
