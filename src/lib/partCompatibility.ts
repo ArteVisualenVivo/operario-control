@@ -160,9 +160,29 @@ function stripReparacionPrefix(value: unknown): string {
  * El nombre corto NO sirve como identidad: "AMOLADORA" es el nombre de tres
  * máquinas distintas (MAKITA 115, BOSCH GWS 25-180, BOSCH GWS 2200-230).
  */
-function machineIdentity(name: unknown, model: unknown): string {
+
+/**
+ * Detecta si un texto parece ser una descripcion de servicio (no un modelo de maquina real),
+ * para no mostrarlo como nombre de maquina en la pantalla de Repuestos.
+ */
+function isServiceText(text: string): boolean {
+  const t = String(text ?? "").trim()
+  if (!t) return false
+  const upper = t.toLocaleUpperCase("es")
+  const serviceKeywords = [
+    "SE LLEVO", "EXTRAER", "MEDIR", "REVISION", "CAMBIO",
+    "LIMPIEZA", "MANTENIMIENTO", "PRUEBA", "TEST", "REPARAR",
+    "SERVICIO", "GRASA", "ACEITE", "FILTRO", "DIAGNOSTICO"
+  ]
+  return serviceKeywords.some((k) => upper.includes(k))
+}
+
+function machineIdentity(name: unknown,
+ model: unknown): string {
   const full = stripReparacionPrefix(model)
-  return full || String(name ?? "").trim()
+  // Si el modelo parece texto de servicio (no un modelo real), usa el nombre de 3C
+  if (full && !isServiceText(full)) return full
+  return String(name ?? "").trim()
 }
 
 /**
