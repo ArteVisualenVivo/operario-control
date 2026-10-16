@@ -344,14 +344,20 @@ export default function Sync3CButton({
       }
       // 2b. Puente local (PC de 3C): si el navegador esta en la PC,
       // despierta al agente AL INSTANTE sin esperar al despertador.
-      // Si esta en otra PC/celular, falla rapido y no hace nada.
+      // Se mandan commandId + module + autoEnqueued: el puente los pasa como
+      // argv al agente. Sin el module, el agente asume "stock" por defecto y
+      // ejecuta el módulo equivocado (ej. tildás Reparaciones y corre Stock).
       try {
         const ctl = new AbortController()
         const t = setTimeout(() => ctl.abort(), 1500)
         await fetch("http://127.0.0.1:3033/wake", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ commandId: data.commandId }),
+          body: JSON.stringify({
+            commandId: data.commandId,
+            module: selectedModules[0],
+            autoEnqueued: data.autoEnqueued || [],
+          }),
           signal: ctl.signal,
         }).catch(() => null)
         clearTimeout(t)
