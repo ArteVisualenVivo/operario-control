@@ -177,12 +177,59 @@ function isServiceText(text: string): boolean {
   return serviceKeywords.some((k) => upper.includes(k))
 }
 
+
+/**
+ * Detecta si un texto parece ser el NOMBRE de un repuesto (no el modelo de una maquina),
+ * para no mostrarlo como nombre de maquina en la pantalla de Repuestos.
+ *
+ * Senales de que es un nombre de repuesto:
+ *   - Contiene patrones de codigo de repuesto: P/, P /, P-
+ *   - Contiene codigos alfanumericos tipo BO4552, 629LLB, 9557HN
+ *   - Contiene palabras de repuesto: RODAMIENTO, INDUCIDO, BALERO, CARBONES, etc.
+ */
+function isPartName(text: string): boolean {
+  const t = String(text ?? "").trim()
+  if (!t) return false
+  const upper = t.toLocaleUpperCase("es")
+  const partKeywords = [
+    "RODAMIENTO", "INDUCIDO", "BALERO", "CARBONES", "CARBON",
+    "FILTRO", "PISTON", "VALVULA", "BUJIA", "CORREA",
+    "CADENA", "ELECTRODO", "ELECTRODOS", "DISCO", "CUCHILLA",
+    "CUCHILLAS", "ESPIGA", "ARANDELA", "TORNILLO",
+    "TUERCA", "SELLO", "SELLOS", "EMPAQUE",
+    "BOMBA", "INYECTOR", "RELE", "INTERRUPTOR",
+    "SENSOR", "TERMOSTATO",
+  ]
+  const partCodePatterns = [
+    /P\s*\//i,          // P/9557HN
+    /P\s*-\s*/i,        // P-9557
+    /\b[0-9]{2,4}[A-Z]{2,4}\b/,  // 629LLB, BO4552
+    /\b[A-Z]{2,4}[0-9]{2,4}\b/,  // AB1234
+  ]
+  if (partKeywords.some((k) => upper.includes(k))) return true
+  if (partCodePatterns.some((re) => re.test(t))) return true
+  return false
+}
+
 function machineIdentity(name: unknown,
  model: unknown): string {
   const full = stripReparacionPrefix(model)
-  // Si el modelo parece texto de servicio (no un modelo real), usa el nombre de 3C
-  if (full && !isServiceText(full)) return full
-  return String(name ?? "").trim()
+
+  // 1. Si no hay modelo, usar el nombre de 3C
+  if (!full) return String(name ?? "").trim()
+
+  // 2. Si el modelo parece texto de servicio, usar el nombre de 3C
+  if (isServiceText(full)) return String(name ?? "").trim()
+
+  // 3. Si el modelo parece nombre de repuesto (no modelo de maquina), usar nombre de 3C
+  if (isPartName(full)) return String(name ?? "").trim()
+
+  // 4. Si el nombre de 3C parece nombre de repuesto pero el modelo no, usar modelo
+  const nameStr = String(name ?? "").trim()
+  if (nameStr && isPartName(nameStr) && !isPartName(full)) return full
+
+  // 5. Por defecto, usar el modelo (es mas identificativo que el nombre corto)
+  return full
 }
 
 /**
