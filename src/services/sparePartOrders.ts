@@ -1947,6 +1947,45 @@ function isCodeBaseOf(base: string, full: string): boolean {
  * copia, el de la pantalla —que corre al abrir "Pedidos Rep."— volvía a dejar el
  * código recortado que el otro acababa de completar.
  */
+
+/**
+ * REPARACIÓN DIRECTA de pedidos con el código pegado al nombre.
+ *
+ * Recorre los pedidos YA GUARDADOS y, a todo auto-importado virgen
+ * (sin recepción/uso) con code vacío cuyo nombre termina en un código
+ * ("MUELLE ESPIRAL 1 619 PB9 429"), le separa el código al campo code.
+ * Vale para TODAS las órdenes, no espera a que 3C lo mande de nuevo.
+ * Nunca toca manuales ni pedidos con historia (recibidos/usados/encargados
+ * con fechas): sólo SOLICITADO/PEDIDO vírgenes.
+ */
+export async function repairTrailingCodesInStoredOrders(
+  orders: SparePartOrder[],
+): Promise<{ fixed: number }> {
+  let fixed = 0
+  for (const o of orders) {
+    if (!isAutoImportedOrder(o)) continue
+    if (String(o.code ?? "").trim()) continue
+    if (o.quantityReceived !== 0 || o.quantityUsed !== 0) continue
+    if (o.status !== "SOLICITADO" && o.status !== "PEDIDO") continue
+    const split = splitTrailingCode(o.description)
+    if (!split.code || !split.description) continue
+    if (split.description === o.description) continue
+    try {
+      await updateDoc(doc(db, COLLECTION, o.id), {
+        code: split.code,
+        description: split.description,
+        updatedAt: new Date(),
+      })
+      o.code = split.code
+      o.description = split.description
+      fixed += 1
+    } catch {
+      // se reintenta en la próxima importación
+    }
+  }
+  return { fixed }
+}
+
 export function backfillOrderFromDetectedPart(
   existing: Pick<SparePartOrder, "code" | "description" | "notes">,
   detected: { code: string | null; description: string },
@@ -2454,6 +2493,15 @@ export async function importPendingPartsFromMaintenance(): Promise<{
 
   // Separa un ítem de trabajo/repuesto de 3C en { code, name }.
   // formato esperado: "1262 — rodamiento 6203" | "KD44221 — FICHA BIPOLAR AZUL"
+  // Reparación directa: pedidos viejos con el código pegado al nombre
+  // (todas las órdenes). Corre antes de importar lo nuevo.
+  try {
+    const repaired = await repairTrailingCodesInStoredOrders(existing)
+    updated += repaired.fixed
+  } catch {
+    // no bloquea la importación
+  }
+
   const splitItem = (item: string): { code: string; name: string; quantity: number } => {
     const m = String(item ?? "").match(/^\s*([^—–]+?)\s*[—–]\s*(.+)$/)
     if (m) {
@@ -3538,7 +3586,17 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
   }
 
   const createdOrders: { orderNumber: string; code: string | null; description: string }[] = []
+
   let updated = 0
+
+    // (todas las órdenes). Corre antes de importar lo nuevo.
+    try {
+      const repaired = await repairTrailingCodesInStoredOrders(existing)
+      updated += repaired.fixed
+    } catch {
+      // no bloquea la importación
+    }
+    // Reparación directa: pedidos viejos con el código pegado al nombre
   let skippedAdmin = 0
 
   for (const record of maintenance) {
