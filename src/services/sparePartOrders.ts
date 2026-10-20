@@ -716,6 +716,27 @@ export async function healReceivedWithoutDate(): Promise<number> {
   return healed
 }
 
+/**
+ * Cantidad a GUARDAR cuando el mismo repuesto vuelve a aparecer en 3C.
+ * CONSERVADOR: solo SUBE la cantidad (1 → detectada) y solo en pedidos
+ * auto-importados vírgenes (SOLICITADO, sin recibir ni usar). NUNCA baja una
+ * cantidad (puede haberse corregido a mano) ni toca pedidos manuales o ya
+ * avanzados. null = nada que corregir.
+ */
+export function nextQuantityToStore(
+  existing: Pick<SparePartOrder, "quantityRequested" | "quantityReceived" | "quantityUsed" | "status" | "notes">,
+  detected: number | null | undefined,
+): number | null {
+  const qty = Math.min(999, Math.max(1, Math.floor(detected ?? 1) || 1))
+  if (qty <= 1) return null
+  if (!isAutoImportedOrder(existing)) return null
+  if (existing.status !== "SOLICITADO") return null
+  if ((existing.quantityReceived ?? 0) > 0 || (existing.quantityUsed ?? 0) > 0) return null
+  const stored = Math.max(1, Math.floor(existing.quantityRequested ?? 1) || 1)
+  if (stored >= qty) return null
+  return qty
+}
+
 export function buildSparePartOrdersFromRecords(
   records: MaintenanceRecord[],
   base: SparePartOrder[],
@@ -757,14 +778,14 @@ export function buildSparePartOrdersFromRecords(
     }
     return [...out]
   }
-  const splitItem = (item: string): { code: string; name: string } => {
+  const splitItem = (item: string): { code: string; name: string; quantity: number } => {
     const m = String(item ?? "").match(/^\s*([^—–]+?)\s*[—–]\s*(.+)$/)
     if (m) {
       const code = m[1].trim()
       const name = m[2].trim()
-      if (code && name) return { code, name }
+      if (code && name) return { code, name, quantity: 1 }
     }
-    return { code: "", name: String(item ?? "").trim() }
+    return { code: "", name: String(item ?? "").trim(), quantity: 1 }
   }
   for (const rec of records) {
     const isWaiting =
@@ -778,14 +799,20 @@ export function buildSparePartOrdersFromRecords(
       workItems.length > 0
         ? workItems.map(splitItem)
         : waitingMotivosOf(rec).flatMap((motivo) =>
-            parseSparePartsFromMotivo(motivo).map((p) => ({ code: p.code ?? "", name: p.description })),
+            parseSparePartsFromMotivo(motivo).map((p) => ({ code: p.code ?? "", name: p.description, quantity: p.quantity })),
           )
-    const uniqueParts = new Map<string, { code: string; name: string }>()
+    const uniqueParts = new Map<string, { code: string; name: string; quantity: number }>()
     for (const part of detected) {
       const name = String(part.name ?? "").trim()
       if (!name) continue
       const k = name.toLowerCase()
-      if (!uniqueParts.has(k)) uniqueParts.set(k, { code: part.code || "", name })
+      const qty = Math.min(999, Math.max(1, Math.floor(part.quantity) || 1))
+      const prev = uniqueParts.get(k)
+      if (!prev) uniqueParts.set(k, { code: part.code || "", name, quantity: qty })
+      else {
+        prev.quantity = Math.min(999, prev.quantity + qty)
+        if (!prev.code && part.code) prev.code = part.code
+      }
     }
     for (const part of uniqueParts.values()) {
       const cname = String(part.name ?? "").trim()
@@ -804,6 +831,8 @@ export function buildSparePartOrdersFromRecords(
       if (existingOrder) {
         const patch: Record<string, unknown> = {}
         Object.assign(patch, backfillOrderFromDetectedPart(existingOrder, { code, description: cname }))
+        const nextQty = nextQuantityToStore(existingOrder, part.quantity)
+        if (nextQty !== null) patch.quantityRequested = nextQty
         const nextRequestedAt = requestedAtToStore(existingOrder, waitingDate)
         if (nextRequestedAt) patch.requestedAt = nextRequestedAt
         if (isAutoImportedOrder(existingOrder)) {
@@ -820,6 +849,7 @@ export function buildSparePartOrdersFromRecords(
       const now = new Date()
       const id = `local:${orderKey}|${codeN || descN}|${now.getTime()}`
       const recWithId = rec as MaintenanceRecord & { id?: string }
+      const qty = Math.min(999, Math.max(1, Math.floor(part.quantity) || 1))
       const createdOrder: SparePartOrder = {
         id,
         repairId: recWithId.id ?? rec.orderNumber,
@@ -830,7 +860,7 @@ export function buildSparePartOrdersFromRecords(
         code: code ?? "",
         description: cname,
         unit: "unidad",
-        quantityRequested: 1,
+        quantityRequested: qty,
         quantityReceived: 0,
         quantityUsed: 0,
         status: "SOLICITADO",
@@ -2209,14 +2239,14 @@ export async function importPendingPartsFromMaintenance(): Promise<{
 
   // Separa un ítem de trabajo/repuesto de 3C en { code, name }.
   // formato esperado: "1262 — rodamiento 6203" | "KD44221 — FICHA BIPOLAR AZUL"
-  const splitItem = (item: string): { code: string; name: string } => {
+  const splitItem = (item: string): { code: string; name: string; quantity: number } => {
     const m = String(item ?? "").match(/^\s*([^—–]+?)\s*[—–]\s*(.+)$/)
     if (m) {
       const code = m[1].trim()
       const name = m[2].trim()
-      if (code && name) return { code, name }
+      if (code && name) return { code, name, quantity: 1 }
     }
-    return { code: "", name: String(item ?? "").trim() }
+    return { code: "", name: String(item ?? "").trim(), quantity: 1 }
   }
 
   for (const rec of awaiting) {
@@ -2234,20 +2264,27 @@ export async function importPendingPartsFromMaintenance(): Promise<{
       workItems.length > 0
         ? workItems.map(splitItem)
         : waitingMotivosOf(rec).flatMap((motivo) =>
-            parseSparePartsFromMotivo(motivo).map((p) => ({ code: p.code ?? "", name: p.description })),
+            parseSparePartsFromMotivo(motivo).map((p) => ({ code: p.code ?? "", name: p.description, quantity: p.quantity })),
           )
 
     // Un mismo repuesto puede aparecer repetido en el motivo: se deduplica
-    // dentro de la propia orden antes de contar "ya existentes".
-    const uniqueParts = new Map<string, { code: string; name: string }>()
+    // dentro de la propia orden antes de contar "ya existentes". Las
+    // repeticiones SUMAN cantidad ("rodamiento 6203" dos veces → qty 2).
+    const uniqueParts = new Map<string, { code: string; name: string; quantity: number }>()
     for (const part of detected) {
       const name = String(part.name ?? "").trim()
       if (!name) continue
       const k = name.toLowerCase()
-      if (!uniqueParts.has(k)) uniqueParts.set(k, { code: part.code || "", name })
+      const qty = Math.min(999, Math.max(1, Math.floor(part.quantity) || 1))
+      const prev = uniqueParts.get(k)
+      if (!prev) uniqueParts.set(k, { code: part.code || "", name, quantity: qty })
+      else {
+        prev.quantity = Math.min(999, prev.quantity + qty)
+        if (!prev.code && part.code) prev.code = part.code
+      }
     }
 
-    for (const { code, name } of uniqueParts.values()) {
+    for (const { code, name, quantity } of uniqueParts.values()) {
       const key = `${normOrderKey(rec.orderNumber)}||${name.toLowerCase()}`
       // MODELO: contenido EXACTO de la columna DENOMINACION del Excel de
       // Reparaciones (copiado tal cual). La máquina sigue saliendo de la
@@ -2265,6 +2302,10 @@ export async function importPendingPartsFromMaintenance(): Promise<{
         // CÓDIGO y DESCRIPCIÓN: mismas correcciones que el importador del agente
         // (función compartida; ver por qué en `backfillOrderFromDetectedPart`).
         Object.assign(updates, backfillOrderFromDetectedPart(previously, { code, description: name }))
+        // CANTIDAD: solo sube 1 → detectada en pedidos vírgenes (ver
+        // nextQuantityToStore: nunca baja ni toca pedidos manuales/avanzados).
+        const nextQty = nextQuantityToStore(previously, quantity)
+        if (nextQty !== null) updates.quantityRequested = nextQty
         // FECHA DEL PEDIDO: se corrige sólo si el día cambió y NUNCA hacia
         // adelante (ver requestedAtToStore: el sync no puede "rejuvenecer" un
         // pedido).
@@ -2290,6 +2331,7 @@ export async function importPendingPartsFromMaintenance(): Promise<{
       // inexistente → Firestore la rechazaba, quedaba encolada y el snapshot
       // publicaba una fila VACÍA (sin orden ni repuesto) que se veía en la lista
       // y en la hoja de compra.
+      const qty = Math.min(999, Math.max(1, Math.floor(quantity) || 1))
       const createdId = await createOrder({
         repairId: rec.id ?? rec.orderNumber,
         orderNumber: rec.orderNumber,
@@ -2299,7 +2341,7 @@ export async function importPendingPartsFromMaintenance(): Promise<{
         code,
         description: name,
         unit: "unidad",
-        quantity: 1,
+        quantity: qty,
         requestedAt: waitingDate,
         notes: "Importado desde Órdenes de Reparación (3C): repuesto en espera",
       }, { allowEmptyCode: true })
@@ -2313,7 +2355,7 @@ export async function importPendingPartsFromMaintenance(): Promise<{
         code,
         description: name,
         unit: "unidad",
-        quantityRequested: 1,
+        quantityRequested: qty,
         quantityReceived: 0,
         quantityUsed: 0,
         status: "SOLICITADO",
@@ -2760,6 +2802,69 @@ function cleanPartDescription(raw: string): string {
 }
 
 /**
+ * Extrae la CANTIDAD pedida al final de una línea de MOTIVO de 3C.
+ * Formas aceptadas (solo al FINAL de la línea, nunca pegadas a un código):
+ *   "rodamiento 6203 x2" · "rodamiento 6203 x 2" · "rodamiento 6203 (2)"
+ *   "rodamiento 6203 - 2u" / "2uni" / "2unidades" / "2und" / "2unds"
+ *   "3 und RODAMIENTO" (al inicio, con palabra de unidad explícita)
+ * NO cuenta: "( 5 )" de medida de O-ring, "20 Main piston", "3x25" de cable,
+ * "GKS 190 X2" (modelo), "92 JGO" (el nº inicial ya lo quita cleanPartDescription).
+ * Devuelve { text: línea sin el marcador, quantity: 1..999 }.
+ */
+function extractTrailingQuantity(line: string): { text: string; quantity: number } {
+  const t = String(line ?? "").replace(/\t/g, " ").replace(/\s+/g, " ").trim()
+  if (!t) return { text: "", quantity: 1 }
+  // "3 und RODAMIENTO..." o "2 unidades RODAMIENTO..." al INICIO (con unidad explícita).
+  let m = t.match(/^(\d{1,3})\s*(u|uni|unis|und|unds|unidad|unidades|pieza|piezas|pza|pzas|jgo|jgos|juego|juegos|set|sets)\s+(?=[A-Za-zÁÉÍÓÚÑ])(.+)$/i)
+  if (m) {
+    const qty = Math.min(999, Math.max(1, parseInt(m[1], 10)))
+    const rest = m[3].trim()
+    if (rest && !isCodeToken(m[3].split(/\s+/)[0])) return { text: rest, quantity: qty }
+  }
+  // "x2" / "x 2" como token INDEPENDIENTE (con espacios alrededor), al final
+  // o en el medio ("correas x3 13x1118LI A44"). NUNCA pegado a un código o
+  // medida ("13x1118LI", "3x25", "3X25": ahí la "x" es parte del código).
+  // Guarda: lo anterior debe ser un repuesto (palabra clave) o venir seguido
+  // de un código ("correas x3 <código>"); así "GKS 190 X2" (modelo) no cuenta.
+  m = t.match(/^(.*?)\s+x\s*(\d{1,3})(?=\s|\)|$)(\s*\)?\s*(.*))?$/i)
+  if (m) {
+    const before = (m[1] ?? "").trim()
+    const after = (m[4] ?? "").trim()
+    const firstAfter = after.split(/\s+/)[0] ?? ""
+    if (
+      before &&
+      (containsSparePart(before) || (after && isCodeToken(firstAfter))) &&
+      !isCodeToken(before.split(/\s+/).pop() ?? "")
+    ) {
+      const qty = Math.min(999, Math.max(1, parseInt(m[2], 10)))
+      const text = [before, after].filter(Boolean).join(" ").replace(/\s+/g, " ").trim()
+      if (text) return { text, quantity: qty }
+    }
+  }
+  m = t.match(/^(.*?)[\s\-–—(]*(\d{1,3})\s*(u|uni|unis|und|unds|unidad|unidades|pieza|piezas|pza|pzas|jgo|jgos|juego|juegos|set|sets)\s*\)?\s*$/i)
+  if (m) {
+    const before = (m[1] ?? "").trim()
+    const token = before.split(/\s+/).pop() ?? ""
+    if (before && !isCodeToken(token)) {
+      const qty = Math.min(999, Math.max(1, parseInt(m[2], 10)))
+      if (before) return { text: before.replace(/[(\-–—\s]+$/, "").trim(), quantity: qty }
+    }
+  }
+  // "(2)" solo: el número entre paréntesis al final ("rodamiento (2)").
+  // NUNCA "( 5 )" de medida de O-ring: esa línea queda pendiente de código.
+  m = t.match(/^(.*?)\(\s*(\d{1,3})\s*\)\s*$/)
+  if (m) {
+    const before = (m[1] ?? "").trim()
+    const lower = before.toLowerCase()
+    if (before && !/(o[\s-]?ring|reten|ret[eé]n|sello|junta|t[oó]rica)/i.test(lower)) {
+      const qty = Math.min(999, Math.max(1, parseInt(m[2], 10)))
+      return { text: before, quantity: qty }
+    }
+  }
+  return { text: t, quantity: 1 }
+}
+
+/**
  * PARSER REAL de MOTIVO_ESTADO_REP (celda de 3C con saltos de línea):
  *
  *   JUEGO DE CARBONES 160432115T   → repuesto + código en la MISMA línea
@@ -2772,12 +2877,12 @@ function cleanPartDescription(raw: string): string {
  * - Se descartan diagnósticos, fallas, observaciones y mano de obra.
  * - OBSERVACIONES nunca es fuente: la fuente es MOTIVO_ESTADO_REP.
  */
-export function parseSparePartsFromMotivoDetailed(motivo: string): { code: string | null; description: string }[] {
+export function parseSparePartsFromMotivoDetailed(motivo: string): { code: string | null; description: string; quantity: number }[] {
   if (!motivo || isAdminText(motivo) || isLaborText(motivo)) return []
 
-  const out: { code: string | null; description: string }[] = []
-  const seen = new Set<string>()
-  const push = (code: string | null, description: string): void => {
+  const out: { code: string | null; description: string; quantity: number }[] = []
+  const seen = new Map<string, number>()
+  const push = (code: string | null, description: string, quantity = 1): void => {
     const d = cleanPartDescription(description)
     if (!d) return
     if (isLaborText(d) || isAdminText(d) || isDiagnosis(d)) return
@@ -2793,37 +2898,49 @@ export function parseSparePartsFromMotivoDetailed(motivo: string): { code: strin
     if (!c && !containsSparePart(d)) return
     // Clave de deduplicación: el código sin espacios, para que "1 619 P14 777"
     // y "1619P14777" sean el MISMO repuesto y no se emita dos veces.
+    // Líneas REPETIDAS del mismo repuesto ("rodamiento 6203" dos veces) SUMAN
+    // cantidad en vez de descartarse (tope 999).
+    const qty = Math.min(999, Math.max(1, Math.floor(quantity) || 1))
     const key = `${c ? canonicalSparePartCode(c) : ""}||${d.toUpperCase().replace(/\s+/g, " ")}`
-    if (seen.has(key)) return
-    seen.add(key)
-    out.push({ code: c, description: d })
+    if (seen.has(key)) {
+      const idx = seen.get(key)!
+      out[idx].quantity = Math.min(999, out[idx].quantity + qty)
+      return
+    }
+    seen.set(key, out.length)
+    out.push({ code: c, description: d, quantity: qty })
   }
 
-  // Descripción que aún no encontró su código.
-  let pending: string | null = null
+  // Descripción que aún no encontró su código (con su cantidad ya extraída).
+  let pending: { desc: string; qty: number } | null = null
   const flushPendiente = (): void => {
     if (!pending) return
-    const desc = pending
+    const { desc, qty } = pending
     pending = null
     // Sin código propio: se emite la descripción sin código (nunca se le copia
     // el código de otro repuesto).
-    for (const parte of splitAndParse(desc)) push(parte.code, parte.description)
+    for (const parte of splitAndParse(desc)) push(parte.code, parte.description, qty)
   }
 
   for (const rawLine of cleanLine(motivo)) {
-    const line = rawLine.replace(/\t/g, " ").replace(/\s+/g, " ").trim()
-    if (!line) continue
-    if (isAdminText(line) || isLaborText(line)) {
+    const normalized = rawLine.replace(/\t/g, " ").replace(/\s+/g, " ").trim()
+    if (!normalized) continue
+    if (isAdminText(normalized) || isLaborText(normalized)) {
       flushPendiente()
       continue
     }
+
+    // Cantidad al final de la línea ("rodamiento 6203 - 2unidades"): se quita
+    // del texto ANTES de buscar el código, para no contaminarlo.
+    const { text: line, quantity: lineQty } = extractTrailingQuantity(normalized)
+    if (!line) continue
 
     // Caso 2: el código viene en su PROPIA línea, después del repuesto.
     const soloCodigo = asSoloCodigo(line)
     if (soloCodigo) {
       const desc = pending
       pending = null
-      if (desc) push(soloCodigo, desc)
+      if (desc) push(soloCodigo, desc.desc, Math.max(desc.qty, lineQty))
       continue
     }
 
@@ -2838,15 +2955,20 @@ export function parseSparePartsFromMotivoDetailed(motivo: string): { code: strin
       // descartaba (por eso la hoja de compra salía sin códigos).
       if (!isUsablePartCode(inline.code) && inline.description) {
         pending = inline.description
+          ? { desc: inline.description, qty: lineQty }
+          : null
         continue
       }
-      push(inline.code, inline.description)
+      push(inline.code, inline.description, lineQty)
       continue
     }
 
     // Línea de descripción: queda pendiente por si la siguiente trae su código.
+    // La cantidad también puede venir pegada a la descripción ("correas x3"
+    // antes del código): se extrae acá para que no quede en el nombre.
     flushPendiente()
-    pending = line
+    const { text: descText, quantity: descQty } = extractTrailingQuantity(line)
+    pending = { desc: descText, qty: Math.max(lineQty, descQty) }
   }
   flushPendiente()
 
@@ -2859,7 +2981,7 @@ export function parseSparePartsFromMotivoDetailed(motivo: string): { code: strin
  * cleanup usan EXACTAMENTE el mismo parser (antes divergían y se borraban
  * pedidos válidos).
  */
-export function parseSparePartsFromMotivo(motivo: string): { code: string | null; description: string }[] {
+export function parseSparePartsFromMotivo(motivo: string): { code: string | null; description: string; quantity: number }[] {
   return parseSparePartsFromMotivoDetailed(motivo)
 }
 
@@ -3259,6 +3381,10 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
         // MISMA función que usa el importador de la pantalla.
         const updates: Record<string, unknown> = {}
         Object.assign(updates, backfillOrderFromDetectedPart(existingOrder, part))
+        // CANTIDAD: solo sube 1 → detectada en pedidos vírgenes (ver
+        // nextQuantityToStore: nunca baja ni toca pedidos manuales/avanzados).
+        const nextPartQty = nextQuantityToStore(existingOrder, part.quantity)
+        if (nextPartQty !== null) updates.quantityRequested = nextPartQty
         // FECHA DEL PEDIDO: se corrige sólo si el día cambió y NUNCA hacia
         // adelante (el sync no puede "rejuvenecer" un pedido; ver
         // requestedAtToStore). Repara además las fechas ya pisadas por corridas
@@ -3290,6 +3416,7 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
       // Id REAL del alta (ver comentario en importPendingPartsFromMaintenance):
       // el placeholder "pending" generaba actualizaciones imposibles y una fila
       // vacía en el snapshot/listado.
+      const partQty = Math.min(999, Math.max(1, Math.floor(part.quantity) || 1))
       const createdId = await createOrder({
         repairId: rec.id ?? rec.orderNumber,
         orderNumber: rec.orderNumber,
@@ -3299,7 +3426,7 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
         code: part.code ?? "",
         description: part.description,
         unit: "unidad",
-        quantity: 1,
+        quantity: partQty,
         // REGLA: fecha real de 3C del estado "A la Espera Repuestos" (nunca "ahora").
         requestedAt: waitingDate,
         notes: `Importado desde Órdenes de Reparación (3C): repuesto en espera\nOrden: ${rec.orderNumber}\nCliente: ${rec.clientName}\nEstado: ${rec.status}\n---\nMOTIVO original: ${motivo}`,
@@ -3315,7 +3442,7 @@ export async function importSparePartsFromRecords(records: MaintenanceRecord[]):
         code: part.code ?? "",
         description: part.description,
         unit: "unidad",
-        quantityRequested: 1,
+        quantityRequested: partQty,
         quantityReceived: 0,
         quantityUsed: 0,
         status: "SOLICITADO",
