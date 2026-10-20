@@ -145,7 +145,17 @@ function PurchaseListScreen() {
         // Alcance pedido desde "Pedidos Rep.": si vino `?orders=...` se trabaja
         // SOLO con esos pedidos; sin parámetro, con todos (comportamiento de
         // siempre para quien entra a la hoja por el menú o por un enlace).
-        const scoped = scopedIds ? ords.filter((o) => scopedIds.has(o.id)) : ords
+        // ORDEN EXACTO de la pantalla: los ids llegan en `?orders=` en el orden
+        // en que se ven en "Pedidos Rep." (ver handlePrintList, que usa los
+        // grupos ya ordenados). Se respeta ese orden acá para que la hoja y el
+        // Excel salgan igual que la pantalla, sin reordenar por otro criterio.
+        const urlOrder = scopeParam === null
+          ? null
+          : new Map(scopeParam.split(",").map((id) => id.trim()).filter(Boolean).map((id, i) => [id, i] as const))
+        const scopedUnsorted = scopedIds ? ords.filter((o) => scopedIds.has(o.id)) : ords
+        const scoped = urlOrder
+          ? [...scopedUnsorted].sort((a, b) => (urlOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER) - (urlOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER))
+          : scopedUnsorted
         setScopedOrderCount(scopedIds ? scoped.length : null)
         const vigentes = scoped.filter((o) => !getOrderClosure(o, byOrder.get(normOrderKey(o.orderNumber)) ?? null).closed)
         setClosedHiddenCount(scoped.length - vigentes.length)
@@ -168,13 +178,13 @@ function PurchaseListScreen() {
         setRepairsMap(map)
 
         const pendientes = vigentes.filter((o) => o.status === "SOLICITADO" || o.status === "PEDIDO")
-        // ANEXO: TODOS los encargados, sin filtrar por fecha. Si se vino con
-        // ?sort= desde "Pedidos Rep.", el orden lo pone sortSheetGroups (mismo
-        // criterio de la pantalla: requestedAt). Sin ?sort, se mantiene el
-        // comportamiento de siempre: encargos más viejos arriba.
-        const enc = sortMode === "default"
-          ? vigentes.filter((o) => o.status === "ENCARGADO").sort(byOldestOrderedAt)
-          : vigentes.filter((o) => o.status === "ENCARGADO")
+        // ANEXO: TODOS los encargados, sin filtrar por fecha. El orden ya viene
+        // dado por `scoped` (orden exacto de la pantalla vía ?orders=...); sin
+        // parámetro se mantiene el comportamiento de siempre: encargos más
+        // viejos arriba.
+        const enc = urlOrder
+          ? vigentes.filter((o) => o.status === "ENCARGADO")
+          : vigentes.filter((o) => o.status === "ENCARGADO").sort(byOldestOrderedAt)
         setOrders(pendientes)
         setEncargados(enc)
         // Sugerencias del desplegable: casas ya usadas en CUALQUIER pedido
@@ -189,7 +199,10 @@ function PurchaseListScreen() {
     // `scopedIds` cambia solo si cambia `?orders=...` (memo sobre el parámetro):
     // así, si se llega a la hoja completa desde el aviso "Ver la lista completa",
     // los datos se vuelven a cargar con el alcance nuevo.
-  }, [scopedIds])
+    // `scopeParam` (no el Set) para que el ORDEN de la URL también dispare la
+    // recarga: dos selecciones con los mismos ids en distinto orden deben
+    // reordenar la hoja.
+  }, [scopeParam, scopedIds, sortMode])
 
   const today = new Date().toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "2-digit", year: "numeric" })
     const hasContent = orders.length > 0 || encargados.length > 0
