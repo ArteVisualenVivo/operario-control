@@ -2,7 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react"
 import type { SparePartOrder } from "@/types"
-import { getAllOrders, markOrdered, markOrderedMany, markReceived, markUsed, deleteOrders, updateOrderDates, updateOrderCode } from "@/services/sparePartOrders"
+import {
+  getAllOrders, markOrdered, markOrderedMany, markReceived, markUsed, deleteOrders,
+  updateOrderDates, updateOrderCode, createManualOrders, type ParsedManualPart,
+} from "@/services/sparePartOrders"
 import type { MarkOrderedInput, SparePartOrderDatesInput } from "@/types"
 
 export function useAllSparePartOrders() {
@@ -97,5 +100,21 @@ export function useAllSparePartOrders() {
     setOrders((prev) => prev.map((o) => (o.id === id ? { ...o, ...written } : o)))
   }, [])
 
-  return { orders, loading, reload: load, markAsOrdered, markAsOrderedMany, remove, markAsReceived, markAsUsed, updateDates, updateCode }
+  /**
+   * Alta MANUAL de repuestos (pegado múltiple) dentro de una orden:
+   * crea los pedidos con marca MANUAL y recarga la lista para que aparezcan
+   * en el grupo de su orden. Devuelve cuántos se crearon y cuántos se
+   * saltearon por ya existir.
+   */
+  const createManuals = useCallback(async (
+    orderNumber: string,
+    parts: ParsedManualPart[],
+    sibling?: SparePartOrder | null,
+  ) => {
+    const result = await createManualOrders(orderNumber, parts, sibling)
+    await load()
+    return result
+  }, [load])
+
+  return { orders, loading, reload: load, markAsOrdered, markAsOrderedMany, remove, markAsReceived, markAsUsed, updateDates, updateCode, createManuals }
 }

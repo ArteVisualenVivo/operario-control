@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { SearchInput } from "@/components/ui/SearchInput"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { useAllSparePartOrders } from "@/hooks/useAllSparePartOrders"
-import { importPendingPartsFromMaintenance } from "@/services/sparePartOrders"
+import { importPendingPartsFromMaintenance, parseManualPartsPaste, type ParsedManualPart } from "@/services/sparePartOrders"
 import { SparePartOrderBadge } from "@/components/repairs/SparePartOrderBadge"
 import { SparePartOrderOrderedDialog } from "@/components/repairs/SparePartOrderOrderedDialog"
 import { SparePartOrderReceiveUseDialog } from "@/components/repairs/SparePartOrderReceiveUseDialog"
@@ -49,7 +49,7 @@ function isPendingOrder(o: SparePartOrder): boolean {
 
 export default function SparePartOrdersPage() {
   const router = useRouter()
-  const { orders, loading, reload, markAsOrdered, markAsOrderedMany, remove, markAsReceived, markAsUsed, updateDates, updateCode } = useAllSparePartOrders()
+  const { orders, loading, reload, markAsOrdered, markAsOrderedMany, remove, markAsReceived, markAsUsed, updateDates, updateCode, createManuals } = useAllSparePartOrders()
   const [filter, setFilter] = useState<Filter>("todos")
   const [query, setQuery] = useState("")
   const [dateFrom, setDateFrom] = useState("")
@@ -70,6 +70,31 @@ export default function SparePartOrdersPage() {
   // Entrega/uso con cantidad directamente desde esta pantalla (mismo diálogo
   // que usa la ficha de la reparación).
   const [action, setAction] = useState<{ type: "receive" | "use"; order: SparePartOrder } | null>(null)
+  // Alta MANUAL por orden (botón "Agregar" dentro de cada grupo): un solo
+  // cuadro de texto para pegar todo junto, nombre en una línea y código en
+  // la siguiente (igual que 3C). Nada arriba: solo por orden.
+  const [manualTarget, setManualTarget] = useState<SparePartOrderGroup | null>(null)
+  const [manualText, setManualText] = useState("")
+  const [manualSaving, setManualSaving] = useState(false)
+  const manualPreview: ParsedManualPart[] = useMemo(() => parseManualPartsPaste(manualText), [manualText])
+  const handleManualSave = async () => {
+    if (!manualTarget || manualPreview.length === 0 || manualSaving) return
+    setManualSaving(true)
+    try {
+      const sibling = manualTarget.parts[0]?.order ?? null
+      const result = await createManuals(manualTarget.orderNumber, manualPreview, sibling)
+      const okMsg = result.created.length === 1
+        ? "Repuesto agregado a la orden."
+        : `${result.created.length} repuestos agregados a la orden.`
+      toast.success(result.skipped > 0 ? `${okMsg} (${result.skipped} ya existía/n).` : okMsg)
+      setManualTarget(null)
+      setManualText("")
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo agregar el repuesto.")
+    } finally {
+      setManualSaving(false)
+    }
+  }
   // Selección por N° DE ORDEN, no por repuesto: tildar una orden selecciona TODOS
   // sus repuestos y cuenta como UNA sola (que es la cantidad de máquinas para las
   // que hay que comprar). La clave es la del grupo (ver groupOrdersByRealNumber).
@@ -608,7 +633,19 @@ export default function SparePartOrdersPage() {
                       </td>
                     )}
                     {idx === 0 && (
-                      <td className="py-2 px-3 font-medium align-top whitespace-nowrap" rowSpan={g.parts.length}>{g.orderNumber || "—"}</td>
+                      <td className="py-2 px-3 font-medium align-top whitespace-nowrap" rowSpan={g.parts.length}>{g.orderNumber || "—"}
+                        <div className="mt-1">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 text-xs"
+                            title={`Agregar repuesto a ${g.orderNumber}`}
+                            onClick={() => { setManualTarget(g); setManualText("") }}
+                          >
+                            + Agregar
+                          </Button>
+                        </div>
+                      </td>
                     )}
                     {idx === 0 && (
                       <td className="py-2 px-3 align-top" rowSpan={g.parts.length}>
@@ -722,6 +759,47 @@ export default function SparePartOrdersPage() {
         order={action?.order ?? null}
         onConfirm={(q, d, n) => handleAction(action!.order.id, q, d, n)}
       />
+
+      {/* Alta MANUAL por orden: pegar todo junto, nombre en una línea y
+          código en la siguiente (igual que 3C). Se crea con marca MANUAL:
+          aparece en el grupo de su orden, no se duplica ni se borra. */}
+      {manualTarget !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => { if (!manualSaving) { setManualTarget(null); setManualText("") } }}>
+          <div className="w-full max-w-lg rounded-lg bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-base font-semibold">Agregar repuesto a {manualTarget.orderNumber}</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Pegá todo junto: el nombre en una línea y el código en la siguiente.
+            </p>
+            <textarea
+              className="mt-3 h-44 w-full rounded-md border p-2 text-sm font-mono"
+              placeholder={"Brida de casquillo\n1 619 PC0 249\nArandela De Seguridad\n1 619 PB9 432"}
+              value={manualText}
+              onChange={(e) => setManualText(e.target.value)}
+              disabled={manualSaving}
+            />
+            {manualPreview.length > 0 ? (
+              <ul className="mt-2 max-h-32 overflow-auto rounded-md border p-2 text-xs">
+                {manualPreview.map((p, i) => (
+                  <li key={i} className="py-0.5">
+                    <span className="font-medium">{p.description}</span>
+                    <span className="text-muted-foreground"> — {p.code ? p.code : "sin código"}{p.quantity > 1 ? ` × ${p.quantity}` : ""}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="mt-2 text-xs text-muted-foreground">Todavía no se detectó ningún repuesto.</p>
+            )}
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setManualTarget(null); setManualText("") }} disabled={manualSaving}>
+                Cancelar
+              </Button>
+              <Button onClick={handleManualSave} disabled={manualSaving || manualPreview.length === 0}>
+                {manualSaving ? "Guardando…" : `Agregar ${manualPreview.length > 0 ? `(${manualPreview.length})` : ""}`}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -1049,6 +1049,185 @@ export async function getOrderById(id: string): Promise<SparePartOrder | null> {
   if (!snap.exists()) return null
   return docToOrder(snap)
 }
+/**
+ * NOTA DE ORIGEN de un pedido cargado a mano desde la pantalla
+ * (botón "Agregar" dentro de cada orden). Sirve para:
+ *  - distinguirlo de los auto-importados de 3C,
+ *  - que la reconciliación y la limpieza NO lo toquen,
+ *  - que el importador lo ADOPTE (le asigne workItemId) si 3C
+ *    trae después el mismo código, en vez de duplicarlo.
+ */
+export const MANUAL_NOTE_PREFIX = "MANUAL: cargado a mano desde Pedidos Rep."
+
+export interface CreateManualOrderInput {
+  /** Nº de orden destino, ej. "X 0001-00011174". */
+  orderNumber: string
+  machineId?: string
+  machineName?: string
+  machineModel?: string | null
+  description: string
+  code?: string | null
+  quantity?: number
+  notes?: string
+}
+
+/**
+ * Entrada pegada a mano: NOMBRE en una línea, CÓDIGO en la siguiente,
+ * como viene de 3C:
+ *
+ *   Brida de casquillo
+ *   1 619 PC0 249
+ *   Arandela De Seguridad
+ *   1 619 PB9 432
+ *
+ * La cantidad se detecta con la MISMA regla que el importador
+ * (extractTrailingQuantity). Si una línea parece código suelto sin nombre
+ * previo se ignora; un nombre sin código queda con código vacío ("—").
+ */
+export interface ParsedManualPart {
+  description: string
+  code: string
+  quantity: number
+}
+
+export function parseManualPartsPaste(text: string): ParsedManualPart[] {
+  const lines = text
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter((l) => l.length > 0)
+  const parts: ParsedManualPart[] = []
+  let pendingDesc: string | null = null
+  let pendingQty = 1
+  const flushPending = () => {
+    if (pendingDesc) {
+      parts.push({ description: pendingDesc, code: "", quantity: pendingQty })
+      pendingDesc = null
+      pendingQty = 1
+    }
+  }
+  for (const line of lines) {
+    if (pendingDesc === null && looksLikeCode(line)) continue
+    if (pendingDesc !== null && looksLikeCode(line)) {
+      parts.push({ description: pendingDesc, code: normalizeManualCode(line), quantity: pendingQty })
+      pendingDesc = null
+      pendingQty = 1
+      continue
+    }
+    const { text: clean, quantity } = extractTrailingQuantity(line)
+    const cleaned = cleanPartDescription(clean)
+    if (!cleaned) continue
+    if (isCodeToken(cleaned)) continue
+    flushPending()
+    pendingDesc = cleaned
+    pendingQty = quantity
+  }
+  flushPending()
+  return parts
+}
+
+/**
+ * Normaliza una LÍNEA DE CÓDIGO igual que el importador (paso pendingCode):
+ * recupera el 1 inicial que extractCode recorta ("1 619 PC0 249" → el código
+ * real "1619PC0249", como figura en los pedidos ya existentes).
+/**
+ * Normaliza una LÍNEA DE CÓDIGO pegada a mano igual que el importador (paso
+ * pendingCode en parseSparePartsFromMotivoDetailed): recupera el "1 " inicial
+ * que extractCode recorta ("1 619 PC0 249" → código real "1619PC0249", como
+ * figura en los pedidos ya importados de la 11174).
+ */
+function normalizeManualCode(line: string): string {
+  const t = line.trim()
+  const m = t.match(/^(\d{1,3})\s+(?=\d)/)
+  const prefix = m ? m[1] : ""
+  return (prefix + extractCode(t).replace(/\s+/g, "")).toUpperCase()
+}
+
+/**
+ * Crea UN pedido manual dentro de una orden.
+ *
+ * - machineName/machineModel/requestedAt/repairId se heredan de un pedido
+ *   hermano de la misma orden (parámetro `sibling`).
+ * - requestedAt: día real de hoy (canonizado igual que el resto).
+ * - status "SOLICITADO", quantityReceived/Used en 0.
+ * - notes con marca MANUAL (reconciliación y limpieza no lo tocan).
+ * - NO duplica: si la orden ya tiene el mismo código (o mismo nombre sin
+ *   código), devuelve el existente.
+ */
+export async function createManualOrder(
+  input: CreateManualOrderInput,
+  sibling?: SparePartOrder | null,
+): Promise<{ order: SparePartOrder; created: boolean }> {
+  const orderNumber = String(input.orderNumber ?? "").trim()
+  const description = String(input.description ?? "").trim()
+  if (!orderNumber) throw new Error("Falta el número de orden.")
+  if (!description) throw new Error("Falta el nombre del repuesto.")
+  const rawCode = String(input.code ?? "").trim()
+  const code = rawCode ? normalizeManualCode(rawCode) : ""
+  const quantity = Math.max(1, Math.min(999, Math.floor(Number(input.quantity) || 1)))
+
+  const existing = await findManualExisting(orderNumber, code, description)
+  if (existing) return { order: existing, created: false }
+
+  const manualTag = input.notes?.includes(MANUAL_NOTE_PREFIX)
+    ? input.notes
+    : `${MANUAL_NOTE_PREFIX}${input.notes ? ` ${input.notes}` : ""}`
+  const createdId = await createOrder(
+    {
+      repairId: sibling?.repairId ?? `manual-${orderNumber}`,
+      orderNumber,
+      machineId: input.machineId ?? sibling?.machineId ?? `manual-${orderNumber}`,
+      machineName: input.machineName ?? sibling?.machineName ?? "",
+      machineModel: input.machineModel !== undefined ? input.machineModel : (sibling?.machineModel ?? null),
+      code,
+      description,
+      quantity,
+      requestedAt: canonicalLocalDay(new Date()),
+      notes: manualTag,
+    },
+    { allowEmptyCode: true },
+  )
+  const created = await getOrderById(createdId)
+  if (!created) throw new Error("No se pudo leer el pedido recién creado.")
+  return { order: created, created: true }
+}
+
+/** Busca si la orden ya tiene ese repuesto (por código o por nombre). */
+async function findManualExisting(
+  orderNumber: string,
+  code: string,
+  description: string,
+): Promise<SparePartOrder | null> {
+  const all = await getAllOrdersMerged()
+  const normNum = orderNumber.trim().toUpperCase()
+  const normCode = code ? normalizeManualCode(code) : ""
+  const normDesc = description.trim().toLowerCase()
+  for (const o of all) {
+    if (String(o.orderNumber ?? "").trim().toUpperCase() !== normNum) continue
+    if (normCode && String(o.code ?? "").trim() && normalizeManualCode(o.code) === normCode) return o
+    if (!normCode && !String(o.code ?? "").trim() && o.description.trim().toLowerCase() === normDesc) return o
+  }
+  return null
+}
+
+/** Crea VARIOS pedidos manuales (pegado múltiple) dentro de la misma orden. */
+export async function createManualOrders(
+  orderNumber: string,
+  parts: ParsedManualPart[],
+  sibling?: SparePartOrder | null,
+): Promise<{ created: SparePartOrder[]; skipped: number }> {
+  const created: SparePartOrder[] = []
+  let skipped = 0
+  for (const part of parts) {
+    const result = await createManualOrder(
+      { orderNumber, description: part.description, code: part.code, quantity: part.quantity },
+      sibling,
+    )
+    if (result.created) created.push(result.order)
+    else skipped += 1
+  }
+  return { created, skipped }
+}
+
 
 export async function createOrder(
   input: CreateSparePartOrderInput,
