@@ -323,11 +323,13 @@ export default function SparePartOrdersPage() {
   const groups = useMemo(() => groupOrdersByRealNumber(visible), [visible])
 
   /**
-   * Orden VISUAL de los grupos (no altera datos ni la impresión). `default`
+   * Orden VISUAL de los grupos (no altera los datos). `default`
    * conserva exactamente el orden de la fuente. `oldest` / `newest` reordenan por
    * la fecha real del pedido (`requestedAt`): se toma la fecha MÁS ANTIGUA del
    * grupo (el pedido de la orden) como referencia. Los grupos sin fecha válida
    * quedan al final en ambos modos, para no inventar ni perder ninguno.
+   * Este orden viaja a la hoja de compra (?sort=) para que la impresión y el
+   * Excel salgan en el mismo orden que se ve en pantalla.
    */
   const sortedGroups = useMemo(() => {
     if (sortOrder === "default") return groups
@@ -396,8 +398,8 @@ export default function SparePartOrdersPage() {
    * estado + "Ver finalizadas").
    */
   const printTargets = useMemo(
-    () => (selectedOrders.size > 0 ? groups.filter((g) => selectedOrders.has(g.key)) : groups),
-    [groups, selectedOrders],
+    () => (selectedOrders.size > 0 ? sortedGroups.filter((g) => selectedOrders.has(g.key)) : sortedGroups),
+    [sortedGroups, selectedOrders],
   )
 
   /**
@@ -433,7 +435,8 @@ export default function SparePartOrdersPage() {
    */
   const handlePrintList = () => {
     const ids = [...new Set(printTargets.flatMap((g) => g.ids))]
-    router.push(`/spare-part-orders/print?orders=${ids.map(encodeURIComponent).join(",")}`)
+    const sortParam = sortOrder === "default" ? "" : `&sort=${sortOrder}`
+    router.push(`/spare-part-orders/print?orders=${ids.map(encodeURIComponent).join(",")}${sortParam}`)
   }
 
   if (loading) return <p className="text-muted-foreground">Cargando pedidos...</p>

@@ -110,6 +110,16 @@ function PurchaseListScreen() {
    */
   const searchParams = useSearchParams()
   const scopeParam = searchParams.get("orders")
+  /**
+   * Orden elegido en "Pedidos Rep." antes de abrir la hoja (`?sort=oldest` /
+   * `?sort=newest`). La hoja lo respeta con el MISMO criterio de la pantalla
+   * principal: fecha real del pedido (`requestedAt`, la más antigua del grupo).
+   * Sin parámetro = comportamiento de siempre (pendientes como vienen de la
+   * fuente, anexo por fecha de encargo).
+   */
+  const sortParam = searchParams.get("sort")
+  const sortMode: "default" | "oldest" | "newest" =
+    sortParam === "oldest" || sortParam === "newest" ? sortParam : "default"
   const scopedIds = useMemo(
     () => (scopeParam === null ? null : new Set(scopeParam.split(",").map((id) => id.trim()).filter(Boolean))),
     [scopeParam],
@@ -158,12 +168,13 @@ function PurchaseListScreen() {
         setRepairsMap(map)
 
         const pendientes = vigentes.filter((o) => o.status === "SOLICITADO" || o.status === "PEDIDO")
-        // ANEXO: TODOS los encargados, sin filtrar por fecha, y ordenados con los
-        // encargos más viejos arriba. Antes sólo salían los que tenían `orderedAt`
-        // dentro de la semana actual, así que los encargos de semanas anteriores no
-        // aparecían en NINGUNA parte de la hoja (ya no son "pendientes" por estado)
-        // y no había forma de seguirlos.
-        const enc = vigentes.filter((o) => o.status === "ENCARGADO").sort(byOldestOrderedAt)
+        // ANEXO: TODOS los encargados, sin filtrar por fecha. Si se vino con
+        // ?sort= desde "Pedidos Rep.", el orden lo pone sortSheetGroups (mismo
+        // criterio de la pantalla: requestedAt). Sin ?sort, se mantiene el
+        // comportamiento de siempre: encargos más viejos arriba.
+        const enc = sortMode === "default"
+          ? vigentes.filter((o) => o.status === "ENCARGADO").sort(byOldestOrderedAt)
+          : vigentes.filter((o) => o.status === "ENCARGADO")
         setOrders(pendientes)
         setEncargados(enc)
         // Sugerencias del desplegable: casas ya usadas en CUALQUIER pedido
@@ -186,8 +197,35 @@ function PurchaseListScreen() {
 
   // Agrupamiento SOLO visual por N° de Orden (mismo criterio que la pantalla
   // principal de Pedidos). Cada repuesto conserva su propio documento.
-  const pendingGroups = useMemo(() => groupOrdersByRealNumber(orders), [orders])
-  const encargadosGroups = useMemo(() => groupOrdersByRealNumber(encargados), [encargados])
+  // Si se vino con ?sort=oldest/newest desde "Pedidos Rep.", se respeta ese
+  // mismo orden acá (por requestedAt, la fecha más antigua del grupo).
+  const sortSheetGroups = useCallback(
+    <G extends { parts: { order: SparePartOrder }[] }>(input: G[]): G[] => {
+      if (sortMode === "default") return input
+      const groupTime = (g: G): number | null => {
+        let min: number | null = null
+        for (const p of g.parts) {
+          const d = p.order.requestedAt
+          if (d) {
+            const t = new Date(d).getTime()
+            if (!Number.isNaN(t) && (min === null || t < min)) min = t
+          }
+        }
+        return min
+      }
+      return [...input].sort((a, b) => {
+        const ta = groupTime(a)
+        const tb = groupTime(b)
+        if (ta === null && tb === null) return 0
+        if (ta === null) return 1
+        if (tb === null) return -1
+        return sortMode === "oldest" ? ta - tb : tb - ta
+      })
+    },
+    [sortMode],
+  )
+  const pendingGroups = useMemo(() => sortSheetGroups(groupOrdersByRealNumber(orders)), [orders, sortSheetGroups])
+  const encargadosGroups = useMemo(() => sortSheetGroups(groupOrdersByRealNumber(encargados)), [encargados, sortSheetGroups])
 
   // ---------------------------------------------------------------------------
   // "Casa de repuesto" (dónde se compró o encargó). Se guarda en el campo
