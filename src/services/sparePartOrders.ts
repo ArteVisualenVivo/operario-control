@@ -1057,6 +1057,26 @@ export async function getOrderById(id: string): Promise<SparePartOrder | null> {
  *  - que el importador lo ADOPTE (le asigne workItemId) si 3C
  *    trae después el mismo código, en vez de duplicarlo.
  */
+/**
+ * Separa un código pegado al FINAL del nombre ("MUELLE ESPIRAL 1 619 PB9 429"
+ * → nombre "MUELLE ESPIRAL" + código "1619PB9429"). Igual que el importador:
+ * sólo cuenta si el resto es un repuesto válido y el código también.
+ */
+export function splitTrailingCode(description: string): { description: string; code: string } {
+  const t = String(description ?? "").trim()
+  if (!t) return { description: "", code: "" }
+  const parts = t.split(/\s+/)
+  for (let take = 4; take >= 2; take -= 1) {
+    if (parts.length <= take) continue
+    const codeLine = parts.slice(parts.length - take).join(" ")
+    if (!looksLikeCode(codeLine)) continue
+    const rest = parts.slice(0, parts.length - take).join(" ").trim()
+    if (!rest || !containsSparePart(rest)) continue
+    return { description: cleanPartDescription(rest), code: normalizeManualCode(codeLine) }
+  }
+  return { description: t, code: "" }
+}
+
 export const MANUAL_NOTE_PREFIX = "MANUAL: cargado a mano desde Pedidos Rep."
 
 export interface CreateManualOrderInput {
@@ -1117,7 +1137,14 @@ export function parseManualPartsPaste(text: string): ParsedManualPart[] {
     const cleaned = cleanPartDescription(clean)
     if (!cleaned) continue
     if (isCodeToken(cleaned)) continue
+    // Código pegado al final del nombre ("MUELLE ESPIRAL 1 619 PB9 429"):
+    // se separa acá para todas las órdenes, no solo una.
+    const split = splitTrailingCode(cleaned)
     flushPending()
+    if (split.code) {
+      parts.push({ description: split.description, code: split.code, quantity })
+      continue
+    }
     pendingDesc = cleaned
     pendingQty = quantity
   }
@@ -1939,6 +1966,15 @@ export function backfillOrderFromDetectedPart(
   ) {
     fixes.description = detected.description
   }
+  // Código pegado al FINAL del nombre en pedidos YA guardados ("MUELLE
+  // ESPIRAL 1 619 PB9 429" con code vacío): se separa para TODAS las órdenes.
+  if (!fixes.code) {
+    const split = splitTrailingCode(String(existing.description ?? ""))
+    if (split.code && split.description && split.description !== String(existing.description ?? "").trim().toUpperCase() && split.description !== String(existing.description ?? "").trim()) {
+      fixes.code = split.code
+      fixes.description = split.description
+    }
+  }
   return fixes
 }
 
@@ -2733,6 +2769,7 @@ function containsSparePart(text: string): boolean {
     "COMPRESOR", "CILINDRO", "PISTON", "VALVULA", "RETEN", "SELLO",
     "JUNTA", "TORNILLO", "TUERCA", "ARANDELA", "ARANDALE", "MUELLE", "RESORTE",
     "PERNO", "SEGURO", "ANILLO", "RODILLO", "RUEDA", "ENGRANAJE",
+    "PALANCA", "PALANCAS",
     "BRIDA", "BRIDAS", "FLAUTA", "PLATINA", "COPA", "FIJACION", "FIJACIÓN",
     "CORONA", "CADENA", "CREMALLERA", "BIELA", "MANIJA", "EMPUÑADURA",
     "CARCASA", "CUERPO", "TAPA", "BASE", "SOPORTE", "ABRAZADERA",
