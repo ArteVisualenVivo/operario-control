@@ -1126,14 +1126,21 @@ export function parseManualPartsPaste(text: string): ParsedManualPart[] {
     }
   }
   for (const line of lines) {
-    if (pendingDesc === null && looksLikeCode(line)) continue
-    if (pendingDesc !== null && looksLikeCode(line)) {
-      parts.push({ description: pendingDesc, code: normalizeManualCode(line), quantity: pendingQty })
+    // La cantidad puede venir pegada a la LÍNEA DE CÓDIGO ("1 619 PB9 428 3uni"):
+    // se extrae ANTES de decidir si la línea es código o nombre.
+    const { text: noQtyLine, quantity: qtyInLine } = extractTrailingQuantity(line)
+    if (pendingDesc === null && looksLikeCode(noQtyLine)) continue
+    if (pendingDesc !== null && looksLikeCode(noQtyLine)) {
+      parts.push({
+        description: pendingDesc,
+        code: normalizeManualCode(noQtyLine),
+        quantity: Math.min(999, pendingQty * qtyInLine),
+      })
       pendingDesc = null
       pendingQty = 1
       continue
     }
-    const { text: clean, quantity } = extractTrailingQuantity(line)
+    const { text: clean, quantity } = extractTrailingQuantity(noQtyLine)
     const cleaned = cleanPartDescription(clean)
     if (!cleaned) continue
     if (isCodeToken(cleaned)) continue
