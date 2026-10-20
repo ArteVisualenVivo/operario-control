@@ -210,35 +210,12 @@ function PurchaseListScreen() {
 
   // Agrupamiento SOLO visual por N° de Orden (mismo criterio que la pantalla
   // principal de Pedidos). Cada repuesto conserva su propio documento.
-  // Si se vino con ?sort=oldest/newest desde "Pedidos Rep.", se respeta ese
-  // mismo orden acá (por requestedAt, la fecha más antigua del grupo).
-  const sortSheetGroups = useCallback(
-    <G extends { parts: { order: SparePartOrder }[] }>(input: G[]): G[] => {
-      if (sortMode === "default") return input
-      const groupTime = (g: G): number | null => {
-        let min: number | null = null
-        for (const p of g.parts) {
-          const d = p.order.requestedAt
-          if (d) {
-            const t = new Date(d).getTime()
-            if (!Number.isNaN(t) && (min === null || t < min)) min = t
-          }
-        }
-        return min
-      }
-      return [...input].sort((a, b) => {
-        const ta = groupTime(a)
-        const tb = groupTime(b)
-        if (ta === null && tb === null) return 0
-        if (ta === null) return 1
-        if (tb === null) return -1
-        return sortMode === "oldest" ? ta - tb : tb - ta
-      })
-    },
-    [sortMode],
-  )
-  const pendingGroups = useMemo(() => sortSheetGroups(groupOrdersByRealNumber(orders)), [orders, sortSheetGroups])
-  const encargadosGroups = useMemo(() => sortSheetGroups(groupOrdersByRealNumber(encargados)), [encargados, sortSheetGroups])
+  // El ORDEN ya viene resuelto de arriba: `scoped` respeta el orden exacto de
+  // la URL (?orders=...), que es el orden en que se veían en "Pedidos Rep.".
+  // Por eso acá NO se reordena nada: groupOrdersByRealNumber conserva el orden
+  // de entrada.
+  const pendingGroups = useMemo(() => groupOrdersByRealNumber(orders), [orders])
+  const encargadosGroups = useMemo(() => groupOrdersByRealNumber(encargados), [encargados])
 
   // ---------------------------------------------------------------------------
   // "Casa de repuesto" (dónde se compró o encargó). Se guarda en el campo
