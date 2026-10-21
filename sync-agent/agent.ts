@@ -545,7 +545,6 @@ const MODULE_SCRIPTS = {
     reparaciones_facturadas: "sync_reparaciones_facturadas.ahk",
     articulos: "sync_articulos.ahk",
     alquileres: "sync_alquileres.ahk",
-    cesar: "sync_reparaciones.ahk",
 }
 
 const CANDIDATE_PATHS = [
@@ -1153,6 +1152,19 @@ async function runModule(
         await writeHeartbeat(redis, "running")
 
         console.log(`[AGENT] Processing command ${commandId} [module: ${module}]`)
+
+        // CESAR es un flujo exclusivo de la web (/api/cesar-sync).
+        // No se ejecuta desde el agente local para evitar mezclas con reparaciones ni duplicados.
+        if (module === "cesar") {
+            console.log(`[AGENT] Módulo CESAR: flujo exclusivo de la web. No se ejecuta desde el agente local.`)
+            await redis.hset(`sync-3c:command:${commandId}`, {
+                status: `completed`,
+                completedAt: Date.now(),
+                agent: MACHINE_NAME,
+            })
+            await writeHeartbeat(redis, `idle`)
+            return { success: true, created: 0, updated: 0, skipped: 0, warnings: [`CESAR solo se ejecuta desde la web`] }
+        }
 
         const scriptName = MODULE_SCRIPTS[module]
         if (!scriptName) {
