@@ -111,7 +111,7 @@ export default function RepairDetailPage() {
   const mBadge = dueBadge("Mantenimiento", mDays)
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="mx-auto max-w-7xl space-y-6">
       <div className="flex items-center justify-between">
         <Button variant="outline" size="sm" onClick={() => router.back()}>← Volver</Button>
         <div className="flex gap-2">
