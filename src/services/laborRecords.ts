@@ -13,7 +13,7 @@ import {
   writeBatch,
 } from "firebase/firestore"
 import { db } from "@/lib/firebase"
-import type { LaborRecord, LaborRecordInput } from "@/types/laborRecord"
+import type { LaborRecord, LaborRecordInput, OrderBreakdown, LaborItem } from "@/types/laborRecord"
 
 const COLLECTION = "labor_records"
 
