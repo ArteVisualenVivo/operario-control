@@ -55,6 +55,7 @@ function formatMoney(value: number) {
 export default function CesarPage() {
   const [breakdown, setBreakdown] = useState<CesarBreakdown | null>(null)
   const [loading, setLoading] = useState(true)
+  const [selectedMonth, setSelectedMonth] = useState<string>("")
 
   useEffect(() => {
     const load = async () => {
@@ -93,6 +94,10 @@ export default function CesarPage() {
     return <div className="p-6">Cargando liquidación CESAR...</div>
   }
 
+  const filteredGroups = selectedMonth
+    ? breakdown!.groups.filter((g) => g.month === selectedMonth)
+    : breakdown!.groups
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -104,26 +109,62 @@ export default function CesarPage() {
 
       {breakdown && (
         <>
+          {/* Selector de mes */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-medium text-muted-foreground">
+                  Filtrar por mes:
+                </span>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  className="border border-input bg-background px-3 py-2 text-sm rounded-md focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                >
+                  <option value="">Todos los meses</option>
+                  {breakdown.groups.map((g) => (
+                    <option key={g.month} value={g.month}>
+                      {g.monthLabel}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {selectedMonth && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedMonth("")}
+                >
+                  Limpiar filtro
+                </Button>
+              )}
+            </CardHeader>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle>Resumen General</CardTitle>
             </CardHeader>
-            <CardContent className="flex items-center justify-between text-lg">
-              <div>
-                <p className="text-muted-foreground text-sm">Órdenes con mano de obra</p>
-                <p className="font-semibold">{breakdown.orders.length}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-muted-foreground text-sm">Total general facturado</p>
-                <p className="font-bold text-primary">
-                  $ {formatMoney(breakdown.totalGeneral)}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+                <CardContent className="flex items-center justify-between text-lg">
+                  <div>
+                    <p className="text-muted-foreground text-sm">
+                      Órdenes con mano de obra
+                    </p>
+                    <p className="font-semibold">{breakdown.orders.length}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-muted-foreground text-sm">
+                      Total general facturado
+                    </p>
+                    <p className="font-bold text-primary">
+                      $ {formatMoney(breakdown.totalGeneral)}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
 
-          {breakdown.groups.map((monthGroup) => (
-            <section key={monthGroup.month} className="space-y-4">
+              {filteredGroups.map((monthGroup) => (
+                <section key={monthGroup.month} className="space-y-4">
               <Card className="border-l-4 border-primary">
                 <CardHeader>
                   <CardTitle className="text-base font-semibold flex items-center gap-2">
