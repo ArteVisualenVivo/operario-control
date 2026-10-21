@@ -90,7 +90,10 @@ export async function GET() {
         quantity: number
         unitPrice: number
         totalPrice: number
+        date: string | Date
       }>
+      payPeriod: string
+      month: string
     }> = []
 
     let totalGeneral = 0
@@ -103,18 +106,83 @@ export async function GET() {
         quantity: r.quantity,
         unitPrice: r.unitPrice,
         totalPrice: r.totalPrice,
+        date: r.date,
       }))
       const totalFacturado = items.reduce((sum, r) => sum + r.totalPrice, 0)
       totalGeneral += totalFacturado
-      orders.push({ orderNumber, totalFacturado, items: orderItems })
+
+      const firstDate = items[0]?.date ? new Date(items[0].date) : new Date()
+      const payPeriod = payPeriodFor(firstDate)
+      const month = `${firstDate.getFullYear()}-${String(firstDate.getMonth() + 1).padStart(2, "0")}`
+
+      orders.push({ orderNumber, totalFacturado, items: orderItems, payPeriod, month })
     }
 
     // Ordenar por número de orden descendente
     orders.sort((a, b) => b.orderNumber.localeCompare(a.orderNumber))
 
+    // Agrupar jerárquicamente: mes → quincena → órdenes
+    const monthNames = [
+      "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
+      "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"
+    ]
+
+    const byMonthMap = new Map<string, {
+      month: string
+      monthLabel: string
+      total: number
+      quincenas: Map<string, {
+        payPeriod: string
+        payPeriodLabel: string
+        total: number
+        orders: typeof orders
+      }>
+    }>()
+
+    for (const order of orders) {
+      const [year, monthStr] = order.month.split("-")
+      const monthIdx = parseInt(monthStr, 10) - 1
+      const monthLabel = `${monthNames[monthIdx] ?? order.month} ${year}`
+
+      let monthEntry = byMonthMap.get(order.month)
+      if (!monthEntry) {
+        monthEntry = {
+          month: order.month,
+          monthLabel,
+          total: 0,
+          quincenas: new Map(),
+        }
+        byMonthMap.set(order.month, monthEntry)
+      }
+
+      let quincenaEntry = monthEntry.quincenas.get(order.payPeriod)
+      if (!quincenaEntry) {
+        const isFirstHalf = order.payPeriod.includes("-01 al ")
+        quincenaEntry = {
+          payPeriod: order.payPeriod,
+          payPeriodLabel: isFirstHalf ? "1ª Quincena" : "2ª Quincena",
+          total: 0,
+          orders: [],
+        }
+        monthEntry.quincenas.set(order.payPeriod, quincenaEntry)
+      }
+
+      quincenaEntry.orders.push(order)
+      quincenaEntry.total += order.totalFacturado
+      monthEntry.total += order.totalFacturado
+    }
+
+    const groups = Array.from(byMonthMap.values()).map((m) => ({
+      ...m,
+      quincenas: Array.from(m.quincenas.values()).sort((a, b) =>
+        a.payPeriod.localeCompare(b.payPeriod)
+      ),
+    }))
+
     return NextResponse.json({
       success: true,
       orders,
+      groups,
       totalGeneral,
       source: "redis",
       recordCount: laborRecords.length,

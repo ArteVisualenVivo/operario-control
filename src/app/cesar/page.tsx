@@ -13,30 +13,51 @@ type CesarOrderItem = {
   quantity: number
   unitPrice: number
   totalPrice: number
+  date: string | Date
 }
 
 type CesarOrder = {
   orderNumber: string
   totalFacturado: number
   items: CesarOrderItem[]
+  payPeriod: string
+  month: string
+}
+
+type QuincenaGroup = {
+  payPeriod: string
+  payPeriodLabel: string
+  total: number
+  orders: CesarOrder[]
+}
+
+type MonthGroup = {
+  month: string
+  monthLabel: string
+  total: number
+  quincenas: QuincenaGroup[]
 }
 
 type CesarBreakdown = {
   success: boolean
   orders: CesarOrder[]
+  groups: MonthGroup[]
   totalGeneral: number
   source: string
   recordCount?: number
   error?: string
 }
 
+function formatMoney(value: number) {
+  return value.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
 export default function CesarPage() {
-  const [breakdown, setBreakdown] = useState<{ orders: any[]; totalGeneral: number } | null>(null)
+  const [breakdown, setBreakdown] = useState<CesarBreakdown | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
-      // 1° Intentar leer desde Redis (donde el agente guarda cuando Firebase está bloqueado)
       try {
         const res = await fetch("/api/cesar-data", {
           method: "GET",
@@ -46,10 +67,7 @@ export default function CesarPage() {
         if (res.ok) {
           const data: CesarBreakdown = await res.json()
           if (data.success && data.orders.length > 0) {
-            setBreakdown({
-              orders: data.orders,
-              totalGeneral: data.totalGeneral,
-            })
+            setBreakdown(data)
             setLoading(false)
             console.log("[CESAR] Datos cargados desde Redis:", data.source, data.recordCount, "registros")
             return
@@ -58,11 +76,9 @@ export default function CesarPage() {
       } catch (err) {
         console.warn("[CESAR] No se pudo leer desde Redis:", err)
       }
-
-      // 2° Fallback: leer desde Firestore
       try {
         const data = await getLaborBreakdownByOrder()
-        setBreakdown(data)
+        setBreakdown(data as CesarBreakdown)
       } catch (err) {
         toast.error("Error al cargar la liquidación de CESAR")
         console.error(err)
@@ -100,55 +116,86 @@ export default function CesarPage() {
               <div className="text-right">
                 <p className="text-muted-foreground text-sm">Total general facturado</p>
                 <p className="font-bold text-primary">
-                  $ {breakdown.totalGeneral.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  $ {formatMoney(breakdown.totalGeneral)}
                 </p>
               </div>
             </CardContent>
           </Card>
 
-          <div className="grid gap-4">
-            {breakdown.orders.map((order) => (
-              <Card key={order.orderNumber}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    Orden {order.orderNumber}
+          {breakdown.groups.map((monthGroup) => (
+            <section key={monthGroup.month} className="space-y-4">
+              <Card className="border-l-4 border-primary">
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold flex items-center gap-2">
+                    <span className="text-sm font-mono">{monthGroup.month}</span>
+                    {monthGroup.monthLabel}
                   </CardTitle>
                   <div className="text-right">
-                    <p className="text-xs text-muted-foreground">Total facturado</p>
-                    <p className="font-semibold">
-                      $ {order.totalFacturado.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                    </p>
+                    <p className="text-xs text-muted-foreground">Total mes</p>
+                    <p className="font-bold text-primary">$ {formatMoney(monthGroup.total)}</p>
                   </div>
                 </CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm text-left">
-                      <thead>
-                        <tr className="border-b bg-muted/50 text-muted-foreground">
-                          <th className="p-3">Código</th>
-                          <th className="p-3">Descripción</th>
-                          <th className="p-3 text-right">Cantidad / hs</th>
-                          <th className="p-3 text-right">Precio Unit.</th>
-                          <th className="p-3 text-right">Monto</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {order.items.map((item: any) => (
-                          <tr key={`${order.orderNumber}-${item.code}-${item.description}`} className="border-b border-muted/30 last:border-0">
-                            <td className="p-3 font-mono">{item.code}</td>
-                            <td className="p-3">{item.description}</td>
-                            <td className="p-3 text-right">{item.quantity.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                            <td className="p-3 text-right">$ {item.unitPrice.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                            <td className="p-3 text-right font-semibold">$ {item.totalPrice.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
               </Card>
-            ))}
-          </div>
+
+              {monthGroup.quincenas.map((quincena) => (
+                <div key={quincena.payPeriod} className="space-y-2">
+                  <Card>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">{quincena.payPeriodLabel}</CardTitle>
+                      <div className="text-right">
+                        <p className="text-xs text-muted-foreground">Total quincena</p>
+                        <p className="font-semibold">$ {formatMoney(quincena.total)}</p>
+                      </div>
+                    </CardHeader>
+                  </Card>
+
+                  <div className="grid gap-3">
+                    {quincena.orders.map((order) => (
+                      <Card key={order.orderNumber}>
+                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                          <CardTitle className="text-sm font-medium">
+                            Orden {order.orderNumber}
+                          </CardTitle>
+                          <div className="text-right">
+                            <p className="text-xs text-muted-foreground">Total facturado</p>
+                            <p className="font-semibold">
+                              $ {formatMoney(order.totalFacturado)}
+                            </p>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                              <thead>
+                                <tr className="border-b bg-muted/50 text-muted-foreground">
+                                  <th className="p-3">Código</th>
+                                  <th className="p-3">Descripción</th>
+                                  <th className="p-3 text-right">Cantidad / hs</th>
+                                  <th className="p-3 text-right">Precio Unit.</th>
+                                  <th className="p-3 text-right">Monto</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {order.items.map((item) => (
+                                  <tr key={`${order.orderNumber}-${item.code}-${item.description}`} className="border-b border-muted/30 last:border-0">
+                                    <td className="p-3 font-mono">{item.code}</td>
+                                    <td className="p-3">{item.description}</td>
+                                    <td className="p-3 text-right">{item.quantity.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td className="p-3 text-right">$ {formatMoney(item.unitPrice)}</td>
+                                    <td className="p-3 text-right font-semibold">$ {formatMoney(item.totalPrice)}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </section>
+          ))}
         </>
       )}
     </div>
