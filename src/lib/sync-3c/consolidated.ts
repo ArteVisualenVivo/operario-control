@@ -274,11 +274,11 @@ export function extractStatusesExcel(rows: unknown[][], fileName: string, observ
     const rec = touch(map, order)
     // FECHA del informe = fecha de ALTA de la orden (3C repite ese mismo valor
     // en TODAS las filas del informe: verificado, 1.136 de 1.137 órdenes tienen
-    // una sola fecha en toda su línea de tiempo). NO es la fecha del cambio de
-    // estado: para el estado se usa cuándo bajamos el Excel (observedAt).
+    // una sola fecha en toda su línea de tiempo). Es la mejor señal real de
+    // "cuándo" que tenemos de 3C; se prefiere sobre observedAt (fecha del sync).
     const fechaOrden = toDate(row[cFecha])
     const entrega = toDate(row[cEntrega])
-    const fechaEstado = observedAt ?? fechaOrden
+    const fechaEstado = fechaOrden ?? observedAt
     // Identificación de la máquina: se prefiere la MÁS COMPLETA entre
     // ORDEN_COMPRA (+celda vecina si 3C la partió) y la columna REPARO, que a
     // veces trae la identificación entera cuando ORDEN_COMPRA quedó truncada.
@@ -309,8 +309,8 @@ export function extractStatusesExcel(rows: unknown[][], fileName: string, observ
       repairDate: isRepaired ? iso(fechaOrden) : undefined,
       states: [{
         status: statusTxt,
-        // Fecha del CAMBIO: cuándo bajamos este Excel (3C no informa la fecha
-        // del movimiento de estado). Ver la NOTA DE FECHAS de la cabecera.
+        // Fecha del CAMBIO: fecha de 3C (fechaOrden) preferida sobre observedAt
+        // (fecha del sync). Ver la NOTA DE FECHAS de la cabecera.
         statusDate: iso(fechaEstado),
         statusDescription: clean(row[cObs]) || undefined,
         statusUser: clean(row[cUsuario]) || undefined,
