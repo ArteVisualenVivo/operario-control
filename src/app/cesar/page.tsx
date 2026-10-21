@@ -6,12 +6,60 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
 
+type CesarOrderItem = {
+  type: "mano_obra"
+  code: string | null
+  description: string
+  quantity: number
+  unitPrice: number
+  totalPrice: number
+}
+
+type CesarOrder = {
+  orderNumber: string
+  totalFacturado: number
+  items: CesarOrderItem[]
+}
+
+type CesarBreakdown = {
+  success: boolean
+  orders: CesarOrder[]
+  totalGeneral: number
+  source: string
+  recordCount?: number
+  error?: string
+}
+
 export default function CesarPage() {
   const [breakdown, setBreakdown] = useState<{ orders: any[]; totalGeneral: number } | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const load = async () => {
+      // 1° Intentar leer desde Redis (donde el agente guarda cuando Firebase está bloqueado)
+      try {
+        const res = await fetch("/api/cesar-data", {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+          cache: "no-store",
+        })
+        if (res.ok) {
+          const data: CesarBreakdown = await res.json()
+          if (data.success && data.orders.length > 0) {
+            setBreakdown({
+              orders: data.orders,
+              totalGeneral: data.totalGeneral,
+            })
+            setLoading(false)
+            console.log("[CESAR] Datos cargados desde Redis:", data.source, data.recordCount, "registros")
+            return
+          }
+        }
+      } catch (err) {
+        console.warn("[CESAR] No se pudo leer desde Redis:", err)
+      }
+
+      // 2° Fallback: leer desde Firestore
       try {
         const data = await getLaborBreakdownByOrder()
         setBreakdown(data)
