@@ -17,7 +17,7 @@ export function isTransientFirestoreError(err: unknown): boolean {
   return true
 }
 
-export type PrimaryModuleId = "stock" | "articulos" | "maintenance" | "alquileres" | "spare_part_orders" | "invoices"
+export type PrimaryModuleId = "stock" | "articulos" | "maintenance" | "alquileres" | "spare_part_orders" | "invoices" | "cesar"
 
 export interface PrimaryDataEnvelope {
   module: PrimaryModuleId
