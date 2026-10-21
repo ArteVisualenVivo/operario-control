@@ -1501,8 +1501,13 @@ async function runModule(
             }
         } else if (module === "cesar") {
             // CESAR: reusa el mismo AHK de reparaciones_facturadas (ya probado en tu PC).
-            // Lee el Excel exportado y extrae solo filas de mano de obra (código 1012 / MO ...).
-            // Las guarda en labor_records (colección separada, no se mezcla con repuestos).
+            // El Excel exportado tiene este formato por filas:
+            //   Col 0: "O.R." si es fila de orden nueva, vacío si es ítem de la orden anterior
+            //   Col 1: Fecha (DD/MM/YYYY)
+            //   Col 2: Número de orden (ej. X 0001-00011174)
+            //   Col ~21: Descripción del ítem (ej. "MO CES", "GOMA EVA", etc.)
+            //   Col ~22: Precio/Monto del ítem
+            // Las filas de mano de obra tienen descripción que contiene "MO" (ej. "MO CES").
             result = { success: true, created: 0, updated: 0, skipped: 0, warnings: [] }
             try {
                 const XLSX = await import("xlsx")
@@ -1518,19 +1523,20 @@ async function runModule(
                     const row = rows[i]
                     if (!row || !Array.isArray(row)) continue
 
-                    // Unir toda la fila en texto para detectar número de orden (ej. X 0001-00011174)
-                    const rowText = row.map(String).join(" ").toUpperCase()
-                    const ordenMatch = rowText.match(/X\s*\d{4,}-\d{4,}/)
-                    if (ordenMatch) {
-                        currentOrder = ordenMatch[0].replace(/\s/g, "")
+                    // Detectar si esta fila inicia una nueva orden (col 0 = "O.R.")
+                    const col0 = String(row[0] ?? "").trim().toUpperCase()
+                    if (col0 === "O.R." || col0 === "OR") {
+                        const numOrd = String(row[2] ?? "").trim()
+                        if (/X\s*\d{4,}-\d{4,}/.test(numOrd)) {
+                            currentOrder = numOrd.replace(/\s/g, "")
+                        }
+                        // Capturar fecha de la orden (col 1)
                     }
 
-                    // Buscar celda con código numérico de 3-4 dígitos (ej. 1012) o descripción MO
-                    let codigoCelda = ""
+                    // Solo procesar filas que son ítems (no la fila de encabezado de orden)
+                    // Buscar descripción que contenga "MO" (mano de obra)
                     let descCelda = ""
-                    let cantidadCelda = 0
                     let precioCelda = 0
-                    let totalCelda = 0
                     let fechaCelda: Date | null = null
 
                     for (let j = 0; j < row.length; j++) {
@@ -1538,22 +1544,18 @@ async function runModule(
                         if (val === null || val === undefined) continue
                         const s = String(val).trim()
 
-                        // Detectar código de mano de obra: 3-4 dígitos solos
-                        if (/^\d{3,4}$/.test(s)) {
-                            codigoCelda = s
-                        }
-                        // Detectar descripción MO
+                        // Detectar descripción de mano de obra: empieza con MO
                         if (/^MO\b/i.test(s) || /MANO\s+DE\s+OBRA/i.test(s)) {
                             descCelda = s
                         }
-                        // Detectar números que podrían ser cantidad/precio/total
-                        const n = parseFloat(s.replace(",", "."))
-                        if (!isNaN(n) && n > 0) {
-                            if (cantidadCelda === 0 && n < 1000) cantidadCelda = n
-                            else if (precioCelda === 0 && n >= 1000) precioCelda = n
-                            else if (totalCelda === 0 && n >= 1000) totalCelda = n
+                        // Detectar precio: número >= 1000 (los precios de MO son miles)
+                        if (descCelda) {
+                            const n = parseFloat(s.replace(",", ".").replace(/[^\d,\.-]/g, ""))
+                            if (!isNaN(n) && n >= 1000 && precioCelda === 0) {
+                                precioCelda = n
+                            }
                         }
-                        // Detectar fechas DD/MM/YYYY
+                        // Detectar fecha DD/MM/YYYY
                         const fechaMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
                         if (fechaMatch) {
                             fechaCelda = new Date(
@@ -1565,16 +1567,16 @@ async function runModule(
                     }
 
                     // Si encontramos una fila de MO, guardarla
-                    if ((codigoCelda && /^\d{3,4}$/.test(codigoCelda)) || descCelda) {
+                    if (descCelda && currentOrder) {
                         const operador = descCelda.replace(/^MO\s*/i, "").trim() || "CES"
-                        const cantidad = cantidadCelda > 0 ? cantidadCelda : 1
+                        const cantidad = 1
                         const precio = precioCelda > 0 ? precioCelda : 0
-                        const total = totalCelda > 0 ? totalCelda : (precio * cantidad)
+                        const total = precio * cantidad
                         laborRecords.push({
-                            orderNumber: currentOrder || "",
+                            orderNumber: currentOrder,
                             operator: operador,
-                            code: codigoCelda || "1012",
-                            description: descCelda || "MO CES",
+                            code: "1012",
+                            description: descCelda,
                             quantity: cantidad,
                             unitPrice: precio,
                             totalPrice: total,
