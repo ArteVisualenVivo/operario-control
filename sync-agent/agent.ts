@@ -11,8 +11,8 @@ import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
 import { parseExcel, parseArticulos } from "../src/lib/sync-3c/parser"
-import { parseCesarBuffer } from "../src/lib/sync-3c/parserCesar"
 import { createLaborRecords } from "../src/services/laborRecords"
+import type { LaborRecordInput } from "@/types/laborRecord"
 import { parseScaffoldRentals, saveScaffoldRentalStats, type ScaffoldRentalStats } from "../src/lib/sync-3c/scaffoldRentals"
 import { loadInventoryIndexByCodes, syncItems, syncRepairsToMaintenance } from "../src/lib/sync-3c/engine"
 import { writeStockItemsIdempotent, writeMaintenanceStatusesIdempotent } from "../src/lib/sync-3c/firestoreSync"
@@ -547,7 +547,7 @@ const MODULE_SCRIPTS = {
     reparaciones_facturadas: "sync_reparaciones_facturadas.ahk",
     articulos: "sync_articulos.ahk",
     alquileres: "sync_alquileres.ahk",
-    cesar: "sync_cesar.ahk",
+    cesar: "sync_reparaciones_facturadas.ahk",
 }
 
 const CANDIDATE_PATHS = [
@@ -1500,26 +1500,104 @@ async function runModule(
               )
             }
         } else if (module === "cesar") {
-            // CESAR: leer Excel de órdenes de trabajo, extraer filas de MO (código 1012)
-            // y guardarlas en labor_records. Flujo independiente, no toca repuestos.
+            // CESAR: reusa el mismo AHK de reparaciones_facturadas (ya probado en tu PC).
+            // Lee el Excel exportado y extrae solo filas de mano de obra (código 1012 / MO ...).
+            // Las guarda en labor_records (colección separada, no se mezcla con repuestos).
             result = { success: true, created: 0, updated: 0, skipped: 0, warnings: [] }
             try {
-                const parsed = parseCesarBuffer(buffer)
-                console.log(`[AGENT] CESAR: ${parsed.laborRecords.length} filas de MO detectadas, ${parsed.repuestoRows.length} repuestos`)
+                const XLSX = await import("xlsx")
+                const workbook = XLSX.read(buffer, { type: "buffer" })
+                const sheetName = workbook.SheetNames[0]
+                const sheet = workbook.Sheets[sheetName]
+                const rows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true })
+
+                const laborRecords: LaborRecordInput[] = []
+                let currentOrder = ""
+
+                for (let i = 0; i < rows.length; i++) {
+                    const row = rows[i]
+                    if (!row || !Array.isArray(row)) continue
+
+                    // Unir toda la fila en texto para detectar número de orden (ej. X 0001-00011174)
+                    const rowText = row.map(String).join(" ").toUpperCase()
+                    const ordenMatch = rowText.match(/X\s*\d{4,}-\d{4,}/)
+                    if (ordenMatch) {
+                        currentOrder = ordenMatch[0].replace(/\s/g, "")
+                    }
+
+                    // Buscar celda con código numérico de 3-4 dígitos (ej. 1012) o descripción MO
+                    let codigoCelda = ""
+                    let descCelda = ""
+                    let cantidadCelda = 0
+                    let precioCelda = 0
+                    let totalCelda = 0
+                    let fechaCelda: Date | null = null
+
+                    for (let j = 0; j < row.length; j++) {
+                        const val = row[j]
+                        if (val === null || val === undefined) continue
+                        const s = String(val).trim()
+
+                        // Detectar código de mano de obra: 3-4 dígitos solos
+                        if (/^\d{3,4}$/.test(s)) {
+                            codigoCelda = s
+                        }
+                        // Detectar descripción MO
+                        if (/^MO\b/i.test(s) || /MANO\s+DE\s+OBRA/i.test(s)) {
+                            descCelda = s
+                        }
+                        // Detectar números que podrían ser cantidad/precio/total
+                        const n = parseFloat(s.replace(",", "."))
+                        if (!isNaN(n) && n > 0) {
+                            if (cantidadCelda === 0 && n < 1000) cantidadCelda = n
+                            else if (precioCelda === 0 && n >= 1000) precioCelda = n
+                            else if (totalCelda === 0 && n >= 1000) totalCelda = n
+                        }
+                        // Detectar fechas DD/MM/YYYY
+                        const fechaMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
+                        if (fechaMatch) {
+                            fechaCelda = new Date(
+                                parseInt(fechaMatch[3], 10),
+                                parseInt(fechaMatch[2], 10) - 1,
+                                parseInt(fechaMatch[1], 10)
+                            )
+                        }
+                    }
+
+                    // Si encontramos una fila de MO, guardarla
+                    if ((codigoCelda && /^\d{3,4}$/.test(codigoCelda)) || descCelda) {
+                        const operador = descCelda.replace(/^MO\s*/i, "").trim() || "CES"
+                        const cantidad = cantidadCelda > 0 ? cantidadCelda : 1
+                        const precio = precioCelda > 0 ? precioCelda : 0
+                        const total = totalCelda > 0 ? totalCelda : (precio * cantidad)
+                        laborRecords.push({
+                            orderNumber: currentOrder || "",
+                            operator: operador,
+                            code: codigoCelda || "1012",
+                            description: descCelda || "MO CES",
+                            quantity: cantidad,
+                            unitPrice: precio,
+                            totalPrice: total,
+                            date: fechaCelda ?? new Date(),
+                        })
+                    }
+                }
+
+                console.log(`[AGENT] CESAR: ${laborRecords.length} filas de MO detectadas`)
 
                 // Guardar mano de obra en colección separada labor_records
-                if (parsed.laborRecords.length > 0) {
-                    await createLaborRecords(parsed.laborRecords)
-                    result.created = parsed.laborRecords.length
-                    console.log(`[AGENT] CESAR: ${parsed.laborRecords.length} registros de mano de obra guardados en labor_records`)
+                if (laborRecords.length > 0) {
+                    await createLaborRecords(laborRecords)
+                    result.created = laborRecords.length
+                    console.log(`[AGENT] CESAR: ${laborRecords.length} registros de mano de obra guardados en labor_records`)
                 }
 
                 // Guardar resultado en Redis para que la web lo lea
                 await saveModuleData(redis, {
                     module: module as PrimaryModuleId,
                     syncId: `cesar-${runStart}`,
-                    data: parsed.laborRecords,
-                    recordCount: parsed.laborRecords.length,
+                    data: laborRecords,
+                    recordCount: laborRecords.length,
                     degraded: false,
                     firestoreStatus: "synced",
                     exportInfo,
@@ -1528,7 +1606,7 @@ async function runModule(
             } catch (parseErr) {
                 const pMsg = parseErr instanceof Error ? parseErr.message : String(parseErr)
                 console.error(`[AGENT] CESAR: Error interpretando el export:`, pMsg)
-                result.warnings.push("No se pudo interpretar el export de órdenes de trabajo CESAR: " + pMsg)
+                result.warnings.push("No se pudo interpretar el export de CESAR: " + pMsg)
                 result.success = false
             }
         } else {
