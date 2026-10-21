@@ -11,6 +11,8 @@ import fs from "fs"
 import path from "path"
 import { fileURLToPath } from "url"
 import { parseExcel, parseArticulos } from "../src/lib/sync-3c/parser"
+import { parseCesarBuffer } from "../src/lib/sync-3c/parserCesar"
+import { createLaborRecords } from "../src/services/laborRecords"
 import { parseScaffoldRentals, saveScaffoldRentalStats, type ScaffoldRentalStats } from "../src/lib/sync-3c/scaffoldRentals"
 import { loadInventoryIndexByCodes, syncItems, syncRepairsToMaintenance } from "../src/lib/sync-3c/engine"
 import { writeStockItemsIdempotent, writeMaintenanceStatusesIdempotent } from "../src/lib/sync-3c/firestoreSync"
@@ -545,6 +547,7 @@ const MODULE_SCRIPTS = {
     reparaciones_facturadas: "sync_reparaciones_facturadas.ahk",
     articulos: "sync_articulos.ahk",
     alquileres: "sync_alquileres.ahk",
+    cesar: "sync_cesar.ahk",
 }
 
 const CANDIDATE_PATHS = [
@@ -1153,19 +1156,6 @@ async function runModule(
 
         console.log(`[AGENT] Processing command ${commandId} [module: ${module}]`)
 
-        // CESAR es un flujo exclusivo de la web (/api/cesar-sync).
-        // No se ejecuta desde el agente local para evitar mezclas con reparaciones ni duplicados.
-        if (module === "cesar") {
-            console.log(`[AGENT] Módulo CESAR: flujo exclusivo de la web. No se ejecuta desde el agente local.`)
-            await redis.hset(`sync-3c:command:${commandId}`, {
-                status: `completed`,
-                completedAt: Date.now(),
-                agent: MACHINE_NAME,
-            })
-            await writeHeartbeat(redis, `idle`)
-            return { success: true, created: 0, updated: 0, skipped: 0, warnings: [`CESAR solo se ejecuta desde la web`] }
-        }
-
         const scriptName = MODULE_SCRIPTS[module]
         if (!scriptName) {
             throw new Error(`Módulo desconocido: "${module}"`)
@@ -1508,6 +1498,38 @@ async function runModule(
                 `[AGENT] No se pudo publicar el snapshot de Pedidos Rep.:`,
                 snapErr instanceof Error ? snapErr.message : String(snapErr),
               )
+            }
+        } else if (module === "cesar") {
+            // CESAR: leer Excel de órdenes de trabajo, extraer filas de MO (código 1012)
+            // y guardarlas en labor_records. Flujo independiente, no toca repuestos.
+            result = { success: true, created: 0, updated: 0, skipped: 0, warnings: [] }
+            try {
+                const parsed = parseCesarBuffer(buffer)
+                console.log(`[AGENT] CESAR: ${parsed.laborRecords.length} filas de MO detectadas, ${parsed.repuestoRows.length} repuestos`)
+
+                // Guardar mano de obra en colección separada labor_records
+                if (parsed.laborRecords.length > 0) {
+                    await createLaborRecords(parsed.laborRecords)
+                    result.created = parsed.laborRecords.length
+                    console.log(`[AGENT] CESAR: ${parsed.laborRecords.length} registros de mano de obra guardados en labor_records`)
+                }
+
+                // Guardar resultado en Redis para que la web lo lea
+                await saveModuleData(redis, {
+                    module: module as PrimaryModuleId,
+                    syncId: `cesar-${runStart}`,
+                    data: parsed.laborRecords,
+                    recordCount: parsed.laborRecords.length,
+                    degraded: false,
+                    firestoreStatus: "synced",
+                    exportInfo,
+                })
+
+            } catch (parseErr) {
+                const pMsg = parseErr instanceof Error ? parseErr.message : String(parseErr)
+                console.error(`[AGENT] CESAR: Error interpretando el export:`, pMsg)
+                result.warnings.push("No se pudo interpretar el export de órdenes de trabajo CESAR: " + pMsg)
+                result.success = false
             }
         } else {
             // STOCK usa el parser de existencias; ARTÍCULOS usa el parser del
