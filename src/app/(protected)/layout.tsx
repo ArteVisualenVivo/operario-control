@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
 import { useAuth } from "@/lib/AuthContext"
 import { auth } from "@/lib/firebase"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
+import { CesarPasswordModal } from "@/components/cesar/CesarPasswordModal"
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
@@ -37,6 +38,7 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   const { user, loading, logout } = useAuth()
   const router = useRouter()
   const pathname = usePathname()
+  const [cesarModalOpen, setCesarModalOpen] = useState(false)
 
   useEffect(() => {
     if (!loading && !user) {
@@ -87,6 +89,9 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
               {item.label}
             </Link>
           ))}
+          <Button variant="destructive" size="sm" onClick={() => setCesarModalOpen(true)} className="text-xs font-bold tracking-wide uppercase">
+            CESAR
+          </Button>
           <Separator orientation="vertical" className="h-6" />
           <span className="text-xs text-muted-foreground">{user.email}</span>
           <Button variant="outline" size="sm" onClick={logout}>
@@ -97,6 +102,13 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
       {/* En papel no hay contenedor con scroll: la tabla fluye y se reparte en
           tantas páginas como haga falta (si no, se recortaría a una sola). */}
       <main className="flex-1 overflow-auto p-6 print:overflow-visible print:p-0">{children}</main>
+      <CesarPasswordModal
+        open={cesarModalOpen}
+        onOpenChange={setCesarModalOpen}
+        onSuccess={() => {
+          router.push("/cesar")
+        }}
+      />
     </div>
   )
 }

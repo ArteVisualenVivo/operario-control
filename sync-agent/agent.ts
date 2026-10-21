@@ -545,6 +545,7 @@ const MODULE_SCRIPTS = {
     reparaciones_facturadas: "sync_reparaciones_facturadas.ahk",
     articulos: "sync_articulos.ahk",
     alquileres: "sync_alquileres.ahk",
+    cesar: "sync_reparaciones.ahk",
 }
 
 const CANDIDATE_PATHS = [
@@ -1077,7 +1078,7 @@ async function consolidateMaintenanceFromExports(
 // ============================================================================
 // PROCESS SINGLE MODULE
 // ============================================================================
-type ModuleName = "stock" | "reparaciones" | "reparaciones_facturadas" | "articulos" | "alquileres"
+type ModuleName = "stock" | "reparaciones" | "reparaciones_facturadas" | "articulos" | "alquileres" | "cesar"
 
 // ============================================================================
 // CANDADO ÚNICO DE SINCRONIZACIÓN — UN SOLO CARRIL
