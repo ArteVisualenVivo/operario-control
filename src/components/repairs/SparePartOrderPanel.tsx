@@ -99,8 +99,8 @@ export function SparePartOrderPanel({ repair }: Props) {
       ) : orders.length === 0 ? (
         !isAwaitingParts && <p className="text-sm text-muted-foreground">No hay pedidos de repuestos para esta orden.</p>
       ) : (
-        <div className="overflow-hidden rounded-lg border">
-          <table className="w-full text-sm">
+        <div className="overflow-x-auto rounded-lg border">
+          <table className="w-full text-sm min-w-[700px]">
             <thead>
               <tr className="border-b bg-muted/30">
                 <th className="text-left py-2 px-3 font-medium text-muted-foreground">Repuesto</th>
