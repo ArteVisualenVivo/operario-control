@@ -1,8 +1,6 @@
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 import { randomUUID } from "crypto"
-import { spawn } from "child_process"
-import path from "path"
 
 export const runtime = "nodejs"
 export const maxDuration = 120
@@ -47,30 +45,10 @@ export async function POST(request: Request) {
     })
     await redis.lpush("sync-3c:queue", commandId)
 
-    // ── Lanzar el agente local automáticamente (igual que hace el dashboard con "Sincronizar Rep. Facturadas") ──
-    // Esto hace que aparezca la ventana CMD y el agente procese el comando inmediatamente.
-    try {
-      const agentPath = path.join(path.resolve(process.cwd(), "sync-agent"), "agent.ts")
-      const args = ["tsx", agentPath, commandId, "cesar"]
-
-      spawn("npx", args, {
-        cwd: process.cwd(),
-        windowsHide: true,
-        shell: true,
-        detached: true,
-        stdio: "ignore",
-      }).unref()
-
-      console.log(`[CESAR] Agente lanzado para command ${commandId} [module: cesar]`)
-    } catch (spawnErr) {
-      // Si falla el spawn, el comando sigue en la cola y el despertador lo procesará
-      console.warn(`[CESAR] No se pudo lanzar el agente automáticamente:`, spawnErr instanceof Error ? spawnErr.message : String(spawnErr))
-    }
-
     return NextResponse.json({
       success: true,
       commandId,
-      message: "Comando CESAR encolado y agente lanzado automáticamente.",
+      message: "Comando CESAR encolado. El puente local despertará al agente.",
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error desconocido"

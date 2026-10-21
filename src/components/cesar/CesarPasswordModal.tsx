@@ -35,7 +35,30 @@ export function CesarPasswordModal({ open, onOpenChange, onSuccess }: CesarPassw
       if (!res.ok) {
         throw new Error(data.error || "Clave incorrecta")
       }
-      // Éxito: encolado el comando CESAR, navegar a la página de resultados
+      // Éxito: encolado el comando CESAR
+      const commandId = data.commandId
+
+      // Despertar al agente local inmediatamente mediante el puente local
+      // (igual que hace el botón de "Sincronizar Rep. Facturadas")
+      try {
+        const ctl = new AbortController()
+        const t = setTimeout(() => ctl.abort(), 1500)
+        await fetch("http://127.0.0.1:3033/wake", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            commandId,
+            module: "cesar",
+          }),
+        })
+        clearTimeout(t)
+      } catch (wakeErr) {
+        // El puente puede no estar disponible si el navegador no está en la PC de 3C.
+        // El comando queda en cola y el despertador programado lo procesará.
+        console.warn("[CESAR] Puente local no disponible:", wakeErr instanceof Error ? wakeErr.message : String(wakeErr))
+      }
+
+      // Navegar a la página de resultados
       onSuccess()
       onOpenChange(false)
       setPassword("")
