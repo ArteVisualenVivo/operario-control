@@ -1588,10 +1588,29 @@ async function runModule(
                 console.log(`[AGENT] CESAR: ${laborRecords.length} filas de MO detectadas`)
 
                 // Guardar mano de obra en colección separada labor_records
+                // (con fallback a Redis si Firebase está bloqueado por cuota)
                 if (laborRecords.length > 0) {
-                    await createLaborRecords(laborRecords)
-                    result.created = laborRecords.length
-                    console.log(`[AGENT] CESAR: ${laborRecords.length} registros de mano de obra guardados en labor_records`)
+                    try {
+                        await createLaborRecords(laborRecords)
+                        result.created = laborRecords.length
+                        console.log(`[AGENT] CESAR: ${laborRecords.length} registros de mano de obra guardados en labor_records`)
+                    } catch (fbErr) {
+                        const fbMsg = fbErr instanceof Error ? fbErr.message : String(fbErr)
+                        console.warn(`[AGENT] CESAR: Firebase bloqueado para labor_records: ${fbMsg}`)
+                        result.degraded = true
+                        result.warnings.push("Firebase bloqueado: mano de obra sólo en Redis")
+                        await saveModuleData(redis, {
+                            module: module as PrimaryModuleId,
+                            syncId: `cesar-${runStart}`,
+                            data: laborRecords,
+                            recordCount: laborRecords.length,
+                            degraded: true,
+                            firestoreStatus: "degraded",
+                            exportInfo,
+                        })
+                        result.success = true
+                        return
+                    }
                 }
 
                 // Guardar resultado en Redis para que la web lo lea
