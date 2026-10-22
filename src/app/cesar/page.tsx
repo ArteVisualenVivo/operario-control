@@ -1,4 +1,4 @@
-﻿"use client"
+"use client"
 
 import { useEffect, useState } from "react"
 import { getLaborBreakdownByOrder } from "@/services/laborRecords"
@@ -19,7 +19,7 @@ const LINE_TYPE_LABELS: Record<CesarLineType, string> = {
   moa: "Mano de obra adicional (MOA)",
   servicio: "Servicios",
   gastos: "Gastos",
-  reparacion: "ReparaciÃ³n",
+  reparacion: "Reparación",
   repuesto: "Repuestos",
 }
 
@@ -131,7 +131,7 @@ export default function CesarPage() {
         const data = await getLaborBreakdownByOrder()
         setBreakdown(data as CesarBreakdown)
       } catch (err) {
-        toast.error("Error al cargar la liquidaciÃ³n de CESAR")
+        toast.error("Error al cargar la liquidación de CESAR")
         console.error(err)
       } finally {
         setLoading(false)
@@ -141,10 +141,10 @@ export default function CesarPage() {
   }, [])
 
   if (loading) {
-    return <div className="p-6">Cargando liquidaciÃ³n CESAR...</div>
+    return <div className="p-6">Cargando liquidación CESAR...</div>
   }
 
-  // Lista plana de quincenas Ãºnicas (para el select de filtro)
+  // Lista plana de quincenas únicas (para el select de filtro)
   const allPayPeriodLabels = new Map(
     breakdown!.groups.flatMap((g) =>
       g.quincenas.map((q) => [q.payPeriodLabel, q.payPeriodLabel])
@@ -188,7 +188,7 @@ export default function CesarPage() {
     }
   }).filter((g): g is MonthGroup => g !== null)
 
-  // Ã“rdenes filtradas (plana) para el resumen general
+  // Órdenes filtradas (plana) para el resumen general
   const filteredOrders = filteredGroups.flatMap((g) =>
     g.quincenas.flatMap((q) => q.orders)
   )
@@ -205,7 +205,7 @@ export default function CesarPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">CESAR â€” FacturaciÃ³n de Ã“rdenes de Trabajo</h1>
+        <h1 className="text-2xl font-bold">CESAR – Facturación de Órdenes de Trabajo</h1>
         <Button variant="outline" size="sm">
           Exportar a Excel
         </Button>
@@ -299,13 +299,13 @@ export default function CesarPage() {
                 <CardContent className="flex items-center justify-between text-lg">
                   <div>
                     <p className="text-muted-foreground text-sm">
-                      Ã“rdenes facturadas
+                      Órdenes facturadas
                     </p>
                     <p className="font-semibold">{filteredOrders.length}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-muted-foreground text-sm">
-                      LÃ­neas de facturaciÃ³n
+                      Líneas de facturación
                     </p>
                     <p className="font-semibold">
                       {filteredRecordCount}
@@ -370,7 +370,7 @@ export default function CesarPage() {
                               <span>Mes: {order.month}</span>
                               {order.operator ? <span>Usuario: {order.operator}</span> : null}
                               {order.client ? <span>Cliente: {order.client}</span> : null}
-                              <span>LÃ­neas: {orderLines.length}</span>
+                              <span>Líneas: {orderLines.length}</span>
                             </div>
                           </div>
                           <div className="text-right">
@@ -386,8 +386,8 @@ export default function CesarPage() {
                               <thead>
                                 <tr className="border-b bg-muted/50 text-muted-foreground">
                                   <th className="p-3">Tipo</th>
-                                  <th className="p-3">CÃ³digo</th>
-                                  <th className="p-3">DescripciÃ³n</th>
+                                  <th className="p-3">Código</th>
+                                  <th className="p-3">Descripción</th>
                                   <th className="p-3 text-right">Cantidad</th>
                                   <th className="p-3 text-right">Precio Unit.</th>
                                   <th className="p-3 text-right">Monto</th>

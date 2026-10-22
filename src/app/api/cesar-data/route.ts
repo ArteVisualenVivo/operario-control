@@ -151,6 +151,7 @@ export async function GET() {
           client: String(o.client ?? ""),
           totalFacturado,
           lineCount: lines.length,
+          status: (o as { status?: string | null }).status ?? null,
           typeTotals: o.typeTotals ?? {},
           lines,
         })
@@ -200,6 +201,7 @@ export async function GET() {
           client: "",
           totalFacturado,
           lineCount: orderItems.length,
+          status: null,
           typeTotals: { mano_obra: totalFacturado },
           lines: orderItems as never,
         })
