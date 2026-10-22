@@ -163,6 +163,20 @@ export default function CesarPage() {
     }
   }).filter((g): g is MonthGroup => g !== null)
 
+  // Órdenes filtradas (plana) para el resumen general
+  const filteredOrders = filteredGroups.flatMap((g) =>
+    g.quincenas.flatMap((q) => q.orders)
+  )
+
+  const filteredRecordCount = filteredOrders.reduce(
+    (s, o) => s + linesOf(o).length,
+    0
+  )
+  const filteredTotalGeneral = filteredOrders.reduce(
+    (s, o) => s + o.totalFacturado,
+    0
+  )
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -237,14 +251,14 @@ export default function CesarPage() {
                     <p className="text-muted-foreground text-sm">
                       Órdenes facturadas
                     </p>
-                    <p className="font-semibold">{breakdown.orders.length}</p>
+                    <p className="font-semibold">{filteredOrders.length}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-muted-foreground text-sm">
                       Líneas de facturación
                     </p>
                     <p className="font-semibold">
-                      {breakdown.recordCount ?? breakdown.orders.reduce((s, o) => s + linesOf(o).length, 0)}
+                      {filteredRecordCount}
                     </p>
                   </div>
                   <div className="text-right">
@@ -252,7 +266,7 @@ export default function CesarPage() {
                       Total general facturado
                     </p>
                     <p className="font-bold text-primary">
-                      $ {formatMoney(breakdown.totalGeneral)}
+                      $ {formatMoney(filteredTotalGeneral)}
                     </p>
                   </div>
                 </CardContent>
