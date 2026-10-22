@@ -55,6 +55,7 @@ type CesarOrder = {
   client?: string
   payPeriod: string
   month: string
+  status?: string | null
 }
 
 type QuincenaGroup = {
@@ -80,6 +81,7 @@ type CesarBreakdown = {
   recordCount?: number
   orderCount?: number
   error?: string
+  statuses?: Array<{ value: string; label: string; count: number }>
 }
 
 function formatMoney(value: number) {
@@ -102,6 +104,8 @@ export default function CesarPage() {
   const [loading, setLoading] = useState(true)
   const [selectedMonth, setSelectedMonth] = useState<string>("")
   const [selectedPayPeriod, setSelectedPayPeriod] = useState<string>("")
+  const [selectedStatus, setSelectedStatus] = useState<string>("")
+  const [showOnly1012, setShowOnly1012] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -153,6 +157,27 @@ export default function CesarPage() {
       const matchMonth = !selectedMonth || g.month === selectedMonth
       const matchPayPeriod =
         !selectedPayPeriod || q.payPeriodLabel === selectedPayPeriod
+
+      // Filtrar órdenes por estado y ítem 1012 MO CES
+      let filteredQOrders = q.orders
+      if (selectedStatus) {
+        filteredQOrders = filteredQOrders.filter((o) => o.status === selectedStatus)
+      }
+      if (showOnly1012) {
+        filteredQOrders = filteredQOrders.filter((o) =>
+          o.lines?.some(
+            (line) => line.code?.includes("1012") || line.description?.includes("MO CES")
+          )
+        )
+      }
+      // Solo mostrar quinnena si tiene órdenes después de filtrar
+      if (filteredQOrders.length === 0) return null
+      q.orders = filteredQOrders
+      q.total = filteredQOrders.reduce(
+        (s, o) => s + o.totalFacturado,
+        0
+      )
+
       return matchMonth && matchPayPeriod
     })
     if (quincenas.length === 0) return null
@@ -207,6 +232,34 @@ export default function CesarPage() {
                     </option>
                   ))}
                 </select>
+
+                <span className="text-sm font-medium text-muted-foreground">
+                  Estado:
+                </span>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="border border-input bg-background px-3 py-2 text-sm rounded-md focus:ring-2 focus:ring-ring focus:ring-offset-1 w-40"
+                >
+                  <option value="">Todos los estados</option>
+                  {breakdown?.statuses?.map((s) => (
+                    <option key={s.value} value={s.value}>
+                      {s.label} ({s.count})
+                    </option>
+                  ))}
+                </select>
+
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={showOnly1012}
+                    onChange={(e) => setShowOnly1012(e.target.checked)}
+                    className="border border-input bg-background rounded-md px-2 py-1"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    Mostrar solo ítem 1012 MO CES
+                  </span>
+                </div>
 
                 <span className="text-sm font-medium text-muted-foreground">
                   Quincena:

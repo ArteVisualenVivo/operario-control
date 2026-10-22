@@ -1,3 +1,4 @@
+
 import { Redis } from "@upstash/redis"
 import { NextResponse } from "next/server"
 
@@ -87,6 +88,7 @@ export async function GET() {
       client: string
       totalFacturado: number
       lineCount: number
+      status: string | null
       typeTotals: Record<string, number>
       lines: Array<{
         type: string
@@ -209,6 +211,58 @@ export async function GET() {
 
     const orders = ordersOut
 
+    // Enriquecer órdenes con el estado de mantenimiento (3C), si existe en Redis.
+    // Clave: sync-3c:data:maintenance:meta + chunk:i (mismo formato que cesar).
+    let orderStatusMap = new Map<string, string>()
+    try {
+      const mMetaRaw = await redis.get(`sync-3c:data:maintenance:meta`)
+      if (mMetaRaw) {
+        const mMeta =
+          typeof mMetaRaw === "string" ? JSON.parse(mMetaRaw) : mMetaRaw
+        const mChunkCount =
+          typeof mMeta.chunkCount === "number" ? mMeta.chunkCount : 1
+        const mChunks: string[] = []
+        for (let i = 1; i <= mChunkCount; i++) {
+          const chunk = await redis.get(
+            `sync-3c:data:maintenance:chunk:${i}`
+          )
+          if (chunk)
+            mChunks.push(
+              typeof chunk === "string" ? chunk : JSON.stringify(chunk)
+            )
+        }
+        if (mChunks.length === mChunkCount) {
+          const mData = JSON.parse(mChunks.join(""))
+          const records = Array.isArray(mData)
+            ? mData
+            : (mData.records ?? mData.data ?? [])
+          for (const rec of records) {
+            if (rec?.orderNumber && rec.status) {
+              orderStatusMap.set(
+                String(rec.orderNumber),
+                String(rec.status)
+              )
+            }
+          }
+        }
+      }
+    } catch {
+      // Si no hay maintenance en Redis, las órdenes quedan sin status.
+    }
+    for (const o of orders) {
+      o.status = orderStatusMap.get(o.orderNumber) ?? null
+    }
+
+    // Conteo de estados únicos (para poblar el select de filtro).
+    const statusCountMap = new Map<string, number>()
+    for (const o of orders) {
+      const s = o.status ?? "(sin estado)"
+      statusCountMap.set(s, (statusCountMap.get(s) ?? 0) + 1)
+    }
+    const statuses = Array.from(statusCountMap.entries()).map(
+      ([value, count]) => ({ value, label: value, count })
+    )
+
     // Agrupar jerárquicamente: mes → quincena → órdenes
     const monthNames = [
       "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
@@ -281,6 +335,7 @@ export async function GET() {
       source: "redis",
       recordCount,
       orderCount: orders.length,
+      statuses,
     })
   } catch (error) {
     const message = error instanceof Error ? error.message : "Error desconocido"
