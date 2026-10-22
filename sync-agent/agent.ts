@@ -1501,129 +1501,86 @@ async function runModule(
             }
         } else if (module === "cesar") {
             // CESAR: reusa el mismo AHK de reparaciones_facturadas (ya probado en tu PC).
-            // El Excel exportado tiene este formato por filas:
-            //   Col 0: "O.R." si es fila de orden nueva, vacío si es ítem de la orden anterior
-            //   Col 1: Fecha (DD/MM/YYYY)
-            //   Col 2: Número de orden (ej. X 0001-00011174)
-            //   Col ~21: Descripción del ítem (ej. "MO CES", "GOMA EVA", etc.)
-            //   Col ~22: Precio/Monto del ítem
-            // Las filas de mano de obra tienen descripción que contiene "MO" (ej. "MO CES").
+            // El Excel exportado trae UNA FILA por línea facturada de cada orden
+            // de trabajo. Se parsean TODAS las líneas (no sólo mano de obra) y se
+            // clasifican en: mano_obra, moa, servicio, gastos, reparacion, repuesto.
+            //   · Se deduplican las líneas repetidas dentro de una misma orden.
+            //   · Redis guarda el snapshot COMPLETO (órdenes + líneas + subtotales).
+            //   · Firestore `labor_records` sigue recibiendo SÓLO las líneas de
+            //     mano de obra, con el MISMO esquema de siempre (compatible).
             result = { success: true, created: 0, updated: 0, skipped: 0, warnings: [] }
             try {
-                const XLSX = await import("xlsx")
-                const workbook = XLSX.read(buffer, { type: "buffer" })
-                const sheetName = workbook.SheetNames[0]
-                const sheet = workbook.Sheets[sheetName]
-                const rows: unknown[][] = XLSX.utils.sheet_to_json(sheet, { header: 1, raw: true })
+                const { parseCesarFacturacionBuffer } = await import(
+                    "../src/lib/sync-3c/parserCesarFacturacion"
+                )
+                const parsed = parseCesarFacturacionBuffer(buffer)
+                const orders = parsed.orders
 
+                console.log(
+                    `[AGENT] CESAR: ${parsed.orderCount} órdenes, ${parsed.lineCount} líneas ` +
+                    `(crudas ${parsed.rawCount}, duplicados ${parsed.duplicatesRemoved}), ` +
+                    `total $${parsed.totalGeneral.toFixed(2)}`,
+                )
+
+                // Snapshot completo para la web (Redis).
+                const cesarSnapshot = {
+                    version: 2,
+                    syncId: `cesar-${runStart}`,
+                    orderCount: parsed.orderCount,
+                    lineCount: parsed.lineCount,
+                    totalGeneral: parsed.totalGeneral,
+                    rawCount: parsed.rawCount,
+                    duplicatesRemoved: parsed.duplicatesRemoved,
+                    orders,
+                }
+
+                // Firestore: sólo mano de obra, con el esquema existente.
                 const laborRecords: LaborRecordInput[] = []
-                let currentOrder = ""
-
-                for (let i = 0; i < rows.length; i++) {
-                    const row = rows[i]
-                    if (!row || !Array.isArray(row)) continue
-
-                    // Detectar si esta fila inicia una nueva orden (col 0 = "O.R.")
-                    const col0 = String(row[0] ?? "").trim().toUpperCase()
-                    if (col0 === "O.R." || col0 === "OR") {
-                        const numOrd = String(row[2] ?? "").trim()
-                        if (/X\s*\d{4,}-\d{4,}/.test(numOrd)) {
-                            currentOrder = numOrd.replace(/\s/g, "")
-                        }
-                        // Capturar fecha de la orden (col 1)
-                    }
-
-                    // Solo procesar filas que son ítems (no la fila de encabezado de orden)
-                    // Buscar descripción que contenga "MO" (mano de obra)
-                    let descCelda = ""
-                    let precioCelda = 0
-                    let fechaCelda: Date | null = null
-
-                    for (let j = 0; j < row.length; j++) {
-                        const val = row[j]
-                        if (val === null || val === undefined) continue
-                        const s = String(val).trim()
-
-                        // Detectar descripción de mano de obra: empieza con MO
-                        if (/^MO\b/i.test(s) || /MANO\s+DE\s+OBRA/i.test(s)) {
-                            descCelda = s
-                        }
-                        // Detectar precio: número >= 1000 (los precios de MO son miles)
-                        if (descCelda) {
-                            const n = parseFloat(s.replace(",", ".").replace(/[^\d,\.-]/g, ""))
-                            if (!isNaN(n) && n >= 1000 && precioCelda === 0) {
-                                precioCelda = n
-                            }
-                        }
-                        // Detectar fecha DD/MM/YYYY
-                        const fechaMatch = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/)
-                        if (fechaMatch) {
-                            fechaCelda = new Date(
-                                parseInt(fechaMatch[3], 10),
-                                parseInt(fechaMatch[2], 10) - 1,
-                                parseInt(fechaMatch[1], 10)
-                            )
-                        }
-                    }
-
-                    // Si encontramos una fila de MO, guardarla
-                    if (descCelda && currentOrder) {
-                        const operador = descCelda.replace(/^MO\s*/i, "").trim() || "CES"
-                        const cantidad = 1
-                        const precio = precioCelda > 0 ? precioCelda : 0
-                        const total = precio * cantidad
+                for (const order of orders) {
+                    for (const line of order.lines) {
+                        if (line.type !== "mano_obra") continue
                         laborRecords.push({
-                            orderNumber: currentOrder,
-                            operator: operador,
-                            code: "1012",
-                            description: descCelda,
-                            quantity: cantidad,
-                            unitPrice: precio,
-                            totalPrice: total,
-                            date: fechaCelda ?? new Date(),
+                            orderNumber: order.orderNumber,
+                            operator: line.operator ?? order.operator ?? "CES",
+                            code: line.code ?? "1012",
+                            description: line.description,
+                            quantity: line.quantity,
+                            unitPrice: line.unitPrice,
+                            totalPrice: line.totalPrice,
+                            date: line.date ? new Date(`${line.date}T00:00:00`) : new Date(),
                         })
                     }
                 }
-
                 console.log(`[AGENT] CESAR: ${laborRecords.length} filas de MO detectadas`)
 
-                // Guardar mano de obra en colección separada labor_records
-                // (con fallback a Redis si Firebase está bloqueado por cuota)
+                let firestoreStatus: "synced" | "degraded" = "synced"
                 if (laborRecords.length > 0) {
                     try {
                         await createLaborRecords(laborRecords)
                         result.created = laborRecords.length
-                        console.log(`[AGENT] CESAR: ${laborRecords.length} registros de mano de obra guardados en labor_records`)
+                        console.log(
+                            `[AGENT] CESAR: ${laborRecords.length} registros de mano de obra guardados en labor_records`,
+                        )
                     } catch (fbErr) {
                         const fbMsg = fbErr instanceof Error ? fbErr.message : String(fbErr)
                         console.warn(`[AGENT] CESAR: Firebase bloqueado para labor_records: ${fbMsg}`)
                         result.degraded = true
+                        firestoreStatus = "degraded"
                         result.warnings.push("Firebase bloqueado: mano de obra sólo en Redis")
-                        await saveModuleData(redis, {
-                            module: module as PrimaryModuleId,
-                            syncId: `cesar-${runStart}`,
-                            data: laborRecords,
-                            recordCount: laborRecords.length,
-                            degraded: true,
-                            firestoreStatus: "degraded",
-                            exportInfo,
-                        })
-                        result.success = true
-                        return
                     }
                 }
 
-                // Guardar resultado en Redis para que la web lo lea
+                // Guardar el snapshot COMPLETO en Redis para que la web lo lea.
                 await saveModuleData(redis, {
                     module: module as PrimaryModuleId,
                     syncId: `cesar-${runStart}`,
-                    data: laborRecords,
-                    recordCount: laborRecords.length,
-                    degraded: false,
-                    firestoreStatus: "synced",
+                    data: cesarSnapshot,
+                    recordCount: parsed.lineCount,
+                    degraded: firestoreStatus === "degraded",
+                    firestoreStatus,
                     exportInfo,
                 })
-
+                result.success = true
             } catch (parseErr) {
                 const pMsg = parseErr instanceof Error ? parseErr.message : String(parseErr)
                 console.error(`[AGENT] CESAR: Error interpretando el export:`, pMsg)

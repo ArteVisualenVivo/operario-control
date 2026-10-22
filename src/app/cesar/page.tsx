@@ -6,20 +6,53 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
 
+type CesarLineType =
+  | "mano_obra"
+  | "moa"
+  | "servicio"
+  | "gastos"
+  | "reparacion"
+  | "repuesto"
+
+const LINE_TYPE_LABELS: Record<CesarLineType, string> = {
+  mano_obra: "Mano de obra",
+  moa: "Mano de obra adicional (MOA)",
+  servicio: "Servicios",
+  gastos: "Gastos",
+  reparacion: "Reparación",
+  repuesto: "Repuestos",
+}
+
+const LINE_TYPE_ORDER: CesarLineType[] = [
+  "mano_obra",
+  "moa",
+  "servicio",
+  "gastos",
+  "reparacion",
+  "repuesto",
+]
+
 type CesarOrderItem = {
-  type: "mano_obra"
+  type: string
   code: string | null
   description: string
   quantity: number
   unitPrice: number
   totalPrice: number
   date: string | Date
+  operator?: string | null
 }
 
 type CesarOrder = {
   orderNumber: string
+  date?: string
   totalFacturado: number
-  items: CesarOrderItem[]
+  items?: CesarOrderItem[]
+  lines?: CesarOrderItem[]
+  lineCount?: number
+  typeTotals?: Partial<Record<CesarLineType, number>>
+  operator?: string
+  client?: string
   payPeriod: string
   month: string
 }
@@ -45,11 +78,23 @@ type CesarBreakdown = {
   totalGeneral: number
   source: string
   recordCount?: number
+  orderCount?: number
   error?: string
 }
 
 function formatMoney(value: number) {
   return value.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+function formatDate(value: string | Date | undefined) {
+  if (!value) return "-"
+  const d = typeof value === "string" ? new Date(`${value.slice(0, 10)}T00:00:00`) : new Date(value)
+  if (Number.isNaN(d.getTime())) return String(value)
+  return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })
+}
+
+function linesOf(order: CesarOrder): CesarOrderItem[] {
+  return order.lines ?? order.items ?? []
 }
 
 export default function CesarPage() {
@@ -101,7 +146,7 @@ export default function CesarPage() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">CESAR — Liquidación de Mano de Obra</h1>
+        <h1 className="text-2xl font-bold">CESAR — Facturación de Órdenes de Trabajo</h1>
         <Button variant="outline" size="sm">
           Exportar a Excel
         </Button>
@@ -148,9 +193,17 @@ export default function CesarPage() {
                 <CardContent className="flex items-center justify-between text-lg">
                   <div>
                     <p className="text-muted-foreground text-sm">
-                      Órdenes con mano de obra
+                      Órdenes facturadas
                     </p>
                     <p className="font-semibold">{breakdown.orders.length}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-muted-foreground text-sm">
+                      Líneas de facturación
+                    </p>
+                    <p className="font-semibold">
+                      {breakdown.recordCount ?? breakdown.orders.reduce((s, o) => s + linesOf(o).length, 0)}
+                    </p>
                   </div>
                   <div className="text-right">
                     <p className="text-muted-foreground text-sm">
@@ -191,12 +244,29 @@ export default function CesarPage() {
                   </Card>
 
                   <div className="grid gap-3">
-                    {quincena.orders.map((order) => (
+                    {quincena.orders.map((order) => {
+                      const orderLines = linesOf(order)
+                      const subtotals = LINE_TYPE_ORDER.map((t) => ({
+                        type: t,
+                        label: LINE_TYPE_LABELS[t],
+                        amount: order.typeTotals?.[t] ?? 0,
+                      })).filter((s) => s.amount > 0)
+                      return (
                       <Card key={order.orderNumber}>
-                        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                          <CardTitle className="text-sm font-medium">
-                            Orden {order.orderNumber}
-                          </CardTitle>
+                        <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+                          <div className="space-y-1">
+                            <CardTitle className="text-sm font-medium">
+                              Orden {order.orderNumber}
+                            </CardTitle>
+                            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                              <span>Fecha: {formatDate(order.date ?? orderLines[0]?.date)}</span>
+                              <span>Quincena: {order.payPeriod}</span>
+                              <span>Mes: {order.month}</span>
+                              {order.operator ? <span>Usuario: {order.operator}</span> : null}
+                              {order.client ? <span>Cliente: {order.client}</span> : null}
+                              <span>Líneas: {orderLines.length}</span>
+                            </div>
+                          </div>
                           <div className="text-right">
                             <p className="text-xs text-muted-foreground">Total facturado</p>
                             <p className="font-semibold">
@@ -204,22 +274,26 @@ export default function CesarPage() {
                             </p>
                           </div>
                         </CardHeader>
-                        <CardContent>
+                        <CardContent className="space-y-3">
                           <div className="overflow-x-auto">
                             <table className="w-full text-sm text-left">
                               <thead>
                                 <tr className="border-b bg-muted/50 text-muted-foreground">
+                                  <th className="p-3">Tipo</th>
                                   <th className="p-3">Código</th>
                                   <th className="p-3">Descripción</th>
-                                  <th className="p-3 text-right">Cantidad / hs</th>
+                                  <th className="p-3 text-right">Cantidad</th>
                                   <th className="p-3 text-right">Precio Unit.</th>
                                   <th className="p-3 text-right">Monto</th>
                                 </tr>
                               </thead>
                               <tbody>
-                                {order.items.map((item) => (
-                                  <tr key={`${order.orderNumber}-${item.code}-${item.description}`} className="border-b border-muted/30 last:border-0">
-                                    <td className="p-3 font-mono">{item.code}</td>
+                                {orderLines.map((item, idx) => (
+                                  <tr key={`${order.orderNumber}-${idx}-${item.description}`} className="border-b border-muted/30 last:border-0">
+                                    <td className="p-3 text-xs uppercase text-muted-foreground">
+                                      {LINE_TYPE_LABELS[item.type as CesarLineType] ?? item.type}
+                                    </td>
+                                    <td className="p-3 font-mono">{item.code ?? "-"}</td>
                                     <td className="p-3">{item.description}</td>
                                     <td className="p-3 text-right">{item.quantity.toLocaleString("es-AR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
                                     <td className="p-3 text-right">$ {formatMoney(item.unitPrice)}</td>
@@ -229,9 +303,24 @@ export default function CesarPage() {
                               </tbody>
                             </table>
                           </div>
+
+                          {subtotals.length > 0 && (
+                            <div className="flex flex-wrap gap-2">
+                              {subtotals.map((s) => (
+                                <div
+                                  key={s.type}
+                                  className="rounded-md border bg-muted/40 px-3 py-1.5 text-xs"
+                                >
+                                  <span className="text-muted-foreground">{s.label}: </span>
+                                  <span className="font-semibold">$ {formatMoney(s.amount)}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                         </CardContent>
                       </Card>
-                    ))}
+                      )
+                    })}
                   </div>
                 </div>
               ))}
