@@ -101,6 +101,7 @@ export default function CesarPage() {
   const [breakdown, setBreakdown] = useState<CesarBreakdown | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedMonth, setSelectedMonth] = useState<string>("")
+  const [selectedPayPeriod, setSelectedPayPeriod] = useState<string>("")
 
   useEffect(() => {
     const load = async () => {
@@ -139,9 +140,28 @@ export default function CesarPage() {
     return <div className="p-6">Cargando liquidación CESAR...</div>
   }
 
-  const filteredGroups = selectedMonth
-    ? breakdown!.groups.filter((g) => g.month === selectedMonth)
-    : breakdown!.groups
+  // Lista plana de quincenas únicas (para el select de filtro)
+  const allPayPeriodLabels = new Map(
+    breakdown!.groups.flatMap((g) =>
+      g.quincenas.map((q) => [q.payPeriod, q.payPeriodLabel])
+    )
+  )
+  const allPayPeriods = Array.from(allPayPeriodLabels.keys())
+
+  const filteredGroups = breakdown!.groups.map((g) => {
+    const quincenas = g.quincenas.filter((q) => {
+      const matchMonth = !selectedMonth || g.month === selectedMonth
+      const matchPayPeriod =
+        !selectedPayPeriod || q.payPeriod === selectedPayPeriod
+      return matchMonth && matchPayPeriod
+    })
+    if (quincenas.length === 0) return null
+    return {
+      ...g,
+      quincenas,
+      total: quincenas.reduce((s, q) => s + q.total, 0),
+    }
+  }).filter((g): g is MonthGroup => g !== null)
 
   return (
     <div className="space-y-6">
@@ -173,12 +193,34 @@ export default function CesarPage() {
                     </option>
                   ))}
                 </select>
+
+                <span className="text-sm font-medium text-muted-foreground">
+                  Quincena:
+                </span>
+                <select
+                  value={selectedPayPeriod}
+                  onChange={(e) => setSelectedPayPeriod(e.target.value)}
+                  className="border border-input bg-background px-3 py-2 text-sm rounded-md focus:ring-2 focus:ring-ring focus:ring-offset-1"
+                >
+                  <option value="">Todas las quincenas</option>
+                  {allPayPeriods.map((pp) => {
+                    const q = allPayPeriodLabels.get(pp) ?? pp
+                    return (
+                      <option key={pp} value={pp}>
+                        {q}
+                      </option>
+                    )
+                  })}
+                </select>
               </div>
-              {selectedMonth && (
+              {(selectedMonth || selectedPayPeriod) && (
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setSelectedMonth("")}
+                  onClick={() => {
+                    setSelectedMonth("")
+                    setSelectedPayPeriod("")
+                  }}
                 >
                   Limpiar filtro
                 </Button>
