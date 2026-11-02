@@ -58,7 +58,7 @@ export default function SparePartOrdersPage() {
   // "default" = orden de la fuente (como siempre) · "oldest" = pedido más viejo
   // primero · "newest" = pedido más nuevo primero. Se ordena por la fecha real del
   // pedido (requestedAt = estado "A la Espera Repuestos" de 3C).
-  const [sortOrder, setSortOrder] = useState<"default" | "oldest" | "newest">("default")
+  const [sortOrder, setSortOrder] = useState<"default" | "oldest" | "newest" | "orderNumber">("default")
   // Marcar como ENCARGADO: un pedido suelto (botón "Encargar" de la fila) o TODOS
   // los pendientes de las órdenes tildadas (botón "Encargar seleccionadas" de la
   // barra). En el caso real, una orden = una máquina con 5-6 repuestos que se le
@@ -333,6 +333,9 @@ export default function SparePartOrdersPage() {
    */
   const sortedGroups = useMemo(() => {
     if (sortOrder === "default") return groups
+    if (sortOrder === "orderNumber") {
+      return [...groups].sort((a, b) => a.key.localeCompare(b.key, undefined, { numeric: true }))
+    }
     const groupTime = (g: SparePartOrderGroup): number | null => {
       let min: number | null = null
       for (const p of g.parts) {
@@ -523,6 +526,7 @@ export default function SparePartOrdersPage() {
           <Button size="sm" variant={sortOrder === "default" ? "default" : "outline"} onClick={() => setSortOrder("default")} title="Orden en que llegaron de 3C">Predeterminado</Button>
           <Button size="sm" variant={sortOrder === "oldest" ? "default" : "outline"} onClick={() => setSortOrder("oldest")} title="Pedido más viejo primero">Más viejo</Button>
           <Button size="sm" variant={sortOrder === "newest" ? "default" : "outline"} onClick={() => setSortOrder("newest")} title="Pedido más nuevo primero">Más nuevo</Button>
+          <Button size="sm" variant={sortOrder === "orderNumber" ? "default" : "outline"} onClick={() => setSortOrder("orderNumber")} title="Por número de orden">Número de orden</Button>
         </div>
       </div>
 
