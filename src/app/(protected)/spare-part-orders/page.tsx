@@ -299,8 +299,8 @@ export default function SparePartOrdersPage() {
           if (!hay.some((h) => h.includes(q))) return false
         }
         const matchesDates =
-          (!from || (o.requestedAt && new Date(o.requestedAt) >= from)) &&
-          (!to || (o.requestedAt && new Date(o.requestedAt) <= to))
+          (!from || (o.ownerRequestedAt && new Date(o.ownerRequestedAt) >= from)) &&
+          (!to || (o.ownerRequestedAt && new Date(o.ownerRequestedAt) <= to))
         return matchesDates
       })
   }, [orders, query, dateFrom, dateTo, matchesFilter, closureById, showClosed, maintenanceByOrder])
