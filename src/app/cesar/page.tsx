@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import * as XLSX from "xlsx"
 import { getLaborBreakdownByOrder } from "@/services/laborRecords"
 import { Button } from "@/components/ui/button"
@@ -100,8 +100,30 @@ function linesOf(order: CesarOrder): CesarOrderItem[] {
   return order.lines ?? order.items ?? []
 }
 
+const loadCesarFromStorage = (): CesarBreakdown | null => {
+  if (typeof window === "undefined") return null
+  try {
+    const raw = localStorage.getItem("cesar_facturacion_data")
+    if (!raw) return null
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+const saveCesarToStorage = (data: CesarBreakdown) => {
+  if (typeof window === "undefined") return
+  try {
+    localStorage.setItem("cesar_facturacion_data", JSON.stringify(data))
+  } catch {
+    // ignore quota errors
+  }
+}
+
 export default function CesarPage() {
-  const [breakdown, setBreakdown] = useState<CesarBreakdown | null>(null)
+  const [breakdown, setBreakdown] = useState<CesarBreakdown | null>(
+    loadCesarFromStorage
+  )
   const [loading, setLoading] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState<string>("")
   const [selectedPayPeriod, setSelectedPayPeriod] = useState<string>("")
@@ -121,6 +143,7 @@ export default function CesarPage() {
         const data: CesarBreakdown = await res.json()
         if (data.success && data.orders.length > 0) {
           setBreakdown(data)
+          saveCesarToStorage(data)
           setLoading(false)
           console.log("[CESAR] Datos cargados desde Redis:", data.source, data.recordCount, "registros")
           return
@@ -132,6 +155,7 @@ export default function CesarPage() {
     try {
       const data = await getLaborBreakdownByOrder()
       setBreakdown(data as CesarBreakdown)
+      saveCesarToStorage(data as CesarBreakdown)
     } catch (err) {
       toast.error("Error al cargar la liquidación de CESAR")
       console.error(err)
@@ -139,11 +163,6 @@ export default function CesarPage() {
       setLoading(false)
     }
   }
-
-  // Cargar datos automáticamente al entrar (una sola vez)
-  useEffect(() => {
-    loadData()
-  }, [])
 
   // Si no hay datos y no se está cargando, mostrar botón de carga manual
   if (!breakdown && !loading) {
