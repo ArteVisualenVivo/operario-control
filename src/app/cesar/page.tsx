@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import * as XLSX from "xlsx"
 import { getLaborBreakdownByOrder } from "@/services/laborRecords"
 import { Button } from "@/components/ui/button"
@@ -139,6 +139,11 @@ export default function CesarPage() {
       setLoading(false)
     }
   }
+
+  // Cargar datos automáticamente al entrar (una sola vez)
+  useEffect(() => {
+    loadData()
+  }, [])
 
   // Si no hay datos y no se está cargando, mostrar botón de carga manual
   if (!breakdown && !loading) {
@@ -297,6 +302,14 @@ export default function CesarPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">CESAR – Facturación de Órdenes de Trabajo</h1>
         <div className="flex items-center gap-2 no-print">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={loadData}
+            disabled={loading}
+          >
+            {loading ? "Actualizando..." : "Actualizar"}
+          </Button>
           <Button
             variant="outline"
             size="sm"
