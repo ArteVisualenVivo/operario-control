@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import * as XLSX from "xlsx"
 import { getLaborBreakdownByOrder } from "@/services/laborRecords"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -106,6 +107,7 @@ export default function CesarPage() {
   const [selectedPayPeriod, setSelectedPayPeriod] = useState<string>("")
   const [selectedStatus, setSelectedStatus] = useState<string>("")
   const [showOnly1012, setShowOnly1012] = useState(false)
+  const [showExportMenu, setShowExportMenu] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -202,19 +204,120 @@ export default function CesarPage() {
     0
   )
 
+  // ──────────────────────────────────────────────────────────
+  // Exportar a Excel (respeta filtros activos: mes, estado, quincena, MO CES)
+  // ──────────────────────────────────────────────────────────
+  const exportToExcel = () => {
+    const ordersForExport = filteredGroups.flatMap((g) =>
+      g.quincenas.flatMap((q) => q.orders)
+    )
+
+    const wsData: any[][] = [
+      ["CESAR – Facturación de Órdenes de Trabajo"],
+      ["Mes", selectedMonth || "Todos los meses"],
+      ["Quincena", selectedPayPeriod || "Todas las quincenas"],
+      ["Estado", selectedStatus || "Todos los estados"],
+      ["Mostrar solo ítem 1012 MO CES", showOnly1012 ? "Sí" : "No"],
+      [""],
+      ["Resumen General"],
+      ["Órdenes facturadas", ordersForExport.length],
+      ["Líneas de facturación", filteredRecordCount],
+      ["Total general facturado", filteredTotalGeneral],
+      [""],
+      ["Detalle"],
+      [
+        "Orden",
+        "Fecha",
+        "Usuario",
+        "Cliente",
+        "Tipo",
+        "Código",
+        "Descripción",
+        "Cantidad",
+        "Precio Unit.",
+        "Monto",
+      ],
+    ]
+
+    for (const order of ordersForExport) {
+      const orderLines = linesOf(order)
+      for (const line of orderLines) {
+        wsData.push([
+          order.orderNumber,
+          formatDate(order.date ?? line.date),
+          order.operator ?? "",
+          order.client ?? "",
+          LINE_TYPE_LABELS[line.type as CesarLineType] ?? line.type,
+          line.code ?? "",
+          line.description,
+          line.quantity,
+          line.unitPrice,
+          line.totalPrice,
+        ])
+      }
+    }
+
+    const wb = XLSX.utils.book_new()
+    const ws = XLSX.utils.aoa_to_sheet(wsData)
+    XLSX.utils.book_append_sheet(wb, ws, "CESAR Facturación")
+
+    const fileName = `CESAR_Facturacion_${
+      selectedMonth || "todos"
+    }_${new Date().toISOString().slice(0, 10)}.xlsx`
+    XLSX.writeFile(wb, fileName)
+  }
+
+  // ──────────────────────────────────────────────────────────
+  // Imprimir / PDF (respeta filtros activos)
+  // ──────────────────────────────────────────────────────────
+  const printReport = () => {
+    window.print()
+  }
+
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">CESAR – Facturación de Órdenes de Trabajo</h1>
-        <Button variant="outline" size="sm">
-          Exportar a Excel
-        </Button>
+        <div className="flex items-center gap-2 no-print">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowExportMenu((prev) => !prev)}
+          >
+            {showExportMenu ? "Opciones ▲" : "Imprimir / Exportar ▼"}
+          </Button>
+          {showExportMenu && (
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  exportToExcel()
+                  setShowExportMenu(false)
+                }}
+              >
+                Exportar a Excel
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  printReport()
+                  setShowExportMenu(false)
+                }}
+              >
+                Imprimir / PDF
+              </Button>
+            </div>
+          )}
+        </div>
       </div>
 
       {breakdown && (
         <>
           {/* Selector de mes */}
-          <Card>
+          <Card className="no-print">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <div className="flex items-center gap-3">
                 <span className="text-sm font-medium text-muted-foreground">
@@ -435,5 +538,23 @@ export default function CesarPage() {
         </>
       )}
     </div>
+
+    <style>
+      {`
+        @media print {
+          .no-print {
+            display: none !important;
+          }
+          body {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+          }
+          .page {
+            min-height: auto !important;
+          }
+        }
+      `}
+    </style>
+    </>
   )
 }
