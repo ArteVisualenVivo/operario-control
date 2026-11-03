@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import * as XLSX from "xlsx"
 import { getLaborBreakdownByOrder } from "@/services/laborRecords"
 import { Button } from "@/components/ui/button"
@@ -102,45 +102,62 @@ function linesOf(order: CesarOrder): CesarOrderItem[] {
 
 export default function CesarPage() {
   const [breakdown, setBreakdown] = useState<CesarBreakdown | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [selectedMonth, setSelectedMonth] = useState<string>("")
   const [selectedPayPeriod, setSelectedPayPeriod] = useState<string>("")
   const [selectedStatus, setSelectedStatus] = useState<string>("")
   const [showOnly1012, setShowOnly1012] = useState(false)
   const [showExportMenu, setShowExportMenu] = useState(false)
 
-  useEffect(() => {
-    const load = async () => {
-      try {
-        const res = await fetch("/api/cesar-data", {
-          method: "GET",
-          headers: { "Content-Type": "application/json" },
-          cache: "no-store",
-        })
-        if (res.ok) {
-          const data: CesarBreakdown = await res.json()
-          if (data.success && data.orders.length > 0) {
-            setBreakdown(data)
-            setLoading(false)
-            console.log("[CESAR] Datos cargados desde Redis:", data.source, data.recordCount, "registros")
-            return
-          }
+  const loadData = async () => {
+    setLoading(true)
+    try {
+      const res = await fetch("/api/cesar-data", {
+        method: "GET",
+        headers: { "Content-Type": "application/json" },
+        cache: "no-store",
+      })
+      if (res.ok) {
+        const data: CesarBreakdown = await res.json()
+        if (data.success && data.orders.length > 0) {
+          setBreakdown(data)
+          setLoading(false)
+          console.log("[CESAR] Datos cargados desde Redis:", data.source, data.recordCount, "registros")
+          return
         }
-      } catch (err) {
-        console.warn("[CESAR] No se pudo leer desde Redis:", err)
       }
-      try {
-        const data = await getLaborBreakdownByOrder()
-        setBreakdown(data as CesarBreakdown)
-      } catch (err) {
-        toast.error("Error al cargar la liquidación de CESAR")
-        console.error(err)
-      } finally {
-        setLoading(false)
-      }
+    } catch (err) {
+      console.warn("[CESAR] No se pudo leer desde Redis:", err)
     }
-    load()
-  }, [])
+    try {
+      const data = await getLaborBreakdownByOrder()
+      setBreakdown(data as CesarBreakdown)
+    } catch (err) {
+      toast.error("Error al cargar la liquidación de CESAR")
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Si no hay datos y no se está cargando, mostrar botón de carga manual
+  if (!breakdown && !loading) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-bold">CESAR – Facturación de Órdenes de Trabajo</h1>
+        </div>
+        <div className="mt-8 flex items-center gap-3 no-print">
+          <Button variant="default" size="sm" onClick={loadData} disabled={loading}>
+            {loading ? "Cargando..." : "Cargar datos de CESAR"}
+          </Button>
+          <p className="text-sm text-muted-foreground">
+            Los datos no se cargan automáticamente. Hacé clic en "Cargar datos de CESAR" para importar la facturación desde Redis/Firestore.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   if (loading) {
     return <div className="p-6">Cargando liquidación CESAR...</div>
