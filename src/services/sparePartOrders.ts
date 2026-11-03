@@ -1353,7 +1353,29 @@ export async function markOrdered(
     throw new Error("La fecha estimada de retiro es inválida")
   }
 
-  const { ref, before } = await loadOrder(id)
+  let before: Record<string, unknown>
+  try {
+    const loaded = await loadOrder(id)
+    before = loaded.before
+  } catch {
+    const local = (await getAllOrders()).find((o) => o.id === id)
+    if (!local) throw new Error('Pedido no encontrado')
+    before = {
+      id: local.id,
+      status: local.status,
+      orderNumber: local.orderNumber,
+      description: local.description,
+      code: local.code,
+      quantityRequested: local.quantityRequested,
+      requestedAt: local.requestedAt,
+      ownerRequestedAt: local.ownerRequestedAt,
+      orderedAt: local.orderedAt,
+      expectedAt: local.expectedAt,
+      updatedAt: local.updatedAt,
+      notes: local.notes,
+    }
+  }
+
   const status = before.status as SparePartOrderStatus
 
   if (status !== "SOLICITADO" && status !== "PEDIDO") {
@@ -1375,7 +1397,8 @@ export async function markOrdered(
   }
   if (input.notes !== undefined) updates.notes = input.notes
 
-  await updateDoc(ref, updates)
+  // updateOrderDoc tiene fallback offline (queueOfflineOp) si Firestore rechaza.
+  await updateOrderDoc(id, updates)
   await createAuditLog("update", "spare_part_order", id, before, { ...before, ...updates })
   // REGLA: la web muestra desde Redis → invalidar el snapshot para no mostrar
   // el estado anterior (la próxima lectura cae a Firestore con el dato nuevo).
