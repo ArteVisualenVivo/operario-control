@@ -332,14 +332,13 @@ function PurchaseListScreen() {
     splitMachineIdentification(fullMachineIdentification(o.machineName, o.machineModel)).model
 
   // Cada columna de fecha de la hoja es UN hecho distinto del circuito de compra:
-  //   "Le pedí al dueño" NO se imprime más (pedido del dueño, 2026-10-01): ese día
-  //   se quitó también de la lista de "Pedidos Rep.". El dato sigue existiendo,
-  //   lo pone el botón "Encargar", y sigue ordenando el anexo (más viejos arriba).
+  //   "Le pedí al dueño" → día en que el OPERARIO le pidió el repuesto al dueño
+  //                        (botón "Encargar" → `ownerRequestedAt`).
   //   "Lo pidió en la casa" → día en que el DUEÑO lo encargó/pidió en la casa de
   //                           repuestos (calendario "P. repuestero" → `orderedAt`).
   //   "Me lo trajo"         → día en que el dueño trajo los repuestos (botón
   //                           "Recibir" → `receivedAt`).
-  const printCols = ["", "N° Orden", "Máquina", "Modelo", "Repuesto", "Código repuesto", "Lo pidió en la casa", "Me lo trajo", "Casa de repuesto"]
+  const printCols = ["", "N° Orden", "Máquina", "Modelo", "Repuesto", "Código repuesto", "Le pedí al dueño", "Lo pidió en la casa", "Me lo trajo", "Casa de repuesto"]
   // Columnas del ANEXO - ENCARGADOS: las mismas que la lista + la fecha
   // ESTIMADA DE RETIRO (la que se carga al apretar "Encargar"). Va sólo en el
   // ANEXO porque esa fecha existe únicamente en los pedidos ENCARGADOS: en la
@@ -372,7 +371,7 @@ function PurchaseListScreen() {
   const exportToExcel = () => {
     if (loading || !hasContent) return;
     const allGroups = [...pendingGroups, ...encargadosGroups];
-    const headers = ["Nro Orden", "Maquina", "Modelo", "Repuesto", "Codigo repuesto", "Casa de repuesto", "Cantidad", "Precio unitario", "Observaciones", "Fecha estimada de entrega"];
+    const headers = ["Nro Orden", "Maquina", "Modelo", "Repuesto", "Codigo repuesto", "Le pedi al dueño", "Casa de repuesto", "Cantidad", "Precio unitario", "Observaciones", "Fecha estimada de entrega"];
     const rows = [headers];
     for (const g of allGroups) {
       for (const part of g.parts) {
@@ -385,6 +384,7 @@ function PurchaseListScreen() {
           model || "-",
           part.description || "-",
           code || "-",
+          formatSheetDate(o.ownerRequestedAt) || "",
           o.supplier || "",
           "",
           "",
@@ -396,7 +396,7 @@ function PurchaseListScreen() {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(rows);
     const widths = [
-      { wch: 12 }, { wch: 26 }, { wch: 26 }, { wch: 32 }, { wch: 16 }, { wch: 26 }, { wch: 10 }, { wch: 14 }, { wch: 34 }, { wch: 22 }
+      { wch: 12 }, { wch: 26 }, { wch: 26 }, { wch: 32 }, { wch: 16 }, { wch: 16 }, { wch: 26 }, { wch: 10 }, { wch: 14 }, { wch: 34 }, { wch: 22 }
     ];
     ws["!cols"] = widths;
     XLSX.utils.book_append_sheet(wb, ws, "Repuestos");
@@ -487,6 +487,7 @@ function PurchaseListScreen() {
                           <td style={tdStyle}>{part.description || "—"}</td>
                           <td style={{ ...tdStyle, fontFamily: "monospace" }}>{code}</td>
                           <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.orderedAt)}</td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.ownerRequestedAt)}</td>
                           <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.receivedAt)}</td>
                           <td style={supplierCellStyle}>
                             <input
@@ -565,6 +566,7 @@ list="casas-repuesto"
                           <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.orderedAt)}</td>
                           <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.receivedAt)}</td>
                           <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.expectedAt)}</td>
+                          <td style={{ ...tdStyle, whiteSpace: "nowrap" }}>{formatSheetDate(o.ownerRequestedAt)}</td>
                           <td style={supplierCellStyle}>
                             <input
                               value={supplierDraft[o.id] ?? o.supplier ?? ""}
