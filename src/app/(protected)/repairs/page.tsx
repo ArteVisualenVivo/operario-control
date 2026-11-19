@@ -95,6 +95,83 @@ function matchesEstado(repair: MachineRepair, filter: string): boolean {
 }
 
 /**
+ * Desplegable de EXCLUSIÓN MÚLTIPLE: permite tildar varios estados para
+ * excluirlos a la vez. No usa el <Select> (que es de una sola opción): es un
+ * botón + panel de checkboxes. `selected` vacío = no se excluye nada.
+ */
+function MultiSelectExclude({
+  options,
+  selected,
+  onChange,
+  placeholder = "Sin excluir (todos)",
+}: {
+  options: { value: string; label: string; cantidad?: number }[]
+  selected: string[]
+  onChange: (next: string[]) => void
+  placeholder?: string
+}) {
+  const [open, setOpen] = useState(false)
+  const triggerLabel =
+    selected.length === 0
+      ? placeholder
+      : `${selected.length} excluido${selected.length === 1 ? "" : "s"}`
+  const toggle = (value: string) => {
+    onChange(
+      selected.includes(value)
+        ? selected.filter((v) => v !== value)
+        : [...selected, value],
+    )
+  }
+  return (
+    <div className="relative">
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="w-[260px] justify-between font-normal"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+      >
+        <span className="truncate">{triggerLabel}</span>
+        <span className="ml-2 opacity-60">▾</span>
+      </Button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute z-50 mt-1 max-h-72 w-[260px] overflow-auto rounded-md border bg-background p-1 shadow-md">
+            <label className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted">
+              <input
+                type="checkbox"
+                checked={selected.length === 0}
+                onChange={() => onChange([])}
+              />
+              <span>Sin excluir (todos)</span>
+            </label>
+            {options.map((o) => (
+              <label
+                key={o.value}
+                className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-muted"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.includes(o.value)}
+                  onChange={() => toggle(o.value)}
+                />
+                <span className="truncate">
+                  {o.label}
+                  {o.cantidad != null ? ` (${o.cantidad})` : ""}
+                </span>
+              </label>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+/**
  * Etiqueta de estado que se MUESTRA y se FILTRA en la lista.
  *
  * 1) Órdenes que vienen de 3C: el estado real que informa 3C tal cual
@@ -185,9 +262,10 @@ export default function RepairsPage() {
   // empresa). Por defecto no se excluye nada. Es exclusión, no filtro: todo lo
   // demás sigue apareciendo igual.
   const [excludeClient, setExcludeClient] = useState<string>(TODOS_LOS_CLIENTES)
-  // Estado a EXCLUIR de la lista/impresión (ej: "No Reparada"). Mismo patrón
-  // que Excluir cliente: por defecto no se excluye nada, es exclusión.
-  const [excludeEstado, setExcludeEstado] = useState<string>(TODOS_LOS_ESTADOS)
+  // Estados a EXCLUIR de la lista/impresión (varios a la vez, ej: "No Reparada"
+  // y "Recepcion de Cliente"). Mismo patrón que Excluir cliente: por defecto no
+  // se excluye nada (array vacío), es exclusión.
+  const [excludeEstados, setExcludeEstados] = useState<string[]>([])
   // Línea de tiempo de 3C por orden (para el filtro de facturación y su fecha).
   // Misma fuente que la pestaña "Estado 3C" (Redis/Firestore vía local-sync).
   const [maintByOrder, setMaintByOrder] = useState<Map<string, MaintenanceRecord>>(new Map())
@@ -282,9 +360,10 @@ export default function RepairsPage() {
         // Exclusión de cliente (ej: COCREAR): se aplica DESPUÉS, para que las
         // opciones y conteos de los otros desplegables no cambien al excluir.
         .filter((r) => excludeClient === TODOS_LOS_CLIENTES || normClient(r.clientName) !== excludeClient)
-        // Exclusión de estado (ej: "No Reparada"): igual que cliente.
-        .filter((r) => excludeEstado === TODOS_LOS_ESTADOS || !matchesEstado(r, excludeEstado)),
-    [base, statusFilter, facturaFilter, maintByOrder, excludeClient, excludeEstado],
+        // Exclusión de estados (varios a la vez): se descarta la fila si su
+        // estado coincide con CUALQUIERA de los estados excluidos.
+        .filter((r) => !excludeEstados.some((ex) => matchesEstado(r, ex))),
+    [base, statusFilter, facturaFilter, maintByOrder, excludeClient, excludeEstados],
   )
 
   /** Clientes PRESENTES en lo que se está viendo, con su cantidad. */
@@ -407,25 +486,24 @@ export default function RepairsPage() {
         </div>
 
         <div className="flex flex-col gap-1">
-          <span className="text-xs font-medium text-muted-foreground">Excluir estado</span>
-          <Select value={excludeEstado} onValueChange={(v) => setExcludeEstado(typeof v === "string" ? v : TODOS_LOS_ESTADOS)}>
-            <SelectTrigger size="sm" className="w-[260px]" aria-label="Excluir estado">
-              <SelectValue placeholder="Excluir estado" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value={TODOS_LOS_ESTADOS}>Sin excluir (todos)</SelectItem>
-              {ESTADO_GROUPS.map((g) => (
-                <SelectItem key={g.value} value={g.value}>
-                  {`Excluir: ${g.label}`}
-                </SelectItem>
-              ))}
-              {estadosDisponibles.map((o) => (
-                <SelectItem key={o.estado} value={o.estado}>
-                  {`Excluir: ${o.estado} (${o.cantidad})`}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          <span className="text-xs font-medium text-muted-foreground">Excluir estados (varios)</span>
+          <MultiSelectExclude
+            selected={excludeEstados}
+            onChange={setExcludeEstados}
+            placeholder="Sin excluir (todos)"
+            options={[
+              ...ESTADO_GROUPS.map((g) => ({
+                value: g.value,
+                label: g.label,
+                cantidad: base.filter((r) => g.match.test(estadoLabel(r))).length,
+              })),
+              ...estadosDisponibles.map((o) => ({
+                value: o.estado,
+                label: o.estado,
+                cantidad: o.cantidad,
+              })),
+            ]}
+          />
         </div>
       </div>
 
@@ -471,8 +549,8 @@ export default function RepairsPage() {
               excludeClient !== TODOS_LOS_CLIENTES
                 ? `Sin: ${clientesDisponibles.find((c) => c.key === excludeClient)?.label ?? excludeClient}`
                 : null,
-              excludeEstado !== TODOS_LOS_ESTADOS
-                ? `Sin estado: ${excludeEstado}`
+              excludeEstados.length > 0
+                ? `Sin estado: ${excludeEstados.join(", ")}`
                 : null,
             ]
               .filter(Boolean)
