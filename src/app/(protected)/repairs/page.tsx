@@ -199,14 +199,26 @@ function estadoLabel(repair: MachineRepair): string {
 
 
 /**
- * Facturación de 3C por orden: ¿tiene fila "Entreg./Factur." en su línea de
- * tiempo (states) y con qué fecha? En 3C la factura es UN ESTADO MÁS de la
- * orden ("Entreg./Factur."), no un campo aparte, así que "No facturada" =
- * la orden no tiene esa fila en todo su historial.
+ * ¿Una etiqueta de estado de 3C implica que la orden quedó FACTURADA?
  *
- * La fecha es `observedAt` (cuándo el sync vio ese estado = fecha real de
- * facturación, a precisión de la frecuencia de sync). Ver NOTA DE FECHAS en
- * src/lib/sync-3c/consolidated.ts.
+ * En 3C el flujo de estados es: en Taller → Reparada → Entreg./Factur. →
+ * Retirada. La factura es UN ESTADO más ("Entreg./Factur."), pero los informes
+ * que exporta el agente traen SOLO el estado ACTUAL (no el historial de la
+ * pestaña "Estados"), así que una orden que hoy está en "Retirada" ya pasó por
+ * la entrega/facturación. Por eso se considera facturada si el estado es
+ * "Entreg./Factur.", "Retirada" o cualquier variante de "entrega".
+ */
+function estadoImplicaFacturada(status: string): boolean {
+  return /factur|entreg|retirad/i.test(status)
+}
+
+/**
+ * Facturación de 3C por orden: ¿tiene una fila de entrega/facturación en su
+ * línea de tiempo (states) y con qué fecha? "No facturada" = la orden todavía
+ * no llegó a "Entreg./Factur." ni a "Retirada" (ver estadoImplicaFacturada).
+ *
+ * La fecha es la del estado (`statusDate`), a precisión de la frecuencia de
+ * sync. Ver NOTA DE FECHAS en src/lib/sync-3c/consolidated.ts.
  */
 function facturaInfo(
   orderNumber: string,
@@ -218,7 +230,7 @@ function facturaInfo(
   const states = rec?.states ?? []
   let fecha: Date | null = null
   for (const s of states) {
-    if (!/factur/i.test(String(s.status ?? ""))) continue
+    if (!estadoImplicaFacturada(String(s.status ?? ""))) continue
     const raw = s.statusDate ? new Date(s.statusDate) : null
     const d = raw && !Number.isNaN(raw.getTime()) ? raw : null
     if (d && (!fecha || d.getTime() > fecha.getTime())) fecha = d
@@ -226,7 +238,7 @@ function facturaInfo(
   if (fecha) return { facturada: true, facturaDate: fecha }
   // Sin línea de tiempo (orden manual): el estado actual es lo único que hay.
   const current = (rec?.status ?? "").trim()
-  if (/factur/i.test(current)) {
+  if (estadoImplicaFacturada(current)) {
     const raw = rec?.statusDate ? new Date(rec.statusDate) : null
     const d = raw && !Number.isNaN(raw.getTime()) ? raw : null
     return { facturada: true, facturaDate: d }
