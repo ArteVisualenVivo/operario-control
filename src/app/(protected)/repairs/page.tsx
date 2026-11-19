@@ -199,17 +199,17 @@ function estadoLabel(repair: MachineRepair): string {
 
 
 /**
- * ¿Una etiqueta de estado de 3C implica que la orden quedó FACTURADA?
+ * ¿Una etiqueta de estado de 3C indica que la orden quedó FACTURADA?
  *
- * En 3C el flujo de estados es: en Taller → Reparada → Entreg./Factur. →
- * Retirada. La factura es UN ESTADO más ("Entreg./Factur."), pero los informes
- * que exporta el agente traen SOLO el estado ACTUAL (no el historial de la
- * pestaña "Estados"), así que una orden que hoy está en "Retirada" ya pasó por
- * la entrega/facturación. Por eso se considera facturada si el estado es
- * "Entreg./Factur.", "Retirada" o cualquier variante de "entrega".
+ * IMPORTANTE (regla del negocio): la empresa ENTREGA las máquinas ("Retirada")
+ * y RECIÉN DESPUÉS las factura (los clientes pagan más tarde). Por eso
+ * "Retirada"/"Entrega" NO implica facturada: la única señal de facturación es
+ * el estado "Entreg./Factur." (la palabra "factur"). El historial completo de
+ * estados sí vive en la pestaña "Estados" de 3C, pero los informes que exporta
+ * el agente traen solo el estado actual; ver la nota de facturaInfo().
  */
 function estadoImplicaFacturada(status: string): boolean {
-  return /factur|entreg|retirad/i.test(status)
+  return /factur/i.test(status)
 }
 
 /**
