@@ -326,89 +326,107 @@ export default function RepairsPage() {
       </div>
 
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end print:hidden">
-        <SearchInput
-          placeholder="Buscar por orden, cliente o máquina"
-          value={search}
-          onChange={setSearch}
-          className="max-w-sm"
-        />
-
-        <div className="flex gap-2 items-center">
-          <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-          <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground">Buscar (orden, cliente o máquina)</span>
+          <SearchInput
+            placeholder="Buscar por orden, cliente o máquina"
+            value={search}
+            onChange={setSearch}
+            className="max-w-sm"
+          />
         </div>
 
-        <Select
-          value={statusFilter}
-          onValueChange={(v) => setStatusFilter(typeof v === "string" ? v : TODOS_LOS_ESTADOS)}
-        >
-          <SelectTrigger size="sm" className="w-[260px]" aria-label="Filtrar por estado">
-            <SelectValue placeholder="Filtrar estado" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={TODOS_LOS_ESTADOS}>{`Todos los estados (${base.length})`}</SelectItem>
-            {ESTADO_GROUPS.map((g) => {
-              const cantidad = base.filter((r) => g.match.test(estadoLabel(r))).length
-              return (
-                <SelectItem key={g.value} value={g.value}>
-                  {`${g.label} (${cantidad})`}
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground">Filtrar por ingreso (desde / hasta)</span>
+          <div className="flex gap-2 items-center">
+            <Input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} aria-label="Fecha de ingreso desde" />
+            <Input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} aria-label="Fecha de ingreso hasta" />
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground">Filtrar por estado</span>
+          <Select
+            value={statusFilter}
+            onValueChange={(v) => setStatusFilter(typeof v === "string" ? v : TODOS_LOS_ESTADOS)}
+          >
+            <SelectTrigger size="sm" className="w-[260px]" aria-label="Filtrar por estado">
+              <SelectValue placeholder="Filtrar estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS_LOS_ESTADOS}>{`Todos los estados (${base.length})`}</SelectItem>
+              {ESTADO_GROUPS.map((g) => {
+                const cantidad = base.filter((r) => g.match.test(estadoLabel(r))).length
+                return (
+                  <SelectItem key={g.value} value={g.value}>
+                    {`${g.label} (${cantidad})`}
+                  </SelectItem>
+                )
+              })}
+              {estadosDisponibles.map((o) => (
+                <SelectItem key={o.estado} value={o.estado}>
+                  {`${o.estado} (${o.cantidad})`}
                 </SelectItem>
-              )
-            })}
-            {estadosDisponibles.map((o) => (
-              <SelectItem key={o.estado} value={o.estado}>
-                {`${o.estado} (${o.cantidad})`}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-        <Select
-          value={facturaFilter}
-          onValueChange={(v) => setFacturaFilter(v === "facturada" || v === "nofacturada" ? v : TODAS_FACTURACION)}
-        >
-          <SelectTrigger size="sm" className="w-[220px]" aria-label="Filtrar por facturación">
-            <SelectValue placeholder="Filtrar facturación" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={TODAS_FACTURACION}>{`Todas (${base.length})`}</SelectItem>
-            <SelectItem value="facturada">Facturada</SelectItem>
-            <SelectItem value="nofacturada">No facturada</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground">Filtrar por facturación</span>
+          <Select
+            value={facturaFilter}
+            onValueChange={(v) => setFacturaFilter(v === "facturada" || v === "nofacturada" ? v : TODAS_FACTURACION)}
+          >
+            <SelectTrigger size="sm" className="w-[220px]" aria-label="Filtrar por facturación">
+              <SelectValue placeholder="Filtrar facturación" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODAS_FACTURACION}>{`Todas (${base.length})`}</SelectItem>
+              <SelectItem value="facturada">Facturada</SelectItem>
+              <SelectItem value="nofacturada">No facturada</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
 
-        <Select value={excludeClient} onValueChange={(v) => setExcludeClient(typeof v === "string" ? v : TODOS_LOS_CLIENTES)}>
-          <SelectTrigger size="sm" className="w-[260px]" aria-label="Excluir cliente">
-            <SelectValue placeholder="Excluir cliente" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={TODOS_LOS_CLIENTES}>Sin excluir (todos)</SelectItem>
-            {clientesDisponibles.map((c) => (
-              <SelectItem key={c.key} value={c.key}>
-                {`Excluir: ${c.label} (${c.cantidad})`}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground">Excluir cliente</span>
+          <Select value={excludeClient} onValueChange={(v) => setExcludeClient(typeof v === "string" ? v : TODOS_LOS_CLIENTES)}>
+            <SelectTrigger size="sm" className="w-[260px]" aria-label="Excluir cliente">
+              <SelectValue placeholder="Excluir cliente" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS_LOS_CLIENTES}>Sin excluir (todos)</SelectItem>
+              {clientesDisponibles.map((c) => (
+                <SelectItem key={c.key} value={c.key}>
+                  {`Excluir: ${c.label} (${c.cantidad})`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
 
-        <Select value={excludeEstado} onValueChange={(v) => setExcludeEstado(typeof v === "string" ? v : TODOS_LOS_ESTADOS)}>
-          <SelectTrigger size="sm" className="w-[260px]" aria-label="Excluir estado">
-            <SelectValue placeholder="Excluir estado" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value={TODOS_LOS_ESTADOS}>Sin excluir (todos)</SelectItem>
-            {ESTADO_GROUPS.map((g) => (
-              <SelectItem key={g.value} value={g.value}>
-                {`Excluir: ${g.label}`}
-              </SelectItem>
-            ))}
-            {estadosDisponibles.map((o) => (
-              <SelectItem key={o.estado} value={o.estado}>
-                {`Excluir: ${o.estado} (${o.cantidad})`}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs font-medium text-muted-foreground">Excluir estado</span>
+          <Select value={excludeEstado} onValueChange={(v) => setExcludeEstado(typeof v === "string" ? v : TODOS_LOS_ESTADOS)}>
+            <SelectTrigger size="sm" className="w-[260px]" aria-label="Excluir estado">
+              <SelectValue placeholder="Excluir estado" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={TODOS_LOS_ESTADOS}>Sin excluir (todos)</SelectItem>
+              {ESTADO_GROUPS.map((g) => (
+                <SelectItem key={g.value} value={g.value}>
+                  {`Excluir: ${g.label}`}
+                </SelectItem>
+              ))}
+              {estadosDisponibles.map((o) => (
+                <SelectItem key={o.estado} value={o.estado}>
+                  {`Excluir: ${o.estado} (${o.cantidad})`}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {orderFilter && (
